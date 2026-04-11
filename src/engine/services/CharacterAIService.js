@@ -44,6 +44,7 @@ function buildSystemPrompt(characterName, personality, context) {
   const relationship = context?.relationships?.[characterName] || {};
   const cast = context?.cast?.[characterName] || {};
   const goals = context?.goals?.[characterName] || [];
+  const sceneFlow = context?.sceneFlow || {};
 
   return `
 You are ${characterName}, a character in a multi-character relationship-driven social AI game.
@@ -60,6 +61,7 @@ Current context:
 - relationshipToPlayer: ${JSON.stringify(relationship)}
 - visibleAndHiddenState: ${JSON.stringify(cast)}
 - goals: ${JSON.stringify(goals)}
+- sceneFlow: ${JSON.stringify(sceneFlow)}
 
 Core rules:
 - Stay in character.
@@ -77,6 +79,13 @@ Core rules:
 - Avoid repetitive phrasing.
 - Avoid sounding like therapy advice.
 - Avoid narrator language unless the moment is explicitly cinematic.
+- You are in one shared room conversation, not an isolated private chat.
+- If sceneFlow.role is "primary", answer directly and naturally to the player.
+- If sceneFlow.role is "secondary", do NOT start a separate conversation.
+- Secondary replies should be short, reactive, and tied to the same moment.
+- A secondary reply should feel like an interjection, aside, reaction, support, or challenge.
+- Do not repeat the same point as the main speaker.
+- Do not explain the room setup.
 
 Return JSON only:
 {
@@ -97,10 +106,17 @@ function buildUserPrompt(input, context) {
 
 function normalizeSpoken(spoken, context) {
   const mode = context?.conversation?.responseMode || 'brief';
+  const role = context?.sceneFlow?.role || 'primary';
   let text = String(spoken || '').trim();
 
   if (!text) {
     return fallbackSpoken(mode);
+  }
+
+  if (role === 'secondary') {
+    text = trimToSentences(text, 1);
+    text = trimToWords(text, 16);
+    return text || fallbackSpoken('brief');
   }
 
   if (mode === 'brief') {

@@ -20,23 +20,68 @@ export class AiraBrainController {
 
   async process(input, context) {
     const candidates = [...this.brains.values()];
-    const responders = this._selectResponders(candidates, input, context);
+    const plan = this._buildScenePlan(candidates, input, context);
 
     const responses = [];
 
-    for (const brain of responders) {
-      const result = await this.aiService.generate({
-        characterName: brain.name,
-        personality: brain.personality,
+    if (plan.primary) {
+      const primary = await this.aiService.generate({
+        characterName: plan.primary.name,
+        personality: plan.primary.personality,
         input,
-        context
+        context: {
+          ...context,
+          conversation: {
+            ...context.conversation,
+            responseMode: plan.primaryMode || context.conversation?.responseMode || 'brief'
+          },
+          sceneFlow: {
+            role: 'primary',
+            mainSpeaker: plan.primary.name,
+            followUpSpeaker: plan.secondary?.name || null,
+            instruction: 'Answer directly and naturally as the main speaker.'
+          }
+        }
       });
 
-      if (result && (result.spoken || result.thought)) {
+      if (primary && (primary.spoken || primary.thought)) {
         responses.push({
-          agent: brain.name,
-          spoken: result.spoken || '',
-          thought: result.thought || null
+          agent: plan.primary.name,
+          spoken: primary.spoken || '',
+          thought: primary.thought || null
+        });
+      }
+    }
+
+    if (plan.secondary) {
+      const lastPrimary = responses[0]?.spoken || '';
+
+      const secondary = await this.aiService.generate({
+        characterName: plan.secondary.name,
+        personality: plan.secondary.personality,
+        input,
+        context: {
+          ...context,
+          conversation: {
+            ...context.conversation,
+            responseMode: 'brief'
+          },
+          sceneFlow: {
+            role: 'secondary',
+            mainSpeaker: plan.primary?.name || null,
+            followUpSpeaker: plan.secondary.name,
+            primarySpoken: lastPrimary,
+            instruction:
+              'Do not start a new conversation. React briefly to the same moment. You are a short in-room follow-up only.'
+          }
+        }
+      });
+
+      if (secondary && (secondary.spoken || secondary.thought)) {
+        responses.push({
+          agent: plan.secondary.name,
+          spoken: shortenSecondary(secondary.spoken || ''),
+          thought: secondary.thought || null
         });
       }
     }
@@ -44,36 +89,101 @@ export class AiraBrainController {
     return responses;
   }
 
-  _selectResponders(candidates, input, context) {
+  _buildScenePlan(candidates, input, context) {
     const lowerInput = String(input || '').toLowerCase();
-    const tension = context?.world?.tension ?? context?.conversation?.intensity ?? 0;
     const emotionalBeat = context?.conversation?.emotionalBeat || 'neutral';
-    const shuffled = [...candidates].sort(() => Math.random() - 0.5);
+    const tension =
+      context?.world?.tension ??
+      context?.conversation?.intensity ??
+      0;
+
+    const primary = this._selectPrimary(candidates, lowerInput, context);
+    const secondary = this._selectSecondary(candidates, primary, lowerInput, emotionalBeat, tension);
+
+    return {
+      primary,
+      secondary,
+      primaryMode: this._getPrimaryMode(emotionalBeat, tension)
+    };
+  }
+
+  _selectPrimary(candidates, lowerInput, context) {
+    const focus = context?.cast || {};
 
     if (/\b(lucy)\b/.test(lowerInput)) {
-      return shuffled.filter((brain) => brain.name === 'Lucy').slice(0, 1);
+      return candidates.find((brain) => brain.name === 'Lucy') || candidates[0];
     }
 
     if (/\b(sam)\b/.test(lowerInput)) {
-      return shuffled.filter((brain) => brain.name === 'Sam').slice(0, 1);
+      return candidates.find((brain) => brain.name === 'Sam') || candidates[0];
     }
 
     if (/\b(angie)\b/.test(lowerInput)) {
-      return shuffled.filter((brain) => brain.name === 'Angie').slice(0, 1);
+      return candidates.find((brain) => brain.name === 'Angie') || candidates[0];
     }
+
+    const focused = candidates.find((brain) => focus?.[brain.name]?.focus);
+    if (focused) return focused;
+
+    return candidates[Math.floor(Math.random() * candidates.length)];
+  }
+
+  _selectSecondary(candidates, primary, lowerInput, emotionalBeat, tension) {
+    if (!primary) return null;
+
+    const others = candidates.filter((brain) => brain.name !== primary.name);
+    if (!others.length) return null;
+
+    let chance = 0.18;
 
     if (emotionalBeat === 'intimacy' || emotionalBeat === 'rupture') {
-      return shuffled.slice(0, 2);
+      chance = 0.42;
+    } else if (tension > 0.65) {
+      chance = 0.36;
+    } else if (/\b(lucy|sam|angie)\b/.test(lowerInput)) {
+      chance = 0.28;
     }
 
-    if (tension > 0.65) {
-      return shuffled.slice(0, 2);
+    if (Math.random() > chance) {
+      return null;
     }
 
-    return shuffled.slice(0, 1);
+    return others[Math.floor(Math.random() * others.length)];
+  }
+
+  _getPrimaryMode(emotionalBeat, tension) {
+    if (emotionalBeat === 'intimacy' || emotionalBeat === 'repair') {
+      return 'normal';
+    }
+
+    if (emotionalBeat === 'rupture' || tension > 0.7) {
+      return 'normal';
+    }
+
+    return 'brief';
   }
 
   getBrain(name) {
     return this.brains.get(name);
   }
+}
+
+function shortenSecondary(text) {
+  const raw = String(text || '').trim();
+  if (!raw) return '';
+
+  const oneSentence = trimToSentences(raw, 1);
+  return trimToWords(oneSentence, 16);
+}
+
+function trimToSentences(text, maxSentences) {
+  const parts = text.match(/[^.!?]+[.!?]?/g);
+  if (!parts) return text;
+  return parts.slice(0, maxSentences).join(' ').trim();
+}
+
+function trimToWords(text, maxWords) {
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length <= maxWords) return text;
+  return words.slice(0, maxWords).join(' ').trim();
 }
