@@ -1,0 +1,6 @@
+node_modules
+.env
+AIRA_.env
+AIRA_.gitignore
+package-lock.json
+Aira_web_V3

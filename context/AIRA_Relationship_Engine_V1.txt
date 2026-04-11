@@ -1,0 +1,119 @@
+AIRA RELATIONSHIP ENGINE V1
+Target: D:\V3\Aira_web
+
+PURPOSE
+This system replaces random emotional values with persistent relationship logic.
+
+It will:
+- read user input
+- detect emotional intent
+- update relationships + hidden states
+- store results in orchestrator state
+
+======================================================================
+1) NEW FILE
+======================================================================
+
+FILE: src/engine/systems/RelationshipEngine.js
+
+----------------------------------------------------------------------
+CODE
+----------------------------------------------------------------------
+
+export class RelationshipEngine {
+  update({ input, state, context }) {
+    const text = String(input || '').toLowerCase();
+
+    if (!state.relationships || !state.cast) return;
+
+    for (const name of Object.keys(state.relationships)) {
+      const rel = state.relationships[name];
+      const char = state.cast[name];
+
+      // --- FLIRT / POSITIVE ---
+      if (/(like|love|cute|beautiful|miss you)/.test(text)) {
+        rel.attraction += 0.05;
+        rel.trust += 0.03;
+        char.hidden.attraction += 0.05;
+      }
+
+      // --- NEGATIVE / CONFLICT ---
+      if (/(hate|annoying|leave|shut up)/.test(text)) {
+        rel.trust -= 0.06;
+        rel.hurt += 0.08;
+        char.hidden.hurt += 0.08;
+      }
+
+      // --- IGNORING (simple heuristic) ---
+      if (!text.includes(name.toLowerCase())) {
+        rel.jealousy += 0.02;
+        char.hidden.jealousy += 0.02;
+      }
+
+      // Clamp values
+      clamp(rel);
+      clamp(char.hidden);
+    }
+  }
+}
+
+/* ---------------- HELPERS ---------------- */
+
+function clamp(obj) {
+  for (const key of Object.keys(obj)) {
+    obj[key] = Math.max(0, Math.min(1, obj[key]));
+  }
+}
+
+======================================================================
+2) UPDATE SystemOrchestrator
+======================================================================
+
+STEP 1: IMPORT
+
+import { RelationshipEngine } from '../systems/RelationshipEngine.js';
+
+--------------------------------------------------
+
+STEP 2: INIT (constructor)
+
+this.relationshipEngine = new RelationshipEngine();
+
+--------------------------------------------------
+
+STEP 3: RUN LOOP (VERY IMPORTANT)
+
+Inside run(), AFTER context is built:
+
+this.relationshipEngine.update({
+  input,
+  state: this.state,
+  context
+});
+
+======================================================================
+3) RESULT
+======================================================================
+
+Now:
+- relationships persist
+- emotions evolve
+- jealousy builds
+- attraction grows
+- hurt accumulates
+
+NO MORE RANDOM RESET EACH TURN
+
+======================================================================
+4) TEST
+======================================================================
+
+Try:
+
+"I like you Lucy"
+"I hate this"
+*ignore Sam*
+
+Watch values change over time.
+
+END OF FILE
