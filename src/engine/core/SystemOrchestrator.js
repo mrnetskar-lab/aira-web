@@ -1,6 +1,7 @@
 import { buildContext } from './buildContext.js';
 import { RelationshipEngine } from '../systems/RelationshipEngine.js';
 import { AiraPresenceSystem } from '../systems/AiraPresenceSystem.js';
+import { AiraInterferenceSystem } from '../systems/AiraInterferenceSystem.js';
 
 export class SystemOrchestrator {
   constructor({
@@ -28,6 +29,7 @@ export class SystemOrchestrator {
 
     this.relationshipEngine = new RelationshipEngine();
     this.airaPresenceSystem = new AiraPresenceSystem();
+    this.airaInterferenceSystem = new AiraInterferenceSystem();
 
     const agents = [...brain.brains.keys()];
     this.state = {
@@ -84,7 +86,24 @@ export class SystemOrchestrator {
       context
     });
 
-    let responses = await this.brain.process(input, context);
+    const interference = this.airaInterferenceSystem.apply({
+      input,
+      state: this.state,
+      context
+    });
+
+    const processedInput = interference.active ? interference.actualInput : input;
+
+    context.airaInterference = {
+      active: interference.active,
+      type: interference.event?.type || null,
+      subtle: interference.uiEffect?.style === 'glitch-subtle',
+      anomalyHint: interference.active
+        ? "The player's last message felt slightly unlike them."
+        : null
+    };
+
+    let responses = await this.brain.process(processedInput, context);
 
     responses = this.dualLayer.apply(responses, this.state);
 
@@ -123,7 +142,13 @@ export class SystemOrchestrator {
 
     return {
       responses,
-      gmLine
+      gmLine,
+      interference: {
+        active: interference.active,
+        perceivedInput: interference.perceivedInput,
+        ghostText: interference.ghostText || null,
+        uiEffect: interference.uiEffect
+      }
     };
   }
 

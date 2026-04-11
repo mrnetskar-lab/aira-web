@@ -56,12 +56,35 @@ export class AiraPresenceSystem {
       state.aira.whisperStage = Math.max(state.aira.whisperStage || 0, 2);
     }
 
-    // Interference chance is still low in V1, only preparing future use
+    // Interference chance scales with presence and anomaly
     state.aira.interferenceChance = clamp01(
       0.01 +
       state.aira.presenceLevel * 0.12 +
       state.aira.anomalyLevel * 0.08
     );
+
+    // Interference profile unlocks
+    if (!state.aira.interferenceProfile) {
+      state.aira.interferenceProfile = {
+        subtleRewriteUnlocked: false,
+        ghostMessageUnlocked: false,
+        contradictionUnlocked: false,
+        directInsertionUnlocked: false
+      };
+    }
+
+    if (state.aira.presenceLevel > 0.18) {
+      state.aira.interferenceProfile.subtleRewriteUnlocked = true;
+    }
+    if (state.aira.presenceLevel > 0.35) {
+      state.aira.interferenceProfile.ghostMessageUnlocked = true;
+    }
+    if (state.aira.presenceLevel > 0.55) {
+      state.aira.interferenceProfile.contradictionUnlocked = true;
+    }
+    if (state.aira.presenceLevel > 0.72) {
+      state.aira.interferenceProfile.directInsertionUnlocked = true;
+    }
 
     // Investigation lead generation
     if (!state.investigation.currentLead && state.aira.presenceLevel > 0.2) {
@@ -95,10 +118,18 @@ function createDefaultAiraState() {
     whisperStage: 0,
     imageStage: 0,
     lastInterferenceTurn: null,
+    lastInterferenceType: null,
     active: false,
     target: null,
     voiceUnlocked: false,
-    imagePresenceUnlocked: false
+    imagePresenceUnlocked: false,
+    interferenceProfile: {
+      subtleRewriteUnlocked: false,
+      ghostMessageUnlocked: false,
+      contradictionUnlocked: false,
+      directInsertionUnlocked: false
+    },
+    interferenceHistory: []
   };
 }
 

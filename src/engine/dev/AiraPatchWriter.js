@@ -32,6 +32,27 @@ export class AiraPatchWriter {
           '// Suggestion: Increase punctuation or intensity in AiraBrain._applyTone().';
         break;
 
+      case 'AIRA_INTERFERENCE_OVERUSE':
+        suggestion =
+          '// PATCH: Reduce interference frequency\n' +
+          `// ${issue.data.count} events in last 8 turns.\n` +
+          '// Suggestion: Increase MIN_COOLDOWN or reduce interferenceChance scaling in AiraInterferenceSystem.';
+        break;
+
+      case 'AIRA_INTERFERENCE_REPETITIVE':
+        suggestion =
+          `// PATCH: Add diversity to interference type selection\n` +
+          `// Type "${issue.data.type}" is overused.\n` +
+          '// Suggestion: Add recent-type suppression in AiraInterferenceSystem._pickType().';
+        break;
+
+      case 'AIRA_INTERFERENCE_TOO_WEAK':
+        suggestion =
+          '// PATCH: Interference threshold may be too high\n' +
+          `// presenceLevel is ${issue.data.presenceLevel} but no events fired.\n` +
+          '// Suggestion: Review interferenceChance scaling in AiraPresenceSystem.';
+        break;
+
       default:
         suggestion =
           `// PATCH: Unknown issue type "${issue.type}"\n` +

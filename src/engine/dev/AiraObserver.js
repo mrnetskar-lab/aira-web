@@ -40,6 +40,35 @@ export class AiraObserver {
         );
       }
     }
+
+    // Interference quality checks
+    if (state.aira?.interferenceHistory) {
+      const history = state.aira.interferenceHistory;
+      const turnCount = state.turnCount || 0;
+
+      const recentEvents = history.filter(e => turnCount - e.turn < 8);
+
+      if (recentEvents.length > 3) {
+        this._flag('AIRA_INTERFERENCE_OVERUSE', 'Interference firing too frequently.', {
+          count: recentEvents.length
+        });
+      }
+
+      if (recentEvents.length >= 2) {
+        const types = recentEvents.map(e => e.type);
+        if (types.every(t => t === types[0])) {
+          this._flag('AIRA_INTERFERENCE_REPETITIVE', `Same interference type "${types[0]}" repeated.`, {
+            type: types[0]
+          });
+        }
+      }
+
+      if ((state.aira.presenceLevel || 0) > 0.4 && history.length === 0) {
+        this._flag('AIRA_INTERFERENCE_TOO_WEAK', 'High presence but no interference events.', {
+          presenceLevel: state.aira.presenceLevel
+        });
+      }
+    }
   }
 
   _flag(type, message, data) {

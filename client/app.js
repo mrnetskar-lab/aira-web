@@ -2,96 +2,112 @@ import { AiraDevPanel } from './devPanel.js';
 
 const devPanel = new AiraDevPanel();
 
-const landingView = document.getElementById('landingView');
-const roomView = document.getElementById('roomView');
-const enterRoomBtn = document.getElementById('enterRoomBtn');
-const backBtn = document.getElementById('backBtn');
+/* ------------------------------------------------------------------ */
+/* ELEMENTS */
+/* ------------------------------------------------------------------ */
 
-const form = document.getElementById('form');
-const input = document.getElementById('input');
-const log = document.getElementById('log');
-const stateBox = document.getElementById('stateBox');
-const issueBox = document.getElementById('issueBox');
-const patchBox = document.getElementById('patchBox');
-const heroTitle = document.getElementById('heroTitle');
-const heroSubtitle = document.getElementById('heroSubtitle');
+const form        = document.getElementById('form');
+const input       = document.getElementById('input');
+const log         = document.getElementById('log');
+const backBtn     = document.getElementById('backBtn');
+const roomStatus  = document.getElementById('roomStatus');
+const presenceDot = document.getElementById('presenceDot');
+const statusTime  = document.getElementById('statusTime');
 const chipButtons = document.querySelectorAll('.chip-btn');
 
-function showLanding() {
-  landingView.classList.add('active');
-  roomView.classList.remove('active');
+/* ------------------------------------------------------------------ */
+/* CLOCK */
+/* ------------------------------------------------------------------ */
+
+function updateTime() {
+  if (!statusTime) return;
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2, '0');
+  const m = String(now.getMinutes()).padStart(2, '0');
+  statusTime.textContent = `${h}:${m}`;
+}
+updateTime();
+setInterval(updateTime, 30000);
+
+/* ------------------------------------------------------------------ */
+/* NAVIGATION */
+/* ------------------------------------------------------------------ */
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const target = document.getElementById(id + 'Screen');
+  if (target) target.classList.add('active');
+  if (id === 'chat') setTimeout(() => input?.focus(), 100);
 }
 
-function showRoom() {
-  landingView.classList.remove('active');
-  roomView.classList.add('active');
-  input.focus();
-}
+document.querySelectorAll('[data-app]').forEach(el => {
+  el.addEventListener('click', () => showScreen(el.dataset.app));
+});
 
-enterRoomBtn?.addEventListener('click', showRoom);
-backBtn?.addEventListener('click', showLanding);
+document.querySelectorAll('[data-back]').forEach(el => {
+  el.addEventListener('click', () => showScreen(el.dataset.back));
+});
 
-function appendMessage(text, kind = 'system') {
+document.querySelectorAll('[data-open]').forEach(el => {
+  el.addEventListener('click', () => showScreen(el.dataset.open));
+});
+
+backBtn?.addEventListener('click', () => showScreen('home'));
+
+/* ------------------------------------------------------------------ */
+/* MESSAGE RENDERING */
+/* ------------------------------------------------------------------ */
+
+function appendMessage(text, kind = 'system', extraClass = '') {
   const el = document.createElement('div');
   el.className = `msg ${kind}`;
+  if (extraClass) el.classList.add(...extraClass.split(' ').filter(Boolean));
   el.textContent = text;
   log.appendChild(el);
   log.scrollTop = log.scrollHeight;
+  return el;
 }
+
+function appendSubtext(text, parentEl) {
+  if (!text || !parentEl) return;
+  const sub = document.createElement('div');
+  sub.className = 'msg-subtext';
+  sub.textContent = text;
+  parentEl.appendChild(sub);
+}
+
+/* ------------------------------------------------------------------ */
+/* STATE RENDERING */
+/* ------------------------------------------------------------------ */
 
 function renderState(state) {
-  stateBox.textContent = JSON.stringify(state, null, 2);
+  const tension      = state?.tension ?? 0;
+  const manifestation = state?.aira?.manifestation || 'none';
 
-  const tension = state?.tension ?? 0;
-  if (tension > 0.7) {
-    heroTitle.textContent = 'The room feels different';
-    heroSubtitle.textContent = 'Tension is high. Something feels slightly off.';
-  } else if (tension > 0.4) {
-    heroTitle.textContent = 'Charged atmosphere';
-    heroSubtitle.textContent = 'The scene is still calm on the surface, but not fully.';
-  } else {
-    heroTitle.textContent = 'Late evening conversation';
-    heroSubtitle.textContent = 'Subtle tension. No obvious threat.';
-  }
-}
-
-function renderIssues(issues) {
-  if (!issues || !issues.length) {
-    issueBox.textContent = 'No issues yet.';
-    return;
+  if (roomStatus) {
+    if (tension > 0.7)      roomStatus.textContent = 'High tension';
+    else if (tension > 0.4) roomStatus.textContent = 'Charged atmosphere';
+    else                    roomStatus.textContent = 'Late evening';
   }
 
-  issueBox.textContent = issues
-    .map((issue, index) => `${index + 1}. [${issue.type}] ${issue.message}`)
-    .join('\n');
-}
-
-function renderPatches(patches) {
-  if (!patches || !patches.length) {
-    patchBox.textContent = 'No patches yet.';
-    return;
-  }
-
-  patchBox.textContent = patches
-    .map((patch, index) => `${index + 1}. ${patch.type}\n${patch.suggestion}`)
-    .join('\n\n');
-}
-
-async function refreshState() {
-  try {
-    const res = await fetch('/api/ai/state');
-    const data = await res.json();
-
-    if (data.ok) {
-      renderState(data.state);
+  if (presenceDot) {
+    presenceDot.className = 'presence-dot';
+    if (manifestation !== 'none') {
+      presenceDot.classList.add(`presence-${manifestation}`);
     }
-  } catch (error) {
-    console.error('State refresh failed:', error);
   }
 }
 
-async function sendPrompt(text) {
-  appendMessage(`YOU: ${text}`, 'user');
+/* ------------------------------------------------------------------ */
+/* SEND PROMPT */
+/* ------------------------------------------------------------------ */
+
+async function sendPrompt(rawText) {
+  const text = rawText.trim();
+  if (!text) return;
+
+  // Show user bubble immediately — may be updated after response
+  const userBubble = appendMessage(`You: ${text}`, 'user');
 
   try {
     const res = await fetch('/api/ai/run', {
@@ -103,55 +119,88 @@ async function sendPrompt(text) {
     const data = await res.json();
 
     if (!data.ok) {
-      appendMessage(`SYSTEM: ${data.error || 'Unknown error'}`, 'system');
+      appendMessage(`System: ${data.error || 'Unknown error'}`, 'system');
       return;
     }
 
-    const result = data.result || {};
-    const responses = result.responses || [];
+    const result     = data.result     || {};
+    const responses  = result.responses || [];
+    const interference = result.interference || {};
 
-    for (const response of responses) {
-      if (response.spoken) {
-        appendMessage(`${response.agent}: ${response.spoken}`, 'ai');
-      }
+    // Update user bubble with interference
+    if (interference.active) {
+      const perceived  = interference.perceivedInput || text;
+      const bubbleClass = interference.uiEffect?.bubbleClass || '';
+      const delayMs    = interference.uiEffect?.delayMs || 80;
 
-      if (response.showThought && response.thought) {
+      setTimeout(() => {
+        userBubble.textContent = `You: ${perceived}`;
+        if (bubbleClass) userBubble.classList.add(bubbleClass);
+      }, delayMs);
+
+      // Ghost message — separate bubble after a pause
+      if (interference.ghostText) {
         setTimeout(() => {
-          appendMessage(`${response.agent} thought: ${response.thought}`, 'thought');
-        }, response.thoughtDelay || 350);
+          appendMessage(`You: ${interference.ghostText}`, 'user', 'user-glitch-ghost');
+        }, (interference.uiEffect?.delayMs || 80) + 300);
       }
     }
 
-    if (window.__AIRA_DEV_MODE__) {
-      if (result.gmLine) {
-        appendMessage(result.gmLine, 'gm');
+    // Render character responses
+    for (const response of responses) {
+      if (response.spoken) {
+        const el = appendMessage(`${response.agent}: ${response.spoken}`, 'ai');
+
+        if (response.thought) {
+          setTimeout(() => {
+            appendSubtext(response.thought, el);
+          }, 260);
+        }
       }
+    }
+
+    // GM line — dev mode only
+    if (window.__AIRA_DEV_MODE__ && result.gmLine) {
+      appendMessage(result.gmLine, 'gm');
     }
 
     renderState(data.state);
-    renderIssues(data.issues);
-    renderPatches(data.patches);
+
   } catch (error) {
-    appendMessage(`SYSTEM: ${error.message}`, 'system');
+    appendMessage(`System: ${error.message}`, 'system');
   }
 }
 
-form.addEventListener('submit', async (event) => {
-  event.preventDefault();
+/* ------------------------------------------------------------------ */
+/* FORM + CHIPS */
+/* ------------------------------------------------------------------ */
 
+form?.addEventListener('submit', async (e) => {
+  e.preventDefault();
   const text = input.value.trim();
   if (!text) return;
-
   input.value = '';
   await sendPrompt(text);
 });
 
-chipButtons.forEach((button) => {
-  button.addEventListener('click', async () => {
-    const text = button.dataset.prompt?.trim();
+chipButtons.forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const text = btn.dataset.prompt?.trim();
     if (!text) return;
     await sendPrompt(text);
   });
 });
+
+/* ------------------------------------------------------------------ */
+/* INITIAL STATE */
+/* ------------------------------------------------------------------ */
+
+async function refreshState() {
+  try {
+    const res = await fetch('/api/ai/state');
+    const data = await res.json();
+    if (data.ok) renderState(data.state);
+  } catch { /* silent */ }
+}
 
 refreshState();

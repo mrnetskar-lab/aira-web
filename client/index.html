@@ -1,112 +1,113 @@
 <!DOCTYPE html>
-<html lang="no">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>AIRA Web</title>
+  <title>AIRA</title>
   <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
-  <main class="app-shell">
-    <section id="landingView" class="view active">
-      <div class="landing-hero">
-        <p class="eyebrow">AIRA ROOM</p>
-        <h1>Et levende AI-rom</h1>
-        <p class="subtitle">
-          Snakk med flere karakterer, test kjemi, opplev skjulte spenninger,
-          og oppdag noe merkelig i bakgrunnen over tid.
-        </p>
+  <div class="phone">
+    <div class="phone-screen">
+
+      <!-- Status bar -->
+      <div class="status-bar">
+        <span class="status-time" id="statusTime">9:41</span>
+        <span class="status-brand">AIRA</span>
+        <span class="status-signal">●●●</span>
       </div>
 
-      <div class="card-grid">
-        <article class="character-card">
-          <div class="card-image card-lucy"></div>
-          <div class="card-body">
-            <h2>Lucy</h2>
-            <p>Varm, intuitiv og vanskelig å lese helt.</p>
+      <!-- Home screen -->
+      <div id="homeScreen" class="screen active">
+        <div class="home-content">
+          <div class="home-greeting">
+            <p class="home-label">AIRA OS</p>
+            <h1 class="home-title">Good evening.</h1>
           </div>
-        </article>
-
-        <article class="character-card">
-          <div class="card-image card-sam"></div>
-          <div class="card-body">
-            <h2>Sam</h2>
-            <p>Holder avstand, men legger merke til alt.</p>
+          <div class="app-grid">
+            <button class="app-icon" data-app="chat">
+              <div class="app-icon-bg icon-chat"></div>
+              <span>Chat</span>
+            </button>
+            <button class="app-icon" data-app="contacts">
+              <div class="app-icon-bg icon-contacts"></div>
+              <span>Contacts</span>
+            </button>
+            <button class="app-icon" data-app="messages">
+              <div class="app-icon-bg icon-messages"></div>
+              <span>Messages</span>
+            </button>
           </div>
-        </article>
-
-        <article class="character-card">
-          <div class="card-image card-angie"></div>
-          <div class="card-body">
-            <h2>Angie</h2>
-            <p>Leken og lett å snakke med, men skjuler mer enn hun viser.</p>
-          </div>
-        </article>
-      </div>
-
-      <div class="landing-actions">
-        <button id="enterRoomBtn" class="primary-btn" type="button">Enter Room</button>
-      </div>
-    </section>
-
-    <section id="roomView" class="view">
-      <header class="room-header">
-        <div>
-          <p class="eyebrow">ROOM</p>
-          <h1>Living Room</h1>
-          <p class="subtitle">Flere karakterer, én scene, og noe som følger med.</p>
         </div>
-        <button id="backBtn" class="ghost-btn" type="button">Back</button>
-      </header>
+        <div class="home-dock">
+          <button class="app-icon dock-icon" data-app="chat">
+            <div class="app-icon-bg icon-chat"></div>
+          </button>
+        </div>
+      </div>
 
-      <section class="room-layout">
-        <div class="main-column">
-          <div class="hero-panel">
-            <div id="heroImage" class="hero-image">
-              <div class="hero-overlay">
-                <div>
-                  <p class="hero-kicker">Current Scene</p>
-                  <h2 id="heroTitle">Late evening conversation</h2>
-                  <p id="heroSubtitle">Subtle tension. No obvious threat.</p>
-                </div>
-              </div>
+      <!-- Chat screen -->
+      <div id="chatScreen" class="screen">
+        <div class="app-bar">
+          <button id="backBtn" class="app-back-btn">&#8249;</button>
+          <div class="app-bar-info">
+            <span class="app-bar-title">Living Room</span>
+            <span class="app-bar-sub" id="roomStatus">Late evening</span>
+          </div>
+          <div class="presence-dot" id="presenceDot"></div>
+        </div>
+
+        <div id="log" class="chat-log"></div>
+
+        <div class="chip-row">
+          <button class="chip-btn" data-prompt="truth or dare">Truth or dare</button>
+          <button class="chip-btn" data-prompt="let's talk honestly">Be honest</button>
+          <button class="chip-btn" data-prompt="i want to get closer to lucy">Closer to Lucy</button>
+          <button class="chip-btn" data-prompt="sam, what do you really think">Ask Sam</button>
+        </div>
+
+        <form id="form" class="chat-bar" autocomplete="off">
+          <input id="input" type="text" placeholder="Message..." />
+          <button type="submit" class="send-btn">&#8593;</button>
+        </form>
+      </div>
+
+      <!-- Contacts screen -->
+      <div id="contactsScreen" class="screen">
+        <div class="app-bar">
+          <button class="app-back-btn" data-back="home">&#8249;</button>
+          <div class="app-bar-info">
+            <span class="app-bar-title">Contacts</span>
+          </div>
+        </div>
+        <div class="contacts-list">
+          <div class="contact-item" data-open="chat">
+            <div class="contact-avatar avatar-lucy"></div>
+            <div class="contact-info">
+              <span class="contact-name">Lucy</span>
+              <span class="contact-status">Warm, intuitive</span>
             </div>
           </div>
-
-          <div class="chip-row">
-            <button class="chip-btn" data-prompt="truth or dare">Truth or Dare</button>
-            <button class="chip-btn" data-prompt="let's talk honestly">Be honest</button>
-            <button class="chip-btn" data-prompt="i want to get closer to lucy">Closer to Lucy</button>
-            <button class="chip-btn" data-prompt="sam, what do you really think">Ask Sam</button>
+          <div class="contact-item" data-open="chat">
+            <div class="contact-avatar avatar-sam"></div>
+            <div class="contact-info">
+              <span class="contact-name">Sam</span>
+              <span class="contact-status">Guarded, observant</span>
+            </div>
           </div>
-
-          <div id="log" class="chat-log"></div>
-
-          <form id="form" class="chat-bar" autocomplete="off">
-            <input id="input" type="text" placeholder="Skriv noe..." />
-            <button type="submit" class="send-btn">Send</button>
-          </form>
+          <div class="contact-item" data-open="chat">
+            <div class="contact-avatar avatar-angie"></div>
+            <div class="contact-info">
+              <span class="contact-name">Angie</span>
+              <span class="contact-status">Playful, charming</span>
+            </div>
+          </div>
         </div>
+      </div>
 
-        <aside class="side-column">
-          <div class="panel">
-            <h3>Engine State</h3>
-            <pre id="stateBox">Loading state...</pre>
-          </div>
-
-          <div class="panel">
-            <h3>Observer Issues</h3>
-            <pre id="issueBox">No issues yet.</pre>
-          </div>
-
-          <div class="panel">
-            <h3>Patch Suggestions</h3>
-            <pre id="patchBox">No patches yet.</pre>
-          </div>
-        </aside>
-      </section>
-    </section>
-  </main>
+    </div>
+    <div class="phone-indicator"></div>
+  </div>
 
   <script type="module" src="./app.js"></script>
 </body>

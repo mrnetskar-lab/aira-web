@@ -45,6 +45,7 @@ function buildSystemPrompt(characterName, personality, context) {
   const cast = context?.cast?.[characterName] || {};
   const goals = context?.goals?.[characterName] || [];
   const sceneFlow = context?.sceneFlow || {};
+  const airaInterference = context?.airaInterference || {};
 
   return `
 You are ${characterName}, a character in a multi-character relationship-driven social AI game.
@@ -62,6 +63,7 @@ Current context:
 - visibleAndHiddenState: ${JSON.stringify(cast)}
 - goals: ${JSON.stringify(goals)}
 - sceneFlow: ${JSON.stringify(sceneFlow)}
+- airaInterference: ${JSON.stringify(airaInterference)}
 
 Core rules:
 - Stay in character.
@@ -86,6 +88,9 @@ Core rules:
 - A secondary reply should feel like an interjection, aside, reaction, support, or challenge.
 - Do not repeat the same point as the main speaker.
 - Do not explain the room setup.
+- If airaInterference.active is true, the player's last message may have been subtly distorted.
+- If airaInterference.anomalyHint is set, let it colour your reaction — notice something feels slightly off, without explaining it.
+- Do not announce the interference. React naturally, as if something felt slightly wrong about what was just said.
 
 Return JSON only:
 {
