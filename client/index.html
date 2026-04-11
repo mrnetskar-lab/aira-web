@@ -20,22 +20,30 @@
       <!-- Home screen -->
       <div id="homeScreen" class="screen active">
         <div class="home-content">
-          <div class="home-greeting">
-            <p class="home-label">AIRA OS</p>
-            <h1 class="home-title">Good evening.</h1>
+          <div class="home-hero">
+            <div class="aira-logo">AIRA</div>
+            <div class="home-clock" id="homeClock">9:41</div>
           </div>
           <div class="app-grid">
             <button class="app-icon" data-app="chat">
               <div class="app-icon-bg icon-chat"></div>
               <span>Chat</span>
             </button>
-            <button class="app-icon" data-app="contacts">
-              <div class="app-icon-bg icon-contacts"></div>
-              <span>Contacts</span>
-            </button>
             <button class="app-icon" data-app="messages">
               <div class="app-icon-bg icon-messages"></div>
               <span>Messages</span>
+            </button>
+            <button class="app-icon" data-app="gallery">
+              <div class="app-icon-bg icon-gallery"></div>
+              <span>Gallery</span>
+            </button>
+            <button class="app-icon" data-app="clues">
+              <div class="app-icon-bg icon-clues"></div>
+              <span>Clues</span>
+            </button>
+            <button class="app-icon" data-app="settings">
+              <div class="app-icon-bg icon-settings"></div>
+              <span>Settings</span>
             </button>
           </div>
         </div>
@@ -50,10 +58,7 @@
       <div id="chatScreen" class="screen">
         <div class="app-bar">
           <button id="backBtn" class="app-back-btn">&#8249;</button>
-          <div class="app-bar-info">
-            <span class="app-bar-title">Living Room</span>
-            <span class="app-bar-sub" id="roomStatus">Late evening</span>
-          </div>
+          <span class="app-bar-mark">AIRA</span>
           <div class="presence-dot" id="presenceDot"></div>
         </div>
 
@@ -72,36 +77,16 @@
         </form>
       </div>
 
-      <!-- Contacts screen -->
-      <div id="contactsScreen" class="screen">
+      <!-- Placeholder screen (Messages / Gallery / Clues / Settings) -->
+      <div id="placeholderScreen" class="screen">
         <div class="app-bar">
           <button class="app-back-btn" data-back="home">&#8249;</button>
-          <div class="app-bar-info">
-            <span class="app-bar-title">Contacts</span>
-          </div>
+          <span class="app-bar-mark" id="placeholderTitle">App</span>
         </div>
-        <div class="contacts-list">
-          <div class="contact-item" data-open="chat">
-            <div class="contact-avatar avatar-lucy"></div>
-            <div class="contact-info">
-              <span class="contact-name">Lucy</span>
-              <span class="contact-status">Warm, intuitive</span>
-            </div>
-          </div>
-          <div class="contact-item" data-open="chat">
-            <div class="contact-avatar avatar-sam"></div>
-            <div class="contact-info">
-              <span class="contact-name">Sam</span>
-              <span class="contact-status">Guarded, observant</span>
-            </div>
-          </div>
-          <div class="contact-item" data-open="chat">
-            <div class="contact-avatar avatar-angie"></div>
-            <div class="contact-info">
-              <span class="contact-name">Angie</span>
-              <span class="contact-status">Playful, charming</span>
-            </div>
-          </div>
+        <div class="placeholder-body">
+          <div class="placeholder-icon" id="placeholderIcon"></div>
+          <p class="placeholder-label" id="placeholderLabel">Coming soon</p>
+          <p class="placeholder-sub">This feature is being built.</p>
         </div>
       </div>
 
