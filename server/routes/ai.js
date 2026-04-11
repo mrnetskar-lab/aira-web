@@ -3,7 +3,7 @@ import { engine } from '../services/engineInstance.js';
 
 const router = express.Router();
 
-router.post('/run', (req, res) => {
+router.post('/run', async (req, res) => {
   try {
     const input = String(req.body?.input || '').trim();
 
@@ -14,7 +14,7 @@ router.post('/run', (req, res) => {
       });
     }
 
-    const result = engine.orchestrator.run(input);
+    const result = await engine.orchestrator.run(input);
 
     return res.json({
       ok: true,
@@ -28,7 +28,7 @@ router.post('/run', (req, res) => {
     console.error('AI route error:', error);
     return res.status(500).json({
       ok: false,
-      error: 'Internal server error.'
+      error: error.message || 'Internal server error.'
     });
   }
 });

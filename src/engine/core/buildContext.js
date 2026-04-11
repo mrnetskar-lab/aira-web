@@ -17,7 +17,9 @@ export function buildContext({ input, state, memory, focus, brain }) {
       turnCount: state.turnCount,
       topic: detectTopic(input),
       intensity: state.tension,
-      recentMessages: recent
+      recentMessages: recent,
+      emotionalBeat: getEmotionalBeat(state.tension, input),
+      responseMode: getResponseMode(state, input)
     },
 
     world: {
@@ -64,10 +66,28 @@ function getTimeOfDay() {
   return "evening";
 }
 
-function getEmotionalBeat(tension) {
+function getEmotionalBeat(tension, input) {
   if (tension > 0.7) return "high_tension";
   if (tension > 0.4) return "rising";
   return "neutral";
+}
+
+function getResponseMode(state, input) {
+  const text = String(input || '').toLowerCase();
+
+  if (/\b(sorry|forgive|miss you|love|need you|want you)\b/.test(text)) {
+    return 'normal';
+  }
+
+  if ((state.tension || 0) > 0.75) {
+    return 'normal';
+  }
+
+  if (state.lastEvent === 'major_reveal' || state.lastEvent === 'aira_manifestation') {
+    return 'cinematic';
+  }
+
+  return 'brief';
 }
 
 function buildCharacterStates(agents, focus, state) {

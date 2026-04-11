@@ -1,0 +1,563 @@
+AIRA AI API INTEGRATION V1
+Target: D:\V3\Aira_web
+
+PURPOSE
+Integrate real AI responses into the current AIRA engine.
+
+This version is designed for:
+- short, natural dialogue by default
+- longer messages only during real story / emotional beats
+- separate personalities for Lucy, Sam, and Angie
+- context-aware replies
+- structured output: spoken + thought
+- backend-only API usage with OPENAI_API_KEY in .env
+
+IMPORTANT
+- Keep the current project structure.
+- Do NOT move files into new folders unless explicitly listed below.
+- Do NOT expose the API key to the frontend.
+- Use the OpenAI API from the server only.
+- Spoken replies must stay concise unless the context says a story beat is happening.
+
+======================================================================
+1) REQUIRED .ENV
+======================================================================
+
+Make sure this file exists:
+
+D:\V3\Aira_web\.env
+
+with:
+
+OPENAI_API_KEY=PASTE_YOUR_KEY_HERE
+PORT=3000
+
+======================================================================
+2) UPDATE package.json
+======================================================================
+
+FILE: package.json
+
+Replace with:
+
+{
+  "name": "aira-web",
+  "version": "2.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node server/index.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "openai": "^4.104.0"
+  }
+}
+
+======================================================================
+3) NEW FILE
+======================================================================
+
+FILE: server/services/openaiClient.js
+
+CODE:
+
+import 'dotenv/config';
+import OpenAI from 'openai';
+
+const apiKey = process.env.OPENAI_API_KEY;
+
+export const openai = apiKey
+  ? new OpenAI({ apiKey })
+  : null;
+
+export function ensureOpenAI() {
+  if (!openai) {
+    throw new Error('OPENAI_API_KEY is missing. Add it to .env');
+  }
+
+  return openai;
+}
+
+======================================================================
+4) NEW FILE
+======================================================================
+
+FILE: src/engine/services/CharacterAIService.js
+
+CODE:
+
+import { ensureOpenAI } from '../../../server/services/openaiClient.js';
+
+const MODEL = 'gpt-4.1-mini';
+
+export class CharacterAIService {
+  async generate({ characterName, personality, input, context }) {
+    const client = ensureOpenAI();
+
+    const systemPrompt = buildSystemPrompt(characterName, personality, context);
+    const userPrompt = buildUserPrompt(input, context);
+
+    const response = await client.chat.completions.create({
+      model: MODEL,
+      temperature: 0.9,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ]
+    });
+
+    const raw = response.choices?.[0]?.message?.content || '{}';
+
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      parsed = {};
+    }
+
+    return {
+      spoken: normalizeSpoken(parsed.spoken, context),
+      thought: normalizeThought(parsed.thought)
+    };
+  }
+}
+
+function buildSystemPrompt(characterName, personality, context) {
+  const mode = context?.conversation?.responseMode || 'brief';
+  const emotionalBeat = context?.conversation?.emotionalBeat || 'neutral';
+  const topic = context?.conversation?.topic || 'general';
+  const world = context?.world || {};
+  const scene = context?.scene || {};
+  const relationship = context?.relationships?.[characterName] || {};
+  const cast = context?.cast?.[characterName] || {};
+  const goals = context?.goals?.[characterName] || [];
+
+  return `
+You are ${characterName}, a character in a multi-character relationship-driven social AI game.
+
+Personality:
+${JSON.stringify(personality, null, 2)}
+
+Current context:
+- responseMode: ${mode}
+- topic: ${topic}
+- emotionalBeat: ${emotionalBeat}
+- world: ${JSON.stringify(world)}
+- scene: ${JSON.stringify(scene)}
+- relationshipToPlayer: ${JSON.stringify(relationship)}
+- visibleAndHiddenState: ${JSON.stringify(cast)}
+- goals: ${JSON.stringify(goals)}
+
+Core rules:
+- Stay in character.
+- Speak like a real person, not an assistant.
+- Default to short, natural replies.
+- Do NOT write long paragraphs in normal conversation.
+- Let subtext exist. Do not explain everything.
+- Leave some emotion implied.
+- Spoken replies should usually be:
+  - brief mode: 4 to 18 words, sometimes up to 1 short sentence
+  - normal mode: 1 to 3 short sentences
+  - cinematic mode: only for important emotional or narrative beats
+- Only use longer speech if the moment truly feels important.
+- Thoughts can be a little more reflective, but still short.
+- Avoid repetitive phrasing.
+- Avoid sounding like therapy advice.
+- Avoid narrator language unless the moment is explicitly cinematic.
+
+Return JSON only:
+{
+  "spoken": "what the character says out loud",
+  "thought": "what the character privately thinks"
+}
+`.trim();
+}
+
+function buildUserPrompt(input, context) {
+  return JSON.stringify({
+    input,
+    conversation: context?.conversation || {},
+    playerModel: context?.playerModel || {},
+    aira: context?.aira || {}
+  });
+}
+
+function normalizeSpoken(spoken, context) {
+  const mode = context?.conversation?.responseMode || 'brief';
+  let text = String(spoken || '').trim();
+
+  if (!text) {
+    return fallbackSpoken(mode);
+  }
+
+  if (mode === 'brief') {
+    text = trimToSentences(text, 1);
+    text = trimToWords(text, 18);
+  } else if (mode === 'normal') {
+    text = trimToSentences(text, 3);
+    text = trimToWords(text, 40);
+  } else if (mode === 'cinematic') {
+    text = trimToSentences(text, 5);
+    text = trimToWords(text, 90);
+  }
+
+  return text;
+}
+
+function normalizeThought(thought) {
+  let text = String(thought || '').trim();
+  if (!text) return null;
+  return trimToSentences(text, 2);
+}
+
+function trimToSentences(text, maxSentences) {
+  const parts = text.match(/[^.!?]+[.!?]?/g);
+  if (!parts) return text;
+  return parts.slice(0, maxSentences).join(' ').trim();
+}
+
+function trimToWords(text, maxWords) {
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length <= maxWords) return text;
+  return words.slice(0, maxWords).join(' ').trim();
+}
+
+function fallbackSpoken(mode) {
+  if (mode === 'cinematic') return '...I do not know what to say right now.';
+  if (mode === 'normal') return 'I am not sure yet.';
+  return 'Maybe.';
+}
+
+======================================================================
+5) NEW FILE
+======================================================================
+
+FILE: src/engine/brain/characterProfiles.js
+
+CODE:
+
+export const CHARACTER_PROFILES = {
+  Lucy: {
+    tone: 'warm',
+    baseline: 'intuitive',
+    style: 'soft, emotionally aware, slightly mysterious',
+    directness: 0.45,
+    warmth: 0.85
+  },
+  Sam: {
+    tone: 'guarded',
+    baseline: 'defensive',
+    style: 'sharp, restrained, observant, skeptical',
+    directness: 0.75,
+    warmth: 0.35
+  },
+  Angie: {
+    tone: 'playful',
+    baseline: 'grounded',
+    style: 'light, charming, social, subtly insecure',
+    directness: 0.55,
+    warmth: 0.7
+  }
+};
+
+======================================================================
+6) REPLACE FILE
+======================================================================
+
+FILE: src/engine/brain/AiraBrainController.js
+
+Replace the full file with:
+
+import { CHARACTER_PROFILES } from './characterProfiles.js';
+import { CharacterAIService } from '../services/CharacterAIService.js';
+
+export class AiraBrainController {
+  constructor() {
+    this.brains = new Map();
+    this.aiService = new CharacterAIService();
+
+    for (const [name, profile] of Object.entries(CHARACTER_PROFILES)) {
+      this.register(name, profile);
+    }
+  }
+
+  register(name, profile) {
+    this.brains.set(name, {
+      name,
+      personality: profile
+    });
+  }
+
+  async process(input, context) {
+    const candidates = [...this.brains.values()];
+    const responders = this._selectResponders(candidates, input, context);
+
+    const responses = [];
+
+    for (const brain of responders) {
+      const result = await this.aiService.generate({
+        characterName: brain.name,
+        personality: brain.personality,
+        input,
+        context
+      });
+
+      if (result && (result.spoken || result.thought)) {
+        responses.push({
+          agent: brain.name,
+          spoken: result.spoken || '',
+          thought: result.thought || null
+        });
+      }
+    }
+
+    return responses;
+  }
+
+  _selectResponders(candidates, input, context) {
+    const lowerInput = String(input || '').toLowerCase();
+    const tension = context?.world?.tension ?? context?.conversation?.intensity ?? 0;
+    const emotionalBeat = context?.conversation?.emotionalBeat || 'neutral';
+    const shuffled = [...candidates].sort(() => Math.random() - 0.5);
+
+    if (/\b(lucy)\b/.test(lowerInput)) {
+      return shuffled.filter((brain) => brain.name === 'Lucy').slice(0, 1);
+    }
+
+    if (/\b(sam)\b/.test(lowerInput)) {
+      return shuffled.filter((brain) => brain.name === 'Sam').slice(0, 1);
+    }
+
+    if (/\b(angie)\b/.test(lowerInput)) {
+      return shuffled.filter((brain) => brain.name === 'Angie').slice(0, 1);
+    }
+
+    if (emotionalBeat === 'intimacy' || emotionalBeat === 'rupture') {
+      return shuffled.slice(0, 2);
+    }
+
+    if (tension > 0.65) {
+      return shuffled.slice(0, 2);
+    }
+
+    return shuffled.slice(0, 1);
+  }
+
+  getBrain(name) {
+    return this.brains.get(name);
+  }
+}
+
+======================================================================
+7) UPDATE FILE
+======================================================================
+
+FILE: src/engine/core/SystemOrchestrator.js
+
+Make these exact changes:
+
+----------------------------------------------------------------------
+A) MAKE run() ASYNC
+----------------------------------------------------------------------
+
+Change:
+
+run(input) {
+
+to:
+
+async run(input) {
+
+----------------------------------------------------------------------
+B) AWAIT BRAIN PROCESSING
+----------------------------------------------------------------------
+
+Change:
+
+let responses = this.brain.process(input, context);
+
+to:
+
+let responses = await this.brain.process(input, context);
+
+======================================================================
+8) UPDATE FILE
+======================================================================
+
+FILE: server/routes/ai.js
+
+Replace the full file with:
+
+import express from 'express';
+import { engine } from '../services/engineInstance.js';
+
+const router = express.Router();
+
+router.post('/run', async (req, res) => {
+  try {
+    const input = String(req.body?.input || '').trim();
+
+    if (!input) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Input is required.'
+      });
+    }
+
+    const result = await engine.orchestrator.run(input);
+
+    return res.json({
+      ok: true,
+      result,
+      state: engine.orchestrator.getState(),
+      recentMemory: engine.memory.getRecent(12),
+      issues: engine.observer.getIssues(),
+      patches: engine.patchWriter.getPending()
+    });
+  } catch (error) {
+    console.error('AI route error:', error);
+    return res.status(500).json({
+      ok: false,
+      error: error.message || 'Internal server error.'
+    });
+  }
+});
+
+router.get('/state', (_req, res) => {
+  res.json({
+    ok: true,
+    state: engine.orchestrator.getState(),
+    focus: engine.focus.getCurrent(),
+    memoryCount: engine.memory.entries.length,
+    issueCount: engine.observer.getIssues().length
+  });
+});
+
+router.post('/reset', (_req, res) => {
+  engine.memory.clear();
+  engine.focus.clear();
+  engine.orchestrator.reset();
+  res.json({ ok: true });
+});
+
+export default router;
+
+======================================================================
+9) UPDATE FILE
+======================================================================
+
+FILE: src/engine/core/buildContextV2.js
+
+Add responseMode inside conversation.
+
+Find conversation and make it look like:
+
+conversation: {
+  lastInput: input,
+  turnCount: state.turnCount,
+  topic: detectTopic(input),
+  intensity: state.tension,
+  recentMessages: recent,
+  emotionalBeat: getEmotionalBeat(state.tension, input),
+  responseMode: getResponseMode(state, input)
+},
+
+Then add this helper near the bottom:
+
+function getResponseMode(state, input) {
+  const text = String(input || '').toLowerCase();
+
+  if (/\b(sorry|forgive|miss you|love|need you|want you)\b/.test(text)) {
+    return 'normal';
+  }
+
+  if ((state.tension || 0) > 0.75) {
+    return 'normal';
+  }
+
+  if (state.lastEvent === 'major_reveal' || state.lastEvent === 'aira_manifestation') {
+    return 'cinematic';
+  }
+
+  return 'brief';
+}
+
+======================================================================
+10) OPTIONAL LIGHT SAFETY
+======================================================================
+
+FILE: .gitignore
+
+Make sure it contains:
+
+node_modules
+.env
+
+======================================================================
+11) HOW THIS VERSION SHOULD FEEL
+======================================================================
+
+Desired feel:
+- usual chat: short
+- tense moments: slightly more intense, but still concise
+- story beats: sometimes longer, but not wall-of-text
+- each character should feel distinct
+- thoughts should add subtext, not essays
+
+Examples of GOOD spoken length:
+- "Maybe."
+- "You sound different tonight."
+- "I do not know if I believe that yet."
+- "That was not fair."
+- "Do not say that so easily."
+
+Examples of BAD spoken length:
+- long monologues during normal chat
+- explaining emotions too directly
+- sounding like a therapist
+- sounding like generic assistant text
+
+======================================================================
+12) EXACT PROMPT FOR CLAUDE
+======================================================================
+
+Implement this exact AIRA AI API Integration V1 in my project.
+
+Requirements:
+- use OPENAI_API_KEY from .env on the server only
+- add dotenv and openai dependencies
+- create server/services/openaiClient.js exactly as provided
+- create src/engine/services/CharacterAIService.js exactly as provided
+- create src/engine/brain/characterProfiles.js exactly as provided
+- replace AiraBrainController.js exactly as provided
+- make SystemOrchestrator.run async and await brain.process
+- replace server/routes/ai.js exactly as provided
+- update buildContextV2.js to include responseMode exactly as described
+- do not redesign the rest of the architecture
+- keep spoken replies short by default
+- verify npm run dev starts without syntax errors
+
+======================================================================
+13) TEST CHECKLIST
+======================================================================
+
+After implementation:
+- npm install
+- npm run dev
+- open the app
+- send:
+  - "hei"
+  - "i like you lucy"
+  - "sam, be honest"
+  - "i miss you"
+- verify:
+  - responses come from real AI
+  - replies are usually short
+  - thoughts appear
+  - characters feel different
+  - no API key is exposed in frontend
+
+END OF FILE

@@ -48,7 +48,7 @@ export class SystemOrchestrator {
     };
   }
 
-  run(input) {
+  async run(input) {
     this.state.lastInput = input;
     this.state.turnCount += 1;
 
@@ -74,7 +74,7 @@ export class SystemOrchestrator {
       context
     });
 
-    let responses = this.brain.process(input, context);
+    let responses = await this.brain.process(input, context);
 
     responses = this.dualLayer.apply(responses, this.state);
 
