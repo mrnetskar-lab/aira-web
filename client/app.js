@@ -1,3 +1,7 @@
+import { AiraDevPanel } from './devPanel.js';
+
+const devPanel = new AiraDevPanel();
+
 const landingView = document.getElementById('landingView');
 const roomView = document.getElementById('roomView');
 const enterRoomBtn = document.getElementById('enterRoomBtn');
@@ -118,8 +122,10 @@ async function sendPrompt(text) {
       }
     }
 
-    if (result.gmLine) {
-      appendMessage(result.gmLine, 'gm');
+    if (window.__AIRA_DEV_MODE__) {
+      if (result.gmLine) {
+        appendMessage(result.gmLine, 'gm');
+      }
     }
 
     renderState(data.state);

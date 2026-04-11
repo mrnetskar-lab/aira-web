@@ -1,0 +1,192 @@
+AIRA DEV PANEL LITE V1
+Target: D:\V3\Aira_web
+
+PURPOSE
+Replace the heavy AiraDevConsole with a clean, minimal dev panel for web.
+
+Goals:
+- GM hidden from normal chat
+- Simple dev panel for debugging
+- Mobile-friendly
+- Only essential data (no over-engineering)
+
+======================================================================
+1) REMOVE GM FROM UI
+======================================================================
+
+FILE: client/app.js
+
+Find this block:
+
+if (result.gmLine) {
+  appendMessage(result.gmLine, 'gm');
+}
+
+REPLACE with:
+
+if (window.__AIRA_DEV_MODE__) {
+  if (result.gmLine) {
+    appendMessage(result.gmLine, 'gm');
+  }
+}
+
+======================================================================
+2) NEW FILE
+======================================================================
+
+FILE: client/devPanel.js
+
+CODE:
+
+export class AiraDevPanel {
+  constructor(orchestrator) {
+    this.orchestrator = orchestrator;
+    this.visible = false;
+    this.el = null;
+
+    window.__AIRA_DEV_MODE__ = false;
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === '§') this.toggle();
+    });
+  }
+
+  toggle() {
+    this.visible = !this.visible;
+    window.__AIRA_DEV_MODE__ = this.visible;
+
+    if (this.visible) this.create();
+    else this.destroy();
+  }
+
+  create() {
+    if (this.el) return;
+
+    this.el = document.createElement('div');
+    this.el.id = 'aira-dev-panel';
+
+    Object.assign(this.el.style, {
+      position: 'fixed',
+      bottom: '0',
+      left: '0',
+      right: '0',
+      height: '50%',
+      background: '#0b1020',
+      color: '#fff',
+      zIndex: '9999',
+      borderTop: '1px solid rgba(255,255,255,0.1)',
+      display: 'flex',
+      flexDirection: 'column',
+      fontSize: '12px'
+    });
+
+    this.el.innerHTML = `
+      <div style="padding:10px;display:flex;justify-content:space-between;">
+        <strong>AIRA DEV</strong>
+        <button id="aira-dev-close">Close</button>
+      </div>
+
+      <div style="display:flex;gap:8px;padding:6px;">
+        <button data-tab="overview">Overview</button>
+        <button data-tab="relationships">Relations</button>
+        <button data-tab="aira">AIRA</button>
+        <button data-tab="memory">Memory</button>
+        <button data-tab="logs">Logs</button>
+      </div>
+
+      <div id="aira-dev-content" style="flex:1;overflow:auto;padding:10px;"></div>
+    `;
+
+    document.body.appendChild(this.el);
+
+    this.el.querySelector('#aira-dev-close').onclick = () => this.toggle();
+
+    this.el.querySelectorAll('[data-tab]').forEach(btn => {
+      btn.onclick = () => this.render(btn.dataset.tab);
+    });
+
+    this.render('overview');
+    this.interval = setInterval(() => this.render(), 1000);
+  }
+
+  destroy() {
+    clearInterval(this.interval);
+    this.el?.remove();
+    this.el = null;
+  }
+
+  render(tab = 'overview') {
+    if (!this.el) return;
+
+    const content = this.el.querySelector('#aira-dev-content');
+    const state = this.orchestrator.getState();
+
+    if (tab === 'overview') {
+      content.innerHTML = `
+        <pre>${JSON.stringify({
+          tension: state.tension,
+          turnCount: state.turnCount,
+          location: state.location
+        }, null, 2)}</pre>
+      `;
+    }
+
+    if (tab === 'relationships') {
+      content.innerHTML = `<pre>${JSON.stringify(state.relationships, null, 2)}</pre>`;
+    }
+
+    if (tab === 'aira') {
+      content.innerHTML = `<pre>${JSON.stringify(state.aira, null, 2)}</pre>`;
+    }
+
+    if (tab === 'memory') {
+      content.innerHTML = `<pre>${JSON.stringify(this.orchestrator.memory.entries.slice(-10), null, 2)}</pre>`;
+    }
+
+    if (tab === 'logs') {
+      content.innerHTML = `<pre>Logs coming soon...</pre>`;
+    }
+  }
+}
+
+======================================================================
+3) CONNECT PANEL
+======================================================================
+
+FILE: client/app.js
+
+Add at top:
+
+import { AiraDevPanel } from './devPanel.js';
+
+Then after app init:
+
+const devPanel = new AiraDevPanel(window.engine.orchestrator);
+
+======================================================================
+4) RESULT
+======================================================================
+
+- Press § to toggle dev panel
+- GM hidden unless dev mode ON
+- See:
+  - state
+  - relationships
+  - aira
+  - memory
+
+======================================================================
+5) OPTIONAL IMPROVEMENTS
+======================================================================
+
+Later you can add:
+- force tension slider
+- trigger AIRA
+- log stream
+- relationship editing
+
+But NOT now.
+
+Keep it simple.
+
+END OF FILE

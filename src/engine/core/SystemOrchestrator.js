@@ -1,5 +1,6 @@
 import { buildContext } from './buildContext.js';
 import { RelationshipEngine } from '../systems/RelationshipEngine.js';
+import { AiraPresenceSystem } from '../systems/AiraPresenceSystem.js';
 
 export class SystemOrchestrator {
   constructor({
@@ -26,6 +27,7 @@ export class SystemOrchestrator {
     this.explicitMode = explicitMode;
 
     this.relationshipEngine = new RelationshipEngine();
+    this.airaPresenceSystem = new AiraPresenceSystem();
 
     const agents = [...brain.brains.keys()];
     this.state = {
@@ -33,6 +35,8 @@ export class SystemOrchestrator {
       randomness: 0.5,
       lastInput: null,
       turnCount: 0,
+      aira: null,
+      investigation: null,
       relationships: Object.fromEntries(agents.map(name => [name, {
         trust: 0.5, attraction: 0.3, comfort: 0.5, jealousy: 0.1, hurt: 0, attachment: 0.3
       }])),
@@ -69,6 +73,12 @@ export class SystemOrchestrator {
     });
 
     this.relationshipEngine.update({
+      input,
+      state: this.state,
+      context
+    });
+
+    this.airaPresenceSystem.update({
       input,
       state: this.state,
       context
