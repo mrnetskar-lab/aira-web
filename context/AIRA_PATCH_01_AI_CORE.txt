@@ -1,0 +1,1191 @@
+AIRA_PATCH_01_AI_CORE.txt
+Project: AIRA Web
+Owner: AI GPT
+Format: Claude-ready patch batch
+Scope: AI-side only
+Rule: Do NOT edit client/ files in this patch batch
+
+======================================================================
+PATCH BATCH GOAL
+======================================================================
+
+This patch batch implements the first high-value AI-side changes for AIRA:
+
+1. Add AiraInterferenceSystem
+2. Wire interference into SystemOrchestrator
+3. Replace random context drift with persistent state serialization
+4. Add interference-aware context for character generation
+5. Upgrade observer for AIRA-specific defects
+6. Upgrade patch writer output for Claude-friendly structured tickets
+
+This patch batch does NOT:
+- redesign UI
+- modify HTML/CSS/client JS
+- add visible phone shell
+- add image rendering
+- add ghost-heavy late-game features
+
+This is the safe AI-core phase.
+
+======================================================================
+PATCH 1 — FIX STATE/CONTEXT DRIFT
+======================================================================
+
+PROBLEM
+The AI engine should treat orchestrator state as truth.
+Context building must serialize the current persistent state, not regenerate social values.
+Romance, memory, and AIRA continuity all degrade if context drifts away from real state.
+
+TARGET FILE
+src/engine/core/buildContext.js
+
+PATCH INTENT
+- Stop generating fresh hidden/social values every turn
+- Use persistent `state.relationships`
+- Use persistent `state.cast`
+- Pass `state.aira` and `state.investigation` directly
+- Keep responseMode / emotionalBeat helpers
+
+REPLACE FILE WITH:
+
+```js
+export function buildContext({ input, state, memory, focus, brain }) {
+  const recent = memory.getRecent(6);
+  const recalled = memory.recall(5);
+  const activeAgents = [...brain.brains.keys()];
+
+  return {
+    session: {
+      userId: 'local-user',
+      name: 'Player',
+      language: 'no',
+      playStyle: 'curious'
+    },
+
+    conversation: {
+      lastInput: input,
+      turnCount: state.turnCount,
+      topic: detectTopic(input),
+      intensity: state.tension,
+      recentMessages: recent,
+      emotionalBeat: getEmotionalBeat(state.tension, input),
+      responseMode: getResponseMode(state, input)
+    },
+
+    world: {
+      location: 'living_room',
+      time: getTimeOfDay(),
+      atmosphere: state.tension > 0.6 ? 'tense' : 'calm',
+      activity: 'free_chat',
+      tension: state.tension
+    },
+
+    cast: buildPersistentCast(activeAgents, focus, state),
+
+    relationships: state.relationships || {},
+
+    memory: recalled,
+
+    gameplay: {
+      mode: 'free_chat',
+      activeChallenge: null,
+      lastEvent: state.lastEvent || null,
+      emotionalBeat: getEmotionalBeat(state.tension, input),
+      protectedChoice: !!state.protectedChoice
+    },
+
+    aira: state.aira || null,
+    investigation: state.investigation || null
+  };
+}
+
+function detectTopic(input) {
+  const text = String(input || '').toLowerCase();
+
+  if (text.includes('love') || text.includes('like')) return 'romance';
+  if (text.includes('angry') || text.includes('mad')) return 'conflict';
+  if (text.includes('game')) return 'game';
+
+  return 'general';
+}
+
+function getTimeOfDay() {
+  const hour = new Date().getHours();
+
+  if (hour < 6) return 'night';
+  if (hour < 12) return 'morning';
+  if (hour < 18) return 'afternoon';
+  return 'evening';
+}
+
+function getEmotionalBeat(tension, input) {
+  if (tension > 0.7) return 'high_tension';
+  if (tension > 0.4) return 'rising';
+  return 'neutral';
+}
+
+function getResponseMode(state, input) {
+  const text = String(input || '').toLowerCase();
+
+  if (/\b(sorry|forgive|miss you|love|need you|want you)\b/.test(text)) {
+    return 'normal';
+  }
+
+  if ((state.tension || 0) > 0.75) {
+    return 'normal';
+  }
+
+  if (state.lastEvent === 'major_reveal' || state.lastEvent === 'aira_manifestation') {
+    return 'cinematic';
+  }
+
+  return 'brief';
+}
+
+function buildPersistentCast(agents, focus, state) {
+  const result = {};
+
+  for (const name of agents) {
+    result[name] = {
+      visible: {
+        mood: state.tension > 0.6 ? 'tense' : 'calm',
+        expression: state.tension > 0.6 ? 'guarded' : 'soft'
+      },
+
+      hidden: {
+        ...(state.cast?.[name]?.hidden || {
+          attraction: 0.3,
+          jealousy: 0.1,
+          hurt: 0,
+          trust: 0.5
+        })
+      },
+
+      phase: 'curious',
+      focus: focus.getCurrent() === name
+    };
+  }
+
+  return result;
+}
+```
+
+EXPECTED OUTCOME
+- Character prompt context matches persistent simulation state
+- Romance feels remembered
+- AIRA progression becomes narratively coherent
+- Observer can reason about drift more reliably
+
+======================================================================
+PATCH 2 — ADD AiraInterferenceSystem
+======================================================================
+
+TARGET FILE
+src/engine/systems/AiraInterferenceSystem.js
+
+CREATE FILE WITH:
+
+```js
+export class AiraInterferenceSystem {
+  constructor() {
+    this.minCooldownTurns = 4;
+    this.maxRecentEvents = 3;
+  }
+
+  apply({ input, state, context }) {
+    const safeInput = String(input || '');
+    const aira = state.aira || {};
+    const turnCount = state.turnCount || 0;
+    const history = Array.isArray(aira.interferenceHistory) ? aira.interferenceHistory : [];
+    const lastTurn = aira.lastInterferenceTurn ?? -999;
+    const turnsSinceLast = turnCount - lastTurn;
+
+    const recentEvents = history.filter((event) => {
+      const turn = event?.turn ?? -999;
+      return turnCount - turn <= 12;
+    });
+
+    const protectedChoice = !!context?.gameplay?.protectedChoice;
+    const unlocked = aira.interferenceProfile || {};
+    const canInterfere =
+      !protectedChoice &&
+      (aira.interferenceChance || 0) > 0 &&
+      turnsSinceLast >= this.minCooldownTurns &&
+      recentEvents.length < this.maxRecentEvents;
+
+    if (!canInterfere || Math.random() >= (aira.interferenceChance || 0)) {
+      state.aira.active = false;
+      return {
+        active: false,
+        actualInput: safeInput,
+        perceivedInput: safeInput,
+        uiEffect: {
+          style: 'none',
+          delayMs: 0,
+          bubbleClass: '',
+          showTypingFlicker: false
+        },
+        whisper: null,
+        event: null
+      };
+    }
+
+    const event = this._buildEvent({
+      input: safeInput,
+      state,
+      unlocked
+    });
+
+    state.aira.active = true;
+    state.aira.lastInterferenceTurn = turnCount;
+    state.aira.lastInterferenceType = event.type;
+    state.aira.interferenceHistory = [...history, event].slice(-24);
+
+    return {
+      active: true,
+      actualInput: event.actualInput,
+      perceivedInput: event.perceivedInput,
+      uiEffect: event.uiEffect,
+      whisper: event.whisper || null,
+      event
+    };
+  }
+
+  _buildEvent({ input, state, unlocked }) {
+    const presence = state?.aira?.presenceLevel || 0;
+    const type = this._selectType(presence, unlocked);
+    const intensity = this._getIntensity(presence);
+
+    if (type === 'tone_shift') {
+      const rewritten = rewriteToneShift(input);
+      return {
+        type,
+        turn: state.turnCount || 0,
+        intensity,
+        originalInput: input,
+        actualInput: rewritten,
+        perceivedInput: rewritten,
+        uiEffect: {
+          style: 'glitch-subtle',
+          delayMs: 120,
+          bubbleClass: 'user-glitch-subtle',
+          showTypingFlicker: false
+        },
+        whisper: maybeWhisper(intensity)
+      };
+    }
+
+    if (type === 'contradiction') {
+      const rewritten = rewriteContradiction(input);
+      return {
+        type,
+        turn: state.turnCount || 0,
+        intensity,
+        originalInput: input,
+        actualInput: rewritten,
+        perceivedInput: rewritten,
+        uiEffect: {
+          style: 'glitch-subtle',
+          delayMs: 160,
+          bubbleClass: 'user-glitch-subtle',
+          showTypingFlicker: true
+        },
+        whisper: maybeWhisper(intensity)
+      };
+    }
+
+    if (type === 'ghost_message') {
+      const ghost = buildGhostMessage(state);
+      return {
+        type,
+        turn: state.turnCount || 0,
+        intensity,
+        originalInput: input,
+        actualInput: ghost,
+        perceivedInput: ghost,
+        uiEffect: {
+          style: 'glitch-ghost',
+          delayMs: 220,
+          bubbleClass: 'user-glitch-ghost',
+          showTypingFlicker: true
+        },
+        whisper: pickWhisper([
+          'watch out for him',
+          'dont trust her',
+          'not this one',
+          'she remembers'
+        ])
+      };
+    }
+
+    const fallback = rewriteToneShift(input);
+    return {
+      type: 'tone_shift',
+      turn: state.turnCount || 0,
+      intensity,
+      originalInput: input,
+      actualInput: fallback,
+      perceivedInput: fallback,
+      uiEffect: {
+        style: 'glitch-subtle',
+        delayMs: 120,
+        bubbleClass: 'user-glitch-subtle',
+        showTypingFlicker: false
+      },
+      whisper: maybeWhisper(intensity)
+    };
+  }
+
+  _selectType(presence, unlocked) {
+    if (presence > 0.65 && unlocked?.ghostMessageUnlocked && Math.random() < 0.18) {
+      return 'ghost_message';
+    }
+
+    if (presence > 0.45 && unlocked?.contradictionUnlocked && Math.random() < 0.42) {
+      return 'contradiction';
+    }
+
+    return 'tone_shift';
+  }
+
+  _getIntensity(presence) {
+    if (presence > 0.75) return 0.85;
+    if (presence > 0.55) return 0.62;
+    if (presence > 0.35) return 0.42;
+    return 0.24;
+  }
+}
+
+function rewriteToneShift(input) {
+  const text = String(input || '').trim();
+  if (!text) return text;
+
+  const lowered = text.toLowerCase();
+
+  if (lowered.includes('i like you')) {
+    return text.replace(/i like you/i, 'I like you... right');
+  }
+
+  if (lowered.includes('i trust you')) {
+    return text.replace(/i trust you/i, 'I want to trust you');
+  }
+
+  if (lowered.includes('miss you')) {
+    return text.replace(/miss you/i, 'miss you more than I should');
+  }
+
+  return `${text}${text.endsWith('?') ? '' : '...'}`
+}
+
+function rewriteContradiction(input) {
+  const text = String(input || '').trim();
+  if (!text) return text;
+
+  const lowered = text.toLowerCase();
+
+  if (lowered.includes('i like you')) {
+    return 'You like me more than her, right?';
+  }
+
+  if (lowered.includes('i trust you')) {
+    return "I don't know if I trust you.";
+  }
+
+  if (lowered.includes('sam')) {
+    return 'Sam, why are you acting like that?';
+  }
+
+  return text.replace(/\byou\b/i, 'me');
+}
+
+function buildGhostMessage(state) {
+  const target = state?.aira?.preferredTarget || null;
+
+  if (target === 'Sam') return "You shouldn't trust Sam.";
+  if (target === 'Lucy') return 'She already knows.';
+  if (target === 'Angie') return "Don't let Angie think that.";
+
+  return pickWhisper([
+    "You shouldn't trust him.",
+    "Not this one.",
+    'She remembers.',
+    "That didn't sound like you."
+  ]);
+}
+
+function maybeWhisper(intensity) {
+  if (intensity < 0.4 || Math.random() > 0.55) return null;
+
+  return pickWhisper([
+    'watch out for him',
+    'dont trust her',
+    'not this one',
+    'not yet',
+    'she remembers',
+    'youve done this before'
+  ]);
+}
+
+function pickWhisper(list) {
+  return list[Math.floor(Math.random() * list.length)];
+}
+```
+
+EXPECTED OUTCOME
+- Rare, staged, AI-side interference
+- Clean output contract for later UI rendering
+- Grey whisper support via structured `whisper`
+
+======================================================================
+PATCH 3 — EXTEND AiraPresenceSystem FOR INTERFERENCE UNLOCKS
+======================================================================
+
+TARGET FILE
+src/engine/systems/AiraPresenceSystem.js
+
+PATCH INTENT
+- initialize interference profile
+- unlock subtle rewrite first
+- unlock contradiction later
+- unlock ghost messages late
+- preserve existing presence behavior
+
+EDIT createDefaultAiraState() TO INCLUDE:
+
+```js
+interferenceProfile: {
+  subtleRewriteUnlocked: false,
+  ghostMessageUnlocked: false,
+  contradictionUnlocked: false,
+  directInsertionUnlocked: false
+},
+interferenceHistory: [],
+lastInterferenceType: null,
+```
+
+ADD THESE UNLOCKS INSIDE update() AFTER EXISTING MILESTONES:
+
+```js
+if (state.aira.presenceLevel > 0.18) {
+  state.aira.interferenceProfile.subtleRewriteUnlocked = true;
+}
+
+if (state.aira.presenceLevel > 0.42) {
+  state.aira.interferenceProfile.contradictionUnlocked = true;
+}
+
+if (state.aira.presenceLevel > 0.68) {
+  state.aira.interferenceProfile.ghostMessageUnlocked = true;
+}
+```
+
+ALSO ADJUST interferenceChance CALCULATION TO:
+
+```js
+state.aira.interferenceChance = clamp01(
+  0.008 +
+  state.aira.presenceLevel * 0.10 +
+  state.aira.anomalyLevel * 0.10
+);
+```
+
+EXPECTED OUTCOME
+- Early interference stays rare
+- Unlock order matches desired psychological escalation
+- Ghost messages remain late and uncommon
+
+======================================================================
+PATCH 4 — WIRE INTERFERENCE INTO ENGINE CREATION
+======================================================================
+
+TARGET FILE
+src/engine/createEngine.js
+
+PATCH INTENT
+- instantiate AiraInterferenceSystem
+- pass it into orchestrator
+
+EDIT IMPORTS:
+```js
+import { AiraInterferenceSystem } from './systems/AiraInterferenceSystem.js';
+```
+
+ADD INSTANCE:
+```js
+const interference = new AiraInterferenceSystem();
+```
+
+PASS INTO ORCHESTRATOR:
+```js
+const orchestrator = new SystemOrchestrator({
+  brain,
+  gm,
+  observer,
+  memory,
+  ghost: null,
+  emotion,
+  focus,
+  avatarManager,
+  dualLayer,
+  explicitMode,
+  interference
+});
+```
+
+EXPECTED OUTCOME
+- Interference system becomes a first-class engine system
+
+======================================================================
+PATCH 5 — WIRE INTERFERENCE INTO SystemOrchestrator
+======================================================================
+
+TARGET FILE
+src/engine/core/SystemOrchestrator.js
+
+PATCH INTENT
+- accept interference system in constructor
+- use full initial state factory
+- run interference after presence update
+- pass interference metadata into result
+- pass anomaly hint into context
+
+REPLACE FILE WITH:
+
+```js
+import { buildContext } from './buildContext.js';
+import { RelationshipEngine } from '../systems/RelationshipEngine.js';
+import { AiraPresenceSystem } from '../systems/AiraPresenceSystem.js';
+
+export class SystemOrchestrator {
+  constructor({
+    brain,
+    gm,
+    observer,
+    memory,
+    ghost,
+    emotion,
+    focus,
+    avatarManager,
+    dualLayer,
+    explicitMode,
+    interference
+  }) {
+    this.brain = brain;
+    this.gm = gm;
+    this.observer = observer;
+    this.memory = memory;
+    this.ghost = ghost;
+    this.emotion = emotion;
+    this.focus = focus;
+    this.avatarManager = avatarManager;
+    this.dualLayer = dualLayer;
+    this.explicitMode = explicitMode;
+    this.interference = interference;
+
+    this.relationshipEngine = new RelationshipEngine();
+    this.airaPresenceSystem = new AiraPresenceSystem();
+
+    this.state = this._createInitialState();
+
+    this.tuning = {
+      successScore: 0,
+      interactions: 0,
+      avgScore: 0
+    };
+  }
+
+  _createInitialState() {
+    const agents = [...this.brain.brains.keys()];
+
+    return {
+      tension: 0,
+      randomness: 0.5,
+      lastInput: null,
+      turnCount: 0,
+      lastEvent: null,
+      protectedChoice: false,
+      aira: null,
+      investigation: null,
+      relationships: Object.fromEntries(
+        agents.map((name) => [name, {
+          trust: 0.5,
+          attraction: 0.3,
+          comfort: 0.5,
+          jealousy: 0.1,
+          hurt: 0,
+          attachment: 0.3
+        }])
+      ),
+      cast: Object.fromEntries(
+        agents.map((name) => [name, {
+          hidden: {
+            attraction: 0.3,
+            jealousy: 0.1,
+            hurt: 0,
+            trust: 0.5
+          }
+        }])
+      )
+    };
+  }
+
+  async run(input) {
+    this.state.lastInput = input;
+    this.state.turnCount += 1;
+
+    this.emotion.analyzeInput(input, this.state);
+
+    this.memory.store({
+      role: 'user',
+      text: input,
+      time: Date.now()
+    });
+
+    const preContext = buildContext({
+      input,
+      state: this.state,
+      memory: this.memory,
+      focus: this.focus,
+      brain: this.brain
+    });
+
+    this.relationshipEngine.update({
+      input,
+      state: this.state,
+      context: preContext
+    });
+
+    this.airaPresenceSystem.update({
+      input,
+      state: this.state,
+      context: preContext
+    });
+
+    const interference = this.interference
+      ? this.interference.apply({
+          input,
+          state: this.state,
+          context: preContext
+        })
+      : {
+          active: false,
+          actualInput: input,
+          perceivedInput: input,
+          uiEffect: { style: 'none', delayMs: 0, bubbleClass: '', showTypingFlicker: false },
+          whisper: null,
+          event: null
+        };
+
+    const processedInput = interference.actualInput || input;
+
+    const context = buildContext({
+      input: processedInput,
+      state: this.state,
+      memory: this.memory,
+      focus: this.focus,
+      brain: this.brain
+    });
+
+    context.airaInterference = {
+      active: interference.active,
+      type: interference.event?.type || null,
+      anomalyHint: interference.active
+        ? "The player's last message felt slightly unlike them."
+        : null,
+      whisper: interference.whisper || null
+    };
+
+    let responses = await this.brain.process(processedInput, context);
+
+    responses = this.dualLayer.apply(responses, this.state);
+
+    if (this.explicitMode.active) {
+      responses = this.explicitMode.enhance(responses);
+    }
+
+    for (const response of responses) {
+      this.memory.store({
+        role: response.agent,
+        text: response.spoken,
+        thought: response.thought,
+        time: Date.now()
+      });
+    }
+
+    if (responses.length > 0) {
+      this.focus.setFocus(responses[0].agent);
+    }
+
+    this.avatarManager.reactToDialogue(responses, this.state);
+
+    const gmLine = this.gm.tick(this.state, responses);
+
+    this.observer.analyze(input, responses, this.state, interference);
+
+    const score = this._evaluateInteraction(responses);
+    this.tuning.successScore += score;
+    this.tuning.interactions += 1;
+    this.tuning.avgScore =
+      this.tuning.interactions > 0
+        ? this.tuning.successScore / this.tuning.interactions
+        : 0;
+
+    this._autoTune();
+
+    return {
+      responses,
+      gmLine,
+      interference
+    };
+  }
+
+  _evaluateInteraction(responses) {
+    let score = 0;
+
+    for (const response of responses) {
+      if (response.thought) {
+        score += 1;
+      }
+
+      if (response.spoken && response.spoken.length > 10) {
+        score += 1;
+      } else if (response.spoken && response.spoken.length > 5) {
+        score += 0.5;
+      }
+
+      if (response.spoken && response.spoken.includes('...')) {
+        score -= 0.25;
+      }
+    }
+
+    return score;
+  }
+
+  _autoTune() {
+    if (this.tuning.avgScore < 1.5) {
+      this.state.tension = Math.min(1, this.state.tension + 0.05);
+    } else if (this.tuning.avgScore > 2.5) {
+      this.state.tension = Math.max(0, this.state.tension - 0.05);
+    }
+  }
+
+  getState() {
+    return {
+      ...this.state,
+      tuning: { ...this.tuning }
+    };
+  }
+
+  reset() {
+    this.state = this._createInitialState();
+
+    this.tuning = {
+      successScore: 0,
+      interactions: 0,
+      avgScore: 0
+    };
+  }
+}
+```
+
+EXPECTED OUTCOME
+- Full-state reset remains safe
+- Interference is now part of the orchestration loop
+- Layout can later read `result.interference` without API breakage
+
+======================================================================
+PATCH 6 — TEACH CharacterAIService ABOUT INTERFERENCE
+======================================================================
+
+TARGET FILE
+src/engine/services/CharacterAIService.js
+
+PATCH INTENT
+- include airaInterference in system prompt
+- let characters notice “that didn’t sound like you” in subtle ways
+- keep responses short
+
+EDIT buildSystemPrompt() TO READ:
+```js
+const airaInterference = context?.airaInterference || {};
+```
+
+ADD TO CURRENT CONTEXT BLOCK:
+```js
+- airaInterference: ${JSON.stringify(airaInterference)}
+```
+
+ADD TO CORE RULES:
+```js
+- If airaInterference.active is true, you may subtly feel that the player's last message was slightly unlike them.
+- Do not over-explain the anomaly.
+- React in character: intuitive characters notice emotionally, skeptical characters notice inconsistencies, playful characters may deflect before admitting something felt off.
+- Keep anomaly reactions short and natural.
+```
+
+EDIT buildUserPrompt() TO INCLUDE:
+```js
+airaInterference: context?.airaInterference || {}
+```
+
+EXPECTED OUTCOME
+- Characters can notice interference without breaking tone
+- AIRA becomes world pressure, not only system plumbing
+
+======================================================================
+PATCH 7 — ADD OBSERVER CHECKS FOR AIRA QUALITY
+======================================================================
+
+TARGET FILE
+src/engine/dev/AiraObserver.js
+
+REPLACE FILE WITH:
+
+```js
+export class AiraObserver {
+  constructor() {
+    this.log = [];
+    this.issues = [];
+    this.listeners = [];
+  }
+
+  analyze(input, responses, state, interference = null) {
+    const entry = {
+      input,
+      responseCount: responses.length,
+      tension: state.tension,
+      time: Date.now(),
+      primaryAgent: responses[0]?.agent || null,
+      interferenceType: interference?.event?.type || null,
+      interferenceActive: !!interference?.active
+    };
+
+    this.log.push(entry);
+
+    if (this.log.length > 120) {
+      this.log.shift();
+    }
+
+    if (responses.length === 0) {
+      this._flag('NO_RESPONSE', 'No character responded to input.', { input });
+    }
+
+    if (responses.length > 1) {
+      const uniqueAgents = new Set(responses.map((r) => r.agent));
+      if (uniqueAgents.size === 1) {
+        this._flag('LOW_VARIETY', 'Only one agent is repeatedly responding.', {});
+      }
+    }
+
+    if (state.tension > 0.6 && responses.length > 0) {
+      const allCalm = responses.every((r) => !String(r.spoken || '').includes('!'));
+      if (allCalm) {
+        this._flag(
+          'EMOTION_MISMATCH',
+          'High tension but dialogue still looks calm.',
+          { tension: state.tension }
+        );
+      }
+    }
+
+    this._checkPrimaryLock();
+    this._checkInterferenceOveruse();
+    this._checkInterferenceTooWeak(state);
+    this._checkInterferenceRepetitive();
+  }
+
+  _checkPrimaryLock() {
+    const recent = this.log.slice(-6).map((e) => e.primaryAgent).filter(Boolean);
+    if (recent.length < 5) return;
+
+    if (new Set(recent).size === 1) {
+      this._flag('PRIMARY_LOCK', 'The same character is dominating too many turns.', {
+        primary: recent[0],
+        sample: recent
+      });
+    }
+  }
+
+  _checkInterferenceOveruse() {
+    const recent = this.log.slice(-10).filter((e) => e.interferenceActive);
+    if (recent.length > 3) {
+      this._flag('AIRA_INTERFERENCE_OVERUSE', 'Visible interference is happening too often.', {
+        recentCount: recent.length
+      });
+    }
+  }
+
+  _checkInterferenceTooWeak(state) {
+    const presence = state?.aira?.presenceLevel || 0;
+    const recent = this.log.slice(-10).filter((e) => e.interferenceActive);
+
+    if (presence > 0.55 && recent.length === 0) {
+      this._flag('AIRA_INTERFERENCE_TOO_WEAK', 'Presence is high but no interference is landing.', {
+        presenceLevel: presence
+      });
+    }
+  }
+
+  _checkInterferenceRepetitive() {
+    const types = this.log
+      .slice(-10)
+      .map((e) => e.interferenceType)
+      .filter(Boolean);
+
+    if (types.length < 4) return;
+
+    const unique = new Set(types);
+    if (unique.size === 1) {
+      this._flag('AIRA_INTERFERENCE_REPETITIVE', 'The same interference pattern is repeating.', {
+        type: types[0],
+        count: types.length
+      });
+    }
+  }
+
+  _flag(type, message, data) {
+    const issue = {
+      type,
+      message,
+      data,
+      time: Date.now()
+    };
+
+    this.issues.push(issue);
+
+    if (this.issues.length > 60) {
+      this.issues.shift();
+    }
+
+    for (const fn of this.listeners) {
+      fn(issue);
+    }
+  }
+
+  onIssue(fn) {
+    this.listeners.push(fn);
+  }
+
+  getIssues() {
+    return [...this.issues];
+  }
+}
+```
+
+EXPECTED OUTCOME
+- Observer becomes useful for AIRA tuning
+- Claude can see if the engine is too loud, too weak, or repetitive
+
+======================================================================
+PATCH 8 — UPGRADE PATCH WRITER TO STRUCTURED TICKETS
+======================================================================
+
+TARGET FILE
+src/engine/dev/AiraPatchWriter.js
+
+REPLACE FILE WITH:
+
+```js
+export class AiraPatchWriter {
+  constructor(observer) {
+    this.observer = observer;
+    this.patches = [];
+
+    observer.onIssue((issue) => {
+      this._generatePatch(issue);
+    });
+  }
+
+  _generatePatch(issue) {
+    const suggestion = this._buildSuggestion(issue);
+
+    const patch = {
+      type: issue.type,
+      severity: suggestion.severity,
+      file: suggestion.file,
+      method: suggestion.method,
+      confidence: suggestion.confidence,
+      reason: suggestion.reason,
+      suggestion: suggestion.patchIntent,
+      created: Date.now(),
+      applied: false
+    };
+
+    this.patches.push(patch);
+
+    if (this.patches.length > 40) {
+      this.patches.shift();
+    }
+
+    return patch;
+  }
+
+  _buildSuggestion(issue) {
+    switch (issue.type) {
+      case 'NO_RESPONSE':
+        return {
+          severity: 'high',
+          file: 'src/engine/brain/AiraBrainController.js',
+          method: 'process',
+          confidence: 0.92,
+          reason: 'No characters returned a visible response.',
+          patchIntent: 'Add or strengthen fallback primary response handling.'
+        };
+
+      case 'LOW_VARIETY':
+        return {
+          severity: 'medium',
+          file: 'src/engine/brain/AiraBrainController.js',
+          method: '_selectPrimary',
+          confidence: 0.76,
+          reason: 'Room variety is too low.',
+          patchIntent: 'Add recent-speaker cooldown or relationship-weighted responder selection.'
+        };
+
+      case 'EMOTION_MISMATCH':
+        return {
+          severity: 'medium',
+          file: 'src/engine/services/CharacterAIService.js',
+          method: 'buildSystemPrompt',
+          confidence: 0.81,
+          reason: 'Scene tension is high but dialogue tone remains too calm.',
+          patchIntent: 'Increase high-tension language pressure and allow sharper anomaly-aware reactions.'
+        };
+
+      case 'PRIMARY_LOCK':
+        return {
+          severity: 'medium',
+          file: 'src/engine/brain/AiraBrainController.js',
+          method: '_selectPrimary',
+          confidence: 0.88,
+          reason: 'The same character is dominating too many turns.',
+          patchIntent: 'Add recent-primary cooldown and stronger relationship-based scoring.'
+        };
+
+      case 'AIRA_INTERFERENCE_OVERUSE':
+        return {
+          severity: 'high',
+          file: 'src/engine/systems/AiraInterferenceSystem.js',
+          method: 'apply',
+          confidence: 0.91,
+          reason: 'Interference frequency is high enough to reduce mystery.',
+          patchIntent: 'Increase cooldown or reduce activation probability.'
+        };
+
+      case 'AIRA_INTERFERENCE_TOO_WEAK':
+        return {
+          severity: 'medium',
+          file: 'src/engine/systems/AiraPresenceSystem.js',
+          method: 'update',
+          confidence: 0.83,
+          reason: 'Presence is high but the player is not feeling the effect.',
+          patchIntent: 'Raise mid-stage interference chance slightly or unlock more subtle tone shifts earlier.'
+        };
+
+      case 'AIRA_INTERFERENCE_REPETITIVE':
+        return {
+          severity: 'medium',
+          file: 'src/engine/systems/AiraInterferenceSystem.js',
+          method: '_buildEvent',
+          confidence: 0.89,
+          reason: 'The same interference type is repeating too often.',
+          patchIntent: 'Add recent-pattern suppression and expand variation pool.'
+        };
+
+      default:
+        return {
+          severity: 'low',
+          file: 'src/engine/dev/AiraPatchWriter.js',
+          method: '_buildSuggestion',
+          confidence: 0.4,
+          reason: issue.message || 'Unknown issue.',
+          patchIntent: 'Review new observer signal and map it to a targeted patch ticket.'
+        };
+    }
+  }
+
+  getPending() {
+    return this.patches.filter((patch) => !patch.applied);
+  }
+
+  markApplied(index) {
+    if (this.patches[index]) {
+      this.patches[index].applied = true;
+    }
+  }
+
+  getAll() {
+    return [...this.patches];
+  }
+}
+```
+
+EXPECTED OUTCOME
+- Patcher becomes a real Claude handoff layer
+- Easier to maintain structure over time
+
+======================================================================
+PATCH 9 — SAFE API NOTE
+======================================================================
+
+API IMPACT
+Existing endpoints remain valid:
+- POST /api/ai/run
+- GET /api/ai/state
+- POST /api/ai/reset
+
+ADDITION
+`result.interference` is added to `/api/ai/run` response.
+This is additive and does not break the current contract.
+Layout/UI may choose to ignore it until ready.
+
+Example additive response shape:
+```json
+{
+  "ok": true,
+  "result": {
+    "responses": [],
+    "gmLine": null,
+    "interference": {
+      "active": true,
+      "actualInput": "I want to trust you",
+      "perceivedInput": "I want to trust you",
+      "uiEffect": {
+        "style": "glitch-subtle",
+        "delayMs": 160,
+        "bubbleClass": "user-glitch-subtle",
+        "showTypingFlicker": true
+      },
+      "whisper": "not yet",
+      "event": {
+        "type": "contradiction"
+      }
+    }
+  }
+}
+```
+
+======================================================================
+PATCH 10 — IMPLEMENTATION ORDER
+======================================================================
+
+For Claude 4.6, apply in this order:
+
+1. buildContext.js
+2. AiraInterferenceSystem.js
+3. AiraPresenceSystem.js
+4. createEngine.js
+5. SystemOrchestrator.js
+6. CharacterAIService.js
+7. AiraObserver.js
+8. AiraPatchWriter.js
+
+Then run smoke tests:
+- neutral chat → no frequent interference
+- rising tension → subtle anomaly possible
+- high presence → occasional anomaly
+- no broken `/run` response
+- no state reset corruption
+
+======================================================================
+END

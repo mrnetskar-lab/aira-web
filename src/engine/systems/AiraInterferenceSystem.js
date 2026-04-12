@@ -1,247 +1,243 @@
 export class AiraInterferenceSystem {
   constructor() {
-    this.telemetry = {
-      totalEvents: 0,
-      recentEvents: [],
-      typeCount: {}
-    };
+    this.minCooldownTurns = 4;
+    this.maxRecentEvents = 3;
   }
 
   apply({ input, state, context }) {
-    const neutral = this._neutral(input);
-
-    if (!state.aira) return neutral;
-
-    const aira = state.aira;
-    const profile = aira.interferenceProfile;
-    if (!profile || !profile.subtleRewriteUnlocked) return neutral;
-
+    const safeInput = String(input || '');
+    const aira = state.aira || {};
     const turnCount = state.turnCount || 0;
-    const lastTurn = aira.lastInterferenceTurn || 0;
+    const history = Array.isArray(aira.interferenceHistory) ? aira.interferenceHistory : [];
+    const lastTurn = aira.lastInterferenceTurn ?? -999;
     const turnsSinceLast = turnCount - lastTurn;
 
-    // Cooldown — min 4 turns between visible events
-    if (turnsSinceLast < 4) return neutral;
+    const recentEvents = history.filter((event) => {
+      const turn = event?.turn ?? -999;
+      return turnCount - turn <= 12;
+    });
 
-    // Protected choice
-    if (context?.gameplay?.protectedChoice) return neutral;
+    const protectedChoice = !!context?.gameplay?.protectedChoice;
+    const unlocked = aira.interferenceProfile || {};
+    const canInterfere =
+      !protectedChoice &&
+      (aira.interferenceChance || 0) > 0 &&
+      turnsSinceLast >= this.minCooldownTurns &&
+      recentEvents.length < this.maxRecentEvents;
 
-    // Cap recent events in last 8 turns
-    const recentWindow = this.telemetry.recentEvents.filter(
-      e => turnCount - e.turn < 8
-    );
-    if (recentWindow.length >= 2) return neutral;
+    if (!canInterfere || Math.random() >= (aira.interferenceChance || 0)) {
+      state.aira.active = false;
+      return {
+        active: false,
+        actualInput: safeInput,
+        perceivedInput: safeInput,
+        uiEffect: {
+          style: 'none',
+          delayMs: 0,
+          bubbleClass: '',
+          showTypingFlicker: false
+        },
+        whisper: null,
+        event: null
+      };
+    }
 
-    // Roll
-    const chance = aira.interferenceChance || 0;
-    if (Math.random() >= chance) return neutral;
+    const event = this._buildEvent({
+      input: safeInput,
+      state,
+      unlocked
+    });
 
-    // Pick type
-    const type = this._pickType(profile, aira.presenceLevel || 0);
-    if (!type) return neutral;
-
-    // Generate distortion
-    const result = this._generate(type, input);
-    if (!result) return neutral;
-
-    // Record event
-    const event = {
-      type,
-      originalInput: input,
-      actualInput: result.actualInput,
-      perceivedInput: result.perceivedInput,
-      ghostText: result.ghostText || null,
-      intensity: aira.presenceLevel,
-      turn: turnCount,
-      noticedBy: [],
-      timestamp: Date.now()
-    };
-
-    aira.lastInterferenceTurn = turnCount;
-    aira.lastInterferenceType = type;
-    if (!aira.interferenceHistory) aira.interferenceHistory = [];
-    aira.interferenceHistory.push(event);
-    if (aira.interferenceHistory.length > 20) aira.interferenceHistory.shift();
-
-    this.telemetry.totalEvents++;
-    this.telemetry.recentEvents.push({ turn: turnCount, type });
-    if (this.telemetry.recentEvents.length > 50) this.telemetry.recentEvents.shift();
-    this.telemetry.typeCount[type] = (this.telemetry.typeCount[type] || 0) + 1;
+    state.aira.active = true;
+    state.aira.lastInterferenceTurn = turnCount;
+    state.aira.lastInterferenceType = event.type;
+    state.aira.interferenceHistory = [...history, event].slice(-24);
 
     return {
       active: true,
-      actualInput: result.actualInput,
-      perceivedInput: result.perceivedInput,
-      ghostText: result.ghostText || null,
-      uiEffect: result.uiEffect,
+      actualInput: event.actualInput,
+      perceivedInput: event.perceivedInput,
+      uiEffect: event.uiEffect,
+      whisper: event.whisper || null,
       event
     };
   }
 
-  _neutral(input) {
+  _buildEvent({ input, state, unlocked }) {
+    const presence = state?.aira?.presenceLevel || 0;
+    const type = this._selectType(presence, unlocked);
+    const intensity = this._getIntensity(presence);
+
+    if (type === 'tone_shift') {
+      const rewritten = rewriteToneShift(input);
+      return {
+        type,
+        turn: state.turnCount || 0,
+        intensity,
+        originalInput: input,
+        actualInput: rewritten,
+        perceivedInput: rewritten,
+        uiEffect: {
+          style: 'glitch-subtle',
+          delayMs: 120,
+          bubbleClass: 'user-glitch-subtle',
+          showTypingFlicker: false
+        },
+        whisper: maybeWhisper(intensity)
+      };
+    }
+
+    if (type === 'contradiction') {
+      const rewritten = rewriteContradiction(input);
+      return {
+        type,
+        turn: state.turnCount || 0,
+        intensity,
+        originalInput: input,
+        actualInput: rewritten,
+        perceivedInput: rewritten,
+        uiEffect: {
+          style: 'glitch-subtle',
+          delayMs: 160,
+          bubbleClass: 'user-glitch-subtle',
+          showTypingFlicker: true
+        },
+        whisper: maybeWhisper(intensity)
+      };
+    }
+
+    if (type === 'ghost_message') {
+      const ghost = buildGhostMessage(state);
+      return {
+        type,
+        turn: state.turnCount || 0,
+        intensity,
+        originalInput: input,
+        actualInput: ghost,
+        perceivedInput: ghost,
+        uiEffect: {
+          style: 'glitch-ghost',
+          delayMs: 220,
+          bubbleClass: 'user-glitch-ghost',
+          showTypingFlicker: true
+        },
+        whisper: pickWhisper([
+          'watch out for him',
+          'dont trust her',
+          'not this one',
+          'she remembers'
+        ])
+      };
+    }
+
+    const fallback = rewriteToneShift(input);
     return {
-      active: false,
-      actualInput: input,
-      perceivedInput: input,
-      ghostText: null,
+      type: 'tone_shift',
+      turn: state.turnCount || 0,
+      intensity,
+      originalInput: input,
+      actualInput: fallback,
+      perceivedInput: fallback,
       uiEffect: {
-        style: 'none',
-        delayMs: 0,
-        bubbleClass: '',
+        style: 'glitch-subtle',
+        delayMs: 120,
+        bubbleClass: 'user-glitch-subtle',
         showTypingFlicker: false
       },
-      event: null
+      whisper: maybeWhisper(intensity)
     };
   }
 
-  _pickType(profile, presenceLevel) {
-    const pool = [];
-
-    if (profile.subtleRewriteUnlocked) {
-      pool.push({ type: 'tone_shift', weight: 6 });
-    }
-    if (profile.ghostMessageUnlocked) {
-      pool.push({ type: 'relational_implication', weight: 3 });
-    }
-    if (profile.contradictionUnlocked && presenceLevel > 0.55) {
-      pool.push({ type: 'ghost_message', weight: 1 });
-      pool.push({ type: 'contradiction', weight: 2 });
+  _selectType(presence, unlocked) {
+    if (presence > 0.65 && unlocked?.ghostMessageUnlocked && Math.random() < 0.18) {
+      return 'ghost_message';
     }
 
-    if (!pool.length) return null;
-
-    const total = pool.reduce((s, p) => s + p.weight, 0);
-    let roll = Math.random() * total;
-
-    for (const p of pool) {
-      roll -= p.weight;
-      if (roll <= 0) return p.type;
+    if (presence > 0.45 && unlocked?.contradictionUnlocked && Math.random() < 0.42) {
+      return 'contradiction';
     }
 
-    return pool[0].type;
+    return 'tone_shift';
   }
 
-  _generate(type, input) {
-    switch (type) {
-      case 'tone_shift':             return this._toneShift(input);
-      case 'relational_implication': return this._relationalImplication(input);
-      case 'ghost_message':          return this._ghostMessage(input);
-      case 'contradiction':          return this._contradiction(input);
-      default:                       return null;
-    }
+  _getIntensity(presence) {
+    if (presence > 0.75) return 0.85;
+    if (presence > 0.55) return 0.62;
+    if (presence > 0.35) return 0.42;
+    return 0.24;
+  }
+}
+
+function rewriteToneShift(input) {
+  const text = String(input || '').trim();
+  if (!text) return text;
+
+  const lowered = text.toLowerCase();
+
+  if (lowered.includes('i like you')) {
+    return text.replace(/i like you/i, 'I like you... right');
   }
 
-  /* ------------------------------------------------------------------ */
-
-  _toneShift(input) {
-    const suffixes = [
-      '... right?',
-      '. You know that.',
-      ' more than I expected.',
-      '... I think.',
-      '. Or maybe not.',
-    ];
-    const suffix = suffixes[Math.floor(Math.random() * suffixes.length)];
-    const text = String(input || '').replace(/[.?!]*$/, '') + suffix;
-
-    return {
-      actualInput: text,
-      perceivedInput: text,
-      ghostText: null,
-      uiEffect: {
-        style: 'glitch-subtle',
-        delayMs: 80,
-        bubbleClass: 'user-glitch-subtle',
-        showTypingFlicker: false
-      }
-    };
+  if (lowered.includes('i trust you')) {
+    return text.replace(/i trust you/i, 'I want to trust you');
   }
 
-  _relationalImplication(input) {
-    const pool = [
-      'You like me more than her, right?',
-      'You were never going to pick Sam.',
-      "Tell me you don't mean Angie.",
-      'I miss you more than I should.',
-      "You're not being honest with yourself.",
-      'Something about you has changed.',
-    ];
-    const text = pool[Math.floor(Math.random() * pool.length)];
-
-    return {
-      actualInput: text,
-      perceivedInput: text,
-      ghostText: null,
-      uiEffect: {
-        style: 'glitch-subtle',
-        delayMs: 100,
-        bubbleClass: 'user-glitch-subtle',
-        showTypingFlicker: false
-      }
-    };
+  if (lowered.includes('miss you')) {
+    return text.replace(/miss you/i, 'miss you more than I should');
   }
 
-  _ghostMessage(input) {
-    const pool = [
-      "You shouldn't trust Sam.",
-      "That didn't sound like me.",
-      'She knows already.',
-      'I think I said that wrong.',
-      'Why did I say that?',
-      'They can tell.',
-    ];
-    const ghostText = pool[Math.floor(Math.random() * pool.length)];
+  return `${text}${text.endsWith('?') ? '' : '...'}`;
+}
 
-    return {
-      actualInput: input,
-      perceivedInput: input,
-      ghostText,
-      uiEffect: {
-        style: 'glitch-ghost',
-        delayMs: 220,
-        bubbleClass: 'user-glitch-ghost',
-        showTypingFlicker: true
-      }
-    };
+function rewriteContradiction(input) {
+  const text = String(input || '').trim();
+  if (!text) return text;
+
+  const lowered = text.toLowerCase();
+
+  if (lowered.includes('i like you')) {
+    return 'You like me more than her, right?';
   }
 
-  _contradiction(input) {
-    let text = String(input || '');
-    const replacements = [
-      [/\btrust\b/i,   'want to trust'],
-      [/\blike\b/i,    'think I like'],
-      [/\blove\b/i,    'thought I loved'],
-      [/\bneed\b/i,    'used to need'],
-      [/\bbelieve\b/i, 'want to believe'],
-    ];
-
-    let replaced = false;
-    for (const [pattern, replacement] of replacements) {
-      if (pattern.test(text)) {
-        text = text.replace(pattern, replacement);
-        replaced = true;
-        break;
-      }
-    }
-
-    if (!replaced) {
-      text = text.replace(/[.?!]*$/, '') + '. I think.';
-    }
-
-    return {
-      actualInput: text,
-      perceivedInput: text,
-      ghostText: null,
-      uiEffect: {
-        style: 'glitch-subtle',
-        delayMs: 60,
-        bubbleClass: 'user-glitch-subtle',
-        showTypingFlicker: false
-      }
-    };
+  if (lowered.includes('i trust you')) {
+    return "I don't know if I trust you.";
   }
 
-  getTelemetry() {
-    return { ...this.telemetry };
+  if (lowered.includes('sam')) {
+    return 'Sam, why are you acting like that?';
   }
+
+  return text.replace(/\byou\b/i, 'me');
+}
+
+function buildGhostMessage(state) {
+  const target = state?.aira?.preferredTarget || null;
+
+  if (target === 'Sam') return "You shouldn't trust Sam.";
+  if (target === 'Lucy') return 'She already knows.';
+  if (target === 'Angie') return "Don't let Angie think that.";
+
+  return pickWhisper([
+    "You shouldn't trust him.",
+    'Not this one.',
+    'She remembers.',
+    "That didn't sound like you."
+  ]);
+}
+
+function maybeWhisper(intensity) {
+  if (intensity < 0.4 || Math.random() > 0.55) return null;
+
+  return pickWhisper([
+    'watch out for him',
+    'dont trust her',
+    'not this one',
+    'not yet',
+    'she remembers',
+    'youve done this before'
+  ]);
+}
+
+function pickWhisper(list) {
+  return list[Math.floor(Math.random() * list.length)];
 }

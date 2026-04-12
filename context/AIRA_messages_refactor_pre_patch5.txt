@@ -1,0 +1,655 @@
+AIRA REFACTOR PATCH — MESSAGES APP ROLLBACK TO PRE-PATCH-5
+===============================================================
+
+Goal
+----
+Refactor the CURRENT Messages app so it keeps the Messages MVP,
+but removes the Patch 5 logic creep.
+
+This patch does:
+- keep Messages app
+- remove personality logic
+- remove fake reply logic
+- remove typing indicator logic
+- remove interference logic
+- keep thread list + thread view
+- make Messages feel cleaner and quieter
+
+This patch is based on your CURRENT files.
+
+Files
+-----
+- client/app.js
+- client/style.css
+- client/index.html
+
+==================================================
+PART 1 — APP.JS
+==================================================
+
+--------------------------------------------------
+STEP 1 — Simplify messagesApp state
+--------------------------------------------------
+
+In client/app.js, FIND the entire messagesApp object inside state:
+
+  messagesApp: {
+    threads: [
+      { id: "lucy", name: "Lucy", preview: "Hey...", unread: true, persona: "lucy" },
+      { id: "sam", name: "Sam", preview: "You there?", unread: false, persona: "sam" },
+      { id: "angie", name: "Angie", preview: "Call me later", unread: true, persona: "angie" },
+    ],
+    activeThread: null,
+    typingThreadId: null,
+    interferenceThreadId: null,
+    messages: {
+      lucy: [{ text: "You disappeared.", me: false, tone: "lucy" }],
+      sam: [{ text: "You usually answer faster than that.", me: false, tone: "sam" }],
+      angie: [{ text: "Okay, rude. But hi.", me: false, tone: "angie" }],
+    },
+  },
+
+REPLACE it with:
+
+  messagesApp: {
+    threads: [
+      { id: "lucy", name: "Lucy", preview: "You disappeared.", unread: true },
+      { id: "sam", name: "Sam", preview: "You there?", unread: false },
+      { id: "angie", name: "Angie", preview: "Call me later", unread: true },
+    ],
+    activeThread: null,
+    messages: {
+      lucy: [{ text: "You disappeared.", me: false }],
+      sam: [{ text: "You there?", me: false }],
+      angie: [{ text: "Call me later", me: false }],
+    },
+  },
+
+--------------------------------------------------
+STEP 2 — Replace renderThreads()
+--------------------------------------------------
+
+FIND the full function:
+
+  function renderThreads() {
+    ...
+  }
+
+REPLACE the entire function with:
+
+  function renderThreads() {
+    if (!elements.messagesList) return;
+
+    elements.messagesList.innerHTML = state.messagesApp.threads
+      .map((thread) => `
+        <button class="thread ${thread.unread ? "is-unread" : ""}" type="button" data-thread="${thread.id}">
+          <div class="thread-name">${escapeHtml(thread.name)}</div>
+          <div class="thread-preview">${escapeHtml(thread.preview)}</div>
+          ${thread.unread ? '<div class="thread-dot"></div>' : ""}
+        </button>
+      `)
+      .join("");
+  }
+
+--------------------------------------------------
+STEP 3 — Replace renderThreadMessages()
+--------------------------------------------------
+
+FIND the full function:
+
+  function renderThreadMessages() {
+    ...
+  }
+
+REPLACE the entire function with:
+
+  function renderThreadMessages() {
+    const id = state.messagesApp.activeThread;
+    const msgs = state.messagesApp.messages[id] || [];
+
+    elements.messagesLog.innerHTML = msgs
+      .map((message) => `
+        <div class="msg-bubble ${message.me ? "msg-me" : "msg-them"}">
+          ${escapeHtml(message.text)}
+        </div>
+      `)
+      .join("");
+
+    requestAnimationFrame(() => {
+      elements.messagesLog.scrollTop = elements.messagesLog.scrollHeight;
+    });
+  }
+
+--------------------------------------------------
+STEP 4 — Keep only one simple helper
+--------------------------------------------------
+
+FIND this function:
+
+  function getThreadById(id) {
+    return state.messagesApp.threads.find((thread) => thread.id === id) || null;
+  }
+
+KEEP it.
+
+Delete the following functions completely:
+
+  function getPersonaReplies(id) { ... }
+  function pickThreadReply(id) { ... }
+  function waitForPrivateReply(ms) { ... }
+  async function simulatePrivateReply(id) { ... }
+  function maybeTriggerMessageInterference() { ... }
+
+Leave updateThreadPreview(id, previewText) in place.
+
+--------------------------------------------------
+STEP 5 — Replace sendThreadMessage()
+--------------------------------------------------
+
+FIND the full function:
+
+  async function sendThreadMessage() {
+    ...
+  }
+
+REPLACE the entire function with:
+
+  async function sendThreadMessage() {
+    const text = elements.messagesInput.value.trim();
+    if (!text) return;
+
+    const id = state.messagesApp.activeThread;
+    if (!id) return;
+
+    state.messagesApp.messages[id].push({
+      text,
+      me: true,
+    });
+
+    updateThreadPreview(id, `You: ${text}`);
+    elements.messagesInput.value = "";
+    renderThreadMessages();
+    renderThreads();
+  }
+
+--------------------------------------------------
+STEP 6 — Replace openThread()
+--------------------------------------------------
+
+FIND the full function:
+
+  function openThread(id) {
+    ...
+  }
+
+REPLACE the entire function with:
+
+  function openThread(id) {
+    const thread = getThreadById(id);
+    if (!thread) return;
+
+    state.messagesApp.activeThread = id;
+    thread.unread = false;
+
+    elements.messagesList.style.display = "none";
+    elements.messagesThread.classList.remove("hidden");
+    elements.messagesTitle.textContent = thread.name;
+
+    renderThreads();
+    renderThreadMessages();
+  }
+
+--------------------------------------------------
+STEP 7 — Replace closeThread()
+--------------------------------------------------
+
+FIND the full function:
+
+  function closeThread() {
+    ...
+  }
+
+REPLACE the entire function with:
+
+  function closeThread() {
+    state.messagesApp.activeThread = null;
+    elements.messagesThread.classList.add("hidden");
+    elements.messagesList.style.display = "flex";
+    renderThreads();
+  }
+
+--------------------------------------------------
+STEP 8 — Simplify showPlaceholder("messages")
+--------------------------------------------------
+
+In showPlaceholder(appName), FIND this block:
+
+  if (appName === "messages") {
+    state.messagesApp.activeThread = null;
+    state.messagesApp.typingThreadId = null;
+    state.messagesApp.interferenceThreadId = null;
+    elements.messagesThread.classList.add("hidden");
+    elements.messagesList.style.display = "flex";
+    elements.appPlaceholderBody.hidden = true;
+    elements.messagesApp.hidden = false;
+    elements.placeholderTitle.textContent = "Messages";
+    setActiveView("app", "forward");
+    renderThreads();
+    return;
+  }
+
+REPLACE it with:
+
+  if (appName === "messages") {
+    state.messagesApp.activeThread = null;
+    elements.messagesThread.classList.add("hidden");
+    elements.messagesList.style.display = "flex";
+    elements.messagesInput.value = "";
+    elements.appPlaceholderBody.hidden = true;
+    elements.messagesApp.hidden = false;
+    elements.placeholderTitle.textContent = "Messages";
+    setActiveView("app", "forward");
+    renderThreads();
+    return;
+  }
+
+--------------------------------------------------
+STEP 9 — Add Messages topbar element reference
+--------------------------------------------------
+
+In the elements object, ADD this line:
+
+  appTopbar: document.getElementById("appTopbar"),
+
+Place it near the other app placeholder references.
+
+--------------------------------------------------
+STEP 10 — Hide generic app topbar when Messages opens
+--------------------------------------------------
+
+In showPlaceholder(appName), inside the messages block, ADD this line before setActiveView():
+
+  elements.appTopbar.hidden = true;
+
+Then in the non-messages branch, ADD this line before setActiveView():
+
+  elements.appTopbar.hidden = false;
+
+--------------------------------------------------
+STEP 11 — Add Messages events if missing
+--------------------------------------------------
+
+Inside bindEvents(), make sure these blocks exist:
+
+  elements.messagesList.addEventListener("click", (event) => {
+    const id = event.target.closest(".thread")?.dataset.thread;
+    if (!id) return;
+    openThread(id);
+  });
+
+  elements.messagesBackBtn.addEventListener("click", closeThread);
+
+  elements.messagesForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await sendThreadMessage();
+  });
+
+  elements.messagesInput.addEventListener("keydown", async (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      await sendThreadMessage();
+    }
+  });
+
+If any of these do not exist, add them.
+
+==================================================
+PART 2 — INDEX.HTML
+==================================================
+
+--------------------------------------------------
+STEP 12 — Add id to app topbar
+--------------------------------------------------
+
+In client/index.html, inside #appView, FIND:
+
+  <header class="topbar">
+
+REPLACE it with:
+
+  <header id="appTopbar" class="topbar">
+
+Do not change the chat topbar.
+Only change the one inside appView.
+
+--------------------------------------------------
+STEP 13 — Keep Messages thread topbar clean
+--------------------------------------------------
+
+Inside #messagesThread, make sure this exact block exists:
+
+  <header class="messages-topbar">
+    <button
+      id="messagesBackBtn"
+      class="messages-back"
+      type="button"
+      aria-label="Back to messages"
+    >
+      <span aria-hidden="true">&#8592;</span>
+    </button>
+
+    <span id="messagesTitle" class="messages-title"></span>
+
+    <div class="messages-topbar-spacer" aria-hidden="true"></div>
+  </header>
+
+If it currently uses class="icon-button", replace it with class="messages-back".
+
+==================================================
+PART 3 — STYLE.CSS
+==================================================
+
+--------------------------------------------------
+STEP 14 — Replace the Messages app CSS section
+--------------------------------------------------
+
+In client/style.css, go to the section:
+
+  /* ------------------------------------------------------------------ */
+  /* MESSAGES APP (Patch 4+5)                                            */
+  /* ------------------------------------------------------------------ */
+
+From there down through the Messages app rules, REPLACE the Messages-related rules with these exact blocks:
+
+  .messages-app {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background:
+      linear-gradient(180deg, rgba(8, 8, 12, 0.98), rgba(4, 4, 7, 1));
+  }
+
+  .messages-list {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    padding-top: 6px;
+  }
+
+  .thread {
+    appearance: none;
+    width: 100%;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 8px 12px;
+    padding: 15px 18px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.035);
+    cursor: pointer;
+    transition:
+      background 180ms ease,
+      border-color 180ms ease;
+    position: relative;
+  }
+
+  .thread:hover,
+  .thread:focus-visible {
+    background: rgba(255, 255, 255, 0.02);
+    border-color: rgba(255, 255, 255, 0.05);
+    outline: none;
+  }
+
+  .thread-name {
+    grid-column: 1 / 2;
+    font-size: 1rem;
+    font-weight: 420;
+    line-height: 1.2;
+    color: rgba(245, 242, 235, 0.92);
+    letter-spacing: 0.01em;
+  }
+
+  .thread-preview {
+    grid-column: 1 / 2;
+    font-size: 0.82rem;
+    color: rgba(245, 242, 235, 0.46);
+    line-height: 1.35;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+
+  .thread-dot {
+    grid-column: 2 / 3;
+    grid-row: 1 / 3;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: rgba(200, 168, 106, 0.9);
+    box-shadow: 0 0 0 1px rgba(200, 168, 106, 0.08);
+    align-self: center;
+    justify-self: center;
+  }
+
+  .thread.is-unread .thread-name {
+    color: rgba(245, 242, 235, 0.98);
+  }
+
+  .thread.is-unread .thread-preview {
+    color: rgba(245, 242, 235, 0.68);
+  }
+
+  .messages-thread {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background:
+      linear-gradient(180deg, rgba(6, 6, 9, 0.98), rgba(3, 3, 6, 1));
+  }
+
+  .messages-thread.hidden {
+    display: none;
+  }
+
+  .messages-topbar {
+    display: grid;
+    grid-template-columns: 56px 1fr 56px;
+    align-items: center;
+    min-height: 52px;
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    background: rgba(7, 7, 11, 0.92);
+    backdrop-filter: blur(14px);
+  }
+
+  .messages-topbar-spacer {
+    width: 56px;
+    height: 1px;
+  }
+
+  .messages-title {
+    text-align: center;
+    font-size: 0.98rem;
+    font-weight: 500;
+    color: rgba(245, 242, 235, 0.92);
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .messages-back {
+    justify-self: start;
+    width: 40px;
+    height: 40px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    font-size: 1.3rem;
+    color: rgba(200, 168, 106, 0.92);
+    cursor: pointer;
+    transition:
+      background 160ms ease,
+      transform 160ms ease;
+  }
+
+  .messages-back:hover,
+  .messages-back:focus-visible {
+    background: rgba(200, 168, 106, 0.08);
+    transform: translateX(-1px);
+    outline: none;
+  }
+
+  .messages-log {
+    flex: 1;
+    padding: 16px 14px 18px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    scroll-behavior: smooth;
+  }
+
+  .msg-bubble {
+    max-width: 74%;
+    padding: 10px 14px;
+    border-radius: 18px;
+    font-size: 0.96rem;
+    line-height: 1.42;
+    word-break: break-word;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.16);
+  }
+
+  .msg-me {
+    align-self: flex-end;
+    background:
+      linear-gradient(180deg, rgba(77, 86, 168, 0.96), rgba(60, 68, 145, 0.96));
+    color: white;
+    border-bottom-right-radius: 6px;
+  }
+
+  .msg-them {
+    align-self: flex-start;
+    background: rgba(255, 255, 255, 0.07);
+    color: rgba(245, 242, 235, 0.94);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom-left-radius: 6px;
+  }
+
+  .messages-composer {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    padding: 10px 12px calc(12px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+    background: rgba(7, 7, 11, 0.94);
+    backdrop-filter: blur(14px);
+  }
+
+  .messages-input {
+    width: 100%;
+    min-height: 42px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    padding: 10px 14px;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(245, 242, 235, 0.96);
+    font-size: 0.95rem;
+    outline: none;
+    transition:
+      border-color 160ms ease,
+      background 160ms ease;
+  }
+
+  .messages-input::placeholder {
+    color: rgba(245, 242, 235, 0.38);
+  }
+
+  .messages-input:focus {
+    border-color: rgba(200, 168, 106, 0.18);
+    background: rgba(255, 255, 255, 0.065);
+  }
+
+  .messages-send {
+    min-width: 68px;
+    min-height: 42px;
+    border-radius: 999px;
+    border: 1px solid rgba(200, 168, 106, 0.18);
+    padding: 0 14px;
+    background:
+      linear-gradient(180deg, rgba(200, 168, 106, 0.13), rgba(200, 168, 106, 0.09));
+    color: rgba(245, 242, 235, 0.94);
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition:
+      border-color 160ms ease,
+      background 160ms ease,
+      transform 160ms ease;
+  }
+
+  .messages-send:hover,
+  .messages-send:focus-visible {
+    border-color: rgba(200, 168, 106, 0.28);
+    background:
+      linear-gradient(180deg, rgba(200, 168, 106, 0.16), rgba(200, 168, 106, 0.12));
+    transform: translateY(-1px);
+    outline: none;
+  }
+
+--------------------------------------------------
+STEP 15 — Remove Patch 5-only CSS
+--------------------------------------------------
+
+Delete these rule blocks if they still exist:
+
+  .typing-row { ... }
+  .typing-bubble { ... }
+  .typing-dot { ... }
+  @keyframes typingPulse { ... }
+  .msg-them.thread-lucy { ... }
+  .msg-them.thread-sam { ... }
+  .msg-them.thread-angie { ... }
+  .msg-bubble.msg-interference { ... }
+  .messages-thread.is-haunted { ... }
+
+==================================================
+PART 4 — RESULT
+==================================================
+
+After this patch:
+- Messages stays as a real app
+- no brain/personality creep
+- no fake auto-replies
+- no interference
+- no typing dots
+- cleaner native-like thread list
+- cleaner thread top bar
+- cleaner message composer
+- generic app topbar hidden while Messages is open
+
+==================================================
+PART 5 — OPTIONAL CLEANUP
+==================================================
+
+Later, after you confirm this is good, remove the repair badge:
+
+1. In index.html:
+   remove:
+     <div class="build-badge" aria-hidden="true">AIRA P3</div>
+
+2. In index.html:
+   change:
+     <body data-build="AIRA-P3-REPAIR">
+   back to:
+     <body>
+
+3. In style.css:
+   remove .build-badge
+
+END

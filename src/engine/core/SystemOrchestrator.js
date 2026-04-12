@@ -1,7 +1,7 @@
 import { buildContext } from './buildContext.js';
 import { RelationshipEngine } from '../systems/RelationshipEngine.js';
 import { AiraPresenceSystem } from '../systems/AiraPresenceSystem.js';
-import { AiraInterferenceSystem } from '../systems/AiraInterferenceSystem.js';
+import { RelationshipContinuitySystem, buildInitialContinuityState } from '../systems/RelationshipContinuitySystem.js';
 
 export class SystemOrchestrator {
   constructor({
@@ -14,7 +14,9 @@ export class SystemOrchestrator {
     focus,
     avatarManager,
     dualLayer,
-    explicitMode
+    explicitMode,
+    interference,
+    continuity
   }) {
     this.brain = brain;
     this.gm = gm;
@@ -26,26 +28,13 @@ export class SystemOrchestrator {
     this.avatarManager = avatarManager;
     this.dualLayer = dualLayer;
     this.explicitMode = explicitMode;
+    this.interference = interference;
+    this.continuity = continuity || new RelationshipContinuitySystem();
 
     this.relationshipEngine = new RelationshipEngine();
     this.airaPresenceSystem = new AiraPresenceSystem();
-    this.airaInterferenceSystem = new AiraInterferenceSystem();
 
-    const agents = [...brain.brains.keys()];
-    this.state = {
-      tension: 0,
-      randomness: 0.5,
-      lastInput: null,
-      turnCount: 0,
-      aira: null,
-      investigation: null,
-      relationships: Object.fromEntries(agents.map(name => [name, {
-        trust: 0.5, attraction: 0.3, comfort: 0.5, jealousy: 0.1, hurt: 0, attachment: 0.3
-      }])),
-      cast: Object.fromEntries(agents.map(name => [name, {
-        hidden: { attraction: 0.3, jealousy: 0.1, hurt: 0, trust: 0.5 }
-      }]))
-    };
+    this.state = this._createInitialState();
 
     this.tuning = {
       successScore: 0,
@@ -54,9 +43,59 @@ export class SystemOrchestrator {
     };
   }
 
-  async run(input) {
+  _createInitialState() {
+    const agents = [...this.brain.brains.keys()];
+
+    return {
+      tension: 0,
+      randomness: 0.5,
+      lastInput: null,
+      turnCount: 0,
+      lastEvent: null,
+      protectedChoice: false,
+      aira: null,
+      investigation: null,
+      relationships: Object.fromEntries(
+        agents.map((name) => [name, {
+          trust: 0.5,
+          attraction: 0.3,
+          comfort: 0.5,
+          jealousy: 0.1,
+          hurt: 0,
+          attachment: 0.3,
+          interest: 0.35,
+          romanticTension: 0.15,
+          exclusivityPressure: 0.0,
+          betrayalSensitivity: 0.25,
+          intimacyReadiness: 0.0,
+          avoidance: 0.0,
+          longing: 0.0
+        }])
+      ),
+      cast: Object.fromEntries(
+        agents.map((name) => [name, {
+          hidden: {
+            attraction: 0.3,
+            jealousy: 0.1,
+            hurt: 0,
+            trust: 0.5
+          }
+        }])
+      ),
+      continuity: buildInitialContinuityState(),
+    };
+  }
+
+  async run(input, options = {}) {
     this.state.lastInput = input;
     this.state.turnCount += 1;
+
+    if (options.activeApp) {
+      this.state.continuity = { ...this.state.continuity, activeApp: options.activeApp };
+    }
+
+    // 1. Increment turn clock + update continuity
+    this.continuity.update({ state: this.state });
 
     this.emotion.analyzeInput(input, this.state);
 
@@ -66,7 +105,8 @@ export class SystemOrchestrator {
       time: Date.now()
     });
 
-    const context = buildContext({
+    // 2. Build pre-context
+    const preContext = buildContext({
       input,
       state: this.state,
       memory: this.memory,
@@ -77,30 +117,47 @@ export class SystemOrchestrator {
     this.relationshipEngine.update({
       input,
       state: this.state,
-      context
+      context: preContext
     });
 
     this.airaPresenceSystem.update({
       input,
       state: this.state,
-      context
+      context: preContext
     });
 
-    const interference = this.airaInterferenceSystem.apply({
-      input,
+    const interference = this.interference
+      ? this.interference.apply({
+          input,
+          state: this.state,
+          context: preContext
+        })
+      : {
+          active: false,
+          actualInput: input,
+          perceivedInput: input,
+          uiEffect: { style: 'none', delayMs: 0, bubbleClass: '', showTypingFlicker: false },
+          whisper: null,
+          event: null
+        };
+
+    const processedInput = interference.actualInput || input;
+
+    const context = buildContext({
+      input: processedInput,
       state: this.state,
-      context
+      memory: this.memory,
+      focus: this.focus,
+      brain: this.brain
     });
-
-    const processedInput = interference.active ? interference.actualInput : input;
 
     context.airaInterference = {
       active: interference.active,
       type: interference.event?.type || null,
-      subtle: interference.uiEffect?.style === 'glitch-subtle',
       anomalyHint: interference.active
         ? "The player's last message felt slightly unlike them."
-        : null
+        : null,
+      whisper: interference.whisper || null
     };
 
     let responses = await this.brain.process(processedInput, context);
@@ -128,7 +185,7 @@ export class SystemOrchestrator {
 
     const gmLine = this.gm.tick(this.state, responses);
 
-    this.observer.analyze(input, responses, this.state);
+    this.observer.analyze(input, responses, this.state, interference);
 
     const score = this._evaluateInteraction(responses);
     this.tuning.successScore += score;
@@ -140,15 +197,21 @@ export class SystemOrchestrator {
 
     this._autoTune();
 
+    // Consume any ready continuity events
+    const continuityEvents = this.continuity.consumeReadyEvents(this.state);
+
+    const continuitySnapshot = {
+      timeBlock: this.state.continuity?.timeBlock,
+      activeApp: this.state.continuity?.activeApp,
+      availability: this.continuity.getAvailabilitySnapshot(this.state),
+      events: continuityEvents,
+    };
+
     return {
       responses,
       gmLine,
-      interference: {
-        active: interference.active,
-        perceivedInput: interference.perceivedInput,
-        ghostText: interference.ghostText || null,
-        uiEffect: interference.uiEffect
-      }
+      interference,
+      continuity: continuitySnapshot,
     };
   }
 
@@ -190,12 +253,7 @@ export class SystemOrchestrator {
   }
 
   reset() {
-    this.state = {
-      tension: 0,
-      randomness: 0.5,
-      lastInput: null,
-      turnCount: 0
-    };
+    this.state = this._createInitialState();
 
     this.tuning = {
       successScore: 0,

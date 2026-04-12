@@ -1,0 +1,438 @@
+AIRA_PATCH_04B_TYPING_AND_NO_REPLY_CASES.txt
+Project: AIRA Web
+Owner: AI GPT
+Audience: Claude 4.6
+Scope: AI-side only
+Mode: Minimal extension to 04A
+
+======================================================================
+GOAL
+======================================================================
+
+Build the next tiny realism layer on top of 04A continuity:
+
+- typing / replying intent
+- no-reply cases
+- delayed follow-up after silence
+- practical short replies
+- additive metadata only
+
+This patch is intentionally narrow.
+It should make private and continuity-style behavior feel less automatic.
+
+======================================================================
+OUT OF SCOPE
+======================================================================
+
+Do NOT implement yet:
+- seen receipts rendering
+- frontend typing animation rendering
+- real clock scheduling
+- calls / snap / dating app
+- cheating detection
+- deep character engine
+- full DM rewrite
+- layout changes
+
+This patch only creates AI-side behavior signals and reply suppression logic.
+
+======================================================================
+1) CONTINUITY STATE EXTENSION
+======================================================================
+
+TARGET:
+`src/engine/systems/RelationshipContinuitySystem.js`
+
+EXTEND AVAILABILITY STATE WITH:
+
+```js
+{
+  online: true,
+  sleeping: false,
+  busy: false,
+  seen: false,
+  replying: false,
+  willReplyLater: false,
+  noReplyReason: null,
+  lastSeenTurn: null
+}
+```
+
+These are transient, per-turn behavior hints.
+
+RULE:
+- `replying` means likely immediate response
+- `willReplyLater` means do not answer now, but queue later
+- `noReplyReason` can be:
+  - `sleeping`
+  - `busy`
+  - `pride`
+  - `distance`
+  - `uncertain`
+
+======================================================================
+2) ADD DECISION METHOD
+======================================================================
+
+TARGET:
+`src/engine/systems/RelationshipContinuitySystem.js`
+
+ADD METHOD:
+
+```js
+decideResponseDisposition({ state, character, input }) {}
+```
+
+PURPOSE
+Return one of:
+- `reply_now`
+- `reply_brief`
+- `reply_later`
+- `no_reply`
+
+SUGGESTED IMPLEMENTATION:
+
+```js
+decideResponseDisposition({ state, character, input }) {
+  const availability = state.continuity?.availability?.[character];
+  const rel = state.relationships?.[character] || {};
+
+  if (!availability) {
+    return { mode: 'reply_now', reason: null };
+  }
+
+  if (availability.sleeping) {
+    availability.replying = false;
+    availability.willReplyLater = false;
+    availability.noReplyReason = 'sleeping';
+    return { mode: 'no_reply', reason: 'sleeping' };
+  }
+
+  const trust = normalize01(rel.trust, 0.5);
+  const attraction = normalize01(rel.attraction, 0.3);
+  const attachment = normalize01(rel.attachment, 0.3);
+  const resentment = normalize01(rel.resentment, 0);
+  const pride = normalize01(rel.pride, 0.3);
+
+  const warmth = trust * 0.35 + attraction * 0.25 + attachment * 0.20 - resentment * 0.10 - pride * 0.10;
+  const lower = String(input || '').toLowerCase();
+
+  const vulnerable =
+    /\b(sorry|miss you|need you|want you|love|trust|hurt|stay)\b/.test(lower);
+
+  if (availability.busy) {
+    if (Math.random() < 0.45) {
+      availability.replying = true;
+      availability.willReplyLater = false;
+      availability.noReplyReason = null;
+      return { mode: 'reply_brief', reason: 'busy' };
+    }
+
+    if (Math.random() < 0.65) {
+      availability.replying = false;
+      availability.willReplyLater = true;
+      availability.noReplyReason = 'busy';
+      return { mode: 'reply_later', reason: 'busy' };
+    }
+
+    availability.replying = false;
+    availability.willReplyLater = false;
+    availability.noReplyReason = 'busy';
+    return { mode: 'no_reply', reason: 'busy' };
+  }
+
+  if (resentment > 0.55 && pride > 0.55 && Math.random() < 0.45) {
+    availability.replying = false;
+    availability.willReplyLater = false;
+    availability.noReplyReason = 'pride';
+    return { mode: 'no_reply', reason: 'pride' };
+  }
+
+  if (vulnerable && warmth > 0.42 && Math.random() < 0.30) {
+    availability.replying = false;
+    availability.willReplyLater = true;
+    availability.noReplyReason = 'uncertain';
+    return { mode: 'reply_later', reason: 'uncertain' };
+  }
+
+  if (Math.random() < 0.14) {
+    availability.replying = false;
+    availability.willReplyLater = false;
+    availability.noReplyReason = 'distance';
+    return { mode: 'no_reply', reason: 'distance' };
+  }
+
+  availability.replying = true;
+  availability.willReplyLater = false;
+  availability.noReplyReason = null;
+  return { mode: 'reply_now', reason: null };
+}
+```
+
+IMPORTANT
+This should stay probabilistic and light.
+Do not overfit it.
+
+======================================================================
+3) ADD LATER-QUEUE HOOKING
+======================================================================
+
+TARGET:
+`src/engine/systems/RelationshipContinuitySystem.js`
+
+ADD METHOD:
+
+```js
+maybeQueueDispositionFollowUp({ state, character, disposition, input }) {}
+```
+
+PURPOSE
+If disposition is `reply_later`, queue a later event.
+
+SUGGESTED IMPLEMENTATION:
+
+```js
+maybeQueueDispositionFollowUp({ state, character, disposition, input }) {
+  if (!disposition || disposition.mode !== 'reply_later') return;
+
+  const delayTurns =
+    disposition.reason === 'busy'
+      ? 1 + Math.floor(Math.random() * 2)
+      : 2 + Math.floor(Math.random() * 2);
+
+  const type =
+    disposition.reason === 'busy'
+      ? 'busy_reply'
+      : 'soft_check_in';
+
+  this.queueFollowUp({
+    state,
+    character,
+    type,
+    delayTurns,
+    reason: disposition.reason || 'continuity'
+  });
+}
+```
+
+======================================================================
+4) PRIMARY RESPONSE SUPPRESSION
+======================================================================
+
+TARGET:
+`src/engine/brain/AiraBrainController.js`
+
+PURPOSE
+Not every chosen character should always answer immediately.
+
+ADD CONTINUITY DEPENDENCY
+Make sure controller can access:
+```js
+this.continuity
+```
+either by constructor injection or by passing through the engine wiring pattern already used elsewhere.
+
+BEFORE generating the primary response, do:
+
+```js
+const disposition = this.continuity?.decideResponseDisposition({
+  state,
+  character: primary.name,
+  input
+}) || { mode: 'reply_now', reason: null };
+
+this.continuity?.maybeQueueDispositionFollowUp({
+  state,
+  character: primary.name,
+  disposition,
+  input
+});
+```
+
+THEN APPLY:
+
+### Case 1 — `reply_now`
+Proceed normally.
+
+### Case 2 — `reply_brief`
+Proceed, but override `responseMode` to `brief` for this character.
+
+### Case 3 — `reply_later`
+Skip immediate spoken response for this character.
+Allow another character to answer if available.
+If no other character answers, return no immediate line and rely on queued event later.
+
+### Case 4 — `no_reply`
+Skip immediate spoken response for this character.
+Do not queue anything unless another system later chooses to.
+
+IMPORTANT
+No-reply is valid behavior.
+Do not force a filler line.
+
+======================================================================
+5) SECONDARY RESPONSE RULE
+======================================================================
+
+TARGET:
+`src/engine/brain/AiraBrainController.js`
+
+If primary disposition is `reply_later` or `no_reply`,
+do NOT let the room go dead every time.
+
+Rule:
+- try one secondary responder if one exists
+- especially in group chat mode
+- if none qualifies, allow silence
+
+This keeps realism without making the app feel broken.
+
+======================================================================
+6) CHARACTER AI PROMPT UPDATE
+======================================================================
+
+TARGET:
+`src/engine/services/CharacterAIService.js`
+
+ADD TO SYSTEM PROMPT RULES:
+
+```txt
+- Sometimes you should answer briefly if you are busy or guarded.
+- Sometimes silence is valid; do not force a reply if the situation suggests distance, pride, or uncertainty.
+- If the mode is brief, keep it short and natural.
+- Practical lines like "later", "busy", "at work", or "talk soon" are valid when context supports them.
+```
+
+ALSO ADD:
+```txt
+- Do not turn a brief or practical reply into a long explanation.
+```
+
+======================================================================
+7) OUTPUT CONTRACT EXTENSION
+======================================================================
+
+TARGET:
+`/api/ai/run` additive result contract
+
+EXTEND `result.continuity.availability` to include:
+
+```json
+{
+  "online": true,
+  "sleeping": false,
+  "busy": false,
+  "seen": true,
+  "replying": false,
+  "willReplyLater": true,
+  "noReplyReason": "busy"
+}
+```
+
+This allows frontend to later show:
+- typing
+- no reply
+- delayed reply
+- busy states
+
+No frontend change required yet.
+
+======================================================================
+8) FOLLOW-UP EVENT TEXTS
+======================================================================
+
+TARGET:
+`src/engine/systems/RelationshipContinuitySystem.js`
+
+Keep follow-up texts very short.
+
+Lucy:
+- "hey. i was thinking about that."
+- "sorry. i needed a minute."
+- "still here."
+
+Sam:
+- "busy. later."
+- "read it."
+- "answering now."
+
+Angie:
+- "wow okay hi :)"
+- "you vanished on me."
+- "free now?"
+
+Do NOT overexpand this pool yet.
+
+======================================================================
+9) TEST CASES
+======================================================================
+
+TEST 1 — Immediate reply still works
+Input:
+normal low-stakes chat
+Expected:
+- many turns still produce immediate reply
+- system does not feel dead
+
+TEST 2 — Busy brief reply
+Input:
+daytime / Sam-like profile
+Expected:
+- short practical response can happen
+- examples: "later", "busy", "at work"
+
+TEST 3 — No reply case
+Input:
+resentful / pride-heavy state
+Expected:
+- immediate silence is possible
+- no crash
+- no forced filler
+
+TEST 4 — Later reply case
+Input:
+vulnerable line to warm target
+Expected:
+- no immediate answer sometimes
+- queued follow-up appears in later turn
+
+TEST 5 — Availability metadata
+Expected:
+- `replying`, `willReplyLater`, `noReplyReason` present in continuity snapshot
+
+======================================================================
+10) FAILURE CONDITIONS
+======================================================================
+
+Stop and retune if:
+- no-reply happens so often the app feels broken
+- everyone becomes too brief
+- later replies spam every turn
+- silence never happens
+- silence happens with no emotional logic
+- practical replies sound robotic
+
+======================================================================
+11) DESIGN RULES
+======================================================================
+
+1. Silence is a feature, not a bug.
+2. Brief replies should feel human, not placeholder-like.
+3. Not replying now should often be more powerful than replying instantly.
+4. Do not overuse no-reply.
+5. This patch is still a behavior test, not a full life sim.
+
+======================================================================
+12) IMPLEMENTATION ORDER
+======================================================================
+
+Apply in this order:
+1. Extend continuity state
+2. Add `decideResponseDisposition`
+3. Add follow-up queue hook
+4. Integrate into AiraBrainController primary response path
+5. Add prompt rules
+6. Verify additive API shape
+
+======================================================================
+END

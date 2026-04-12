@@ -1,0 +1,282 @@
+AIRA LAYOUT V1
+Target: D:\V3\Aira_web
+
+PURPOSE
+Define the new core layout for AIRA.
+
+This is not a full feature patch.
+This is the structural layout patch that sets the visual and UX foundation.
+
+GOALS
+- mobile first
+- AIRA OS as the shell
+- homescreen as menu
+- Chat as the primary app
+- no landscape/dashboard feeling
+- no fake room labels
+- no big hero scene card
+- clean space for future:
+  - Gallery
+  - Messages
+  - Clues
+  - Settings
+  - AIRA interference
+
+DESIGN PRINCIPLES
+1. The user should feel inside AIRA OS, not inside a website.
+2. The chat should feel like the main product.
+3. Anything "system-like" should live in apps, not around the chat.
+4. The layout must support images later without breaking the flow.
+5. The layout must work vertically, not as a desktop panel app.
+
+======================================================================
+1) CORE VIEW STRUCTURE
+======================================================================
+
+Use this app structure:
+
+A) HOME VIEW
+- AIRA logo
+- clock
+- subtle wallpaper/background
+- app grid
+- Chat app
+- Messages app
+- Gallery app
+- Clues app
+- Settings app
+
+B) CHAT VIEW
+- slim top bar
+- back button
+- small AIRA mark
+- clean message list
+- fixed input bar at bottom
+- optional subtle suggestion pills above input later
+
+C) PLACEHOLDER APP VIEW
+- same shell
+- simple card saying "coming soon"
+- reusable for Messages / Gallery / Clues / Settings
+
+D) DEV DRAWER
+- hidden by default
+- slides from bottom
+- not visible in normal play
+
+======================================================================
+2) REMOVE THESE THINGS
+======================================================================
+
+Do NOT include:
+- large scene header
+- "Living Room"
+- "Current Scene"
+- "Late evening conversation"
+- right-side debug panel
+- permanent sidebars
+- explicit location text in normal UI
+
+Reason:
+These can break immersion later if the system changes scene, time, or reality.
+
+======================================================================
+3) CHAT LAYOUT RULES
+======================================================================
+
+Chat should use vertical mobile rhythm.
+
+Required structure:
+
+[ Top Bar ]
+[ Message list ]
+[ Input bar ]
+
+No extra large card between top bar and messages.
+
+Message rules:
+- user messages on right
+- character messages on left
+- character name above bubble
+- time below or near bubble
+- optional subtext/thought below spoken text
+- elegant subtext color
+- generous spacing
+
+Subtext style:
+- italic
+- refined
+- lower contrast than normal text
+- slightly tinted, not loud
+
+Suggested mapping:
+- Lucy name: soft lilac
+- Sam name: cool blue
+- Angie name: warm amber
+- User bubble: strong but clean blue-violet
+- Subtext: elegant purple/lilac
+
+======================================================================
+4) IMAGE / MEDIA READY LAYOUT
+======================================================================
+
+The layout must be ready for future image states.
+
+DO NOT use a wide landscape hero area.
+
+Instead, reserve future support for:
+
+A) chat-attached media cards
+- portrait oriented
+- rounded card
+- can appear between messages
+- good for character images, gallery items, clues
+
+B) Gallery app
+- image grid
+- portrait-first
+- tap to open image detail
+
+C) Profile/media cards
+- vertical ratio, phone-friendly
+
+Recommended visual ratio for future media:
+- 4:5
+- 3:4
+- full portrait crop
+
+Avoid:
+- wide cinematic banners
+- large fixed landscape headers
+
+======================================================================
+5) HOMESCREEN FEEL
+======================================================================
+
+Homescreen should feel like:
+- premium
+- dark
+- slightly mysterious
+- simple enough that odd events later stand out
+
+Use:
+- black / very dark blue background
+- soft blue + gold ambient glow
+- minimal icons
+- enough negative space
+
+AIRA logo should be present but not overexplained.
+
+======================================================================
+6) FUTURE APP LOGIC
+======================================================================
+
+Apps should have these roles:
+
+Chat
+- main relationship scene
+- shared room conversation
+
+Messages
+- direct/private threads
+- good place for personal or secret contact
+
+Gallery
+- images
+- later background AIRA presence
+- profile/media view
+
+Clues
+- investigation
+- unlocked tools
+- detector later
+- anomaly evidence
+
+Settings
+- language
+- audio
+- visual options
+- dev access
+
+======================================================================
+7) AIRA INTERFERENCE READY
+======================================================================
+
+The layout must support future interference without redesign.
+
+Needed future hooks:
+- user bubble can look subtly different
+- a message can appear "from you"
+- a message can arrive with slight visual anomaly
+- an app icon can change later
+- a notification can appear unexpectedly
+- gallery image can subtly change
+
+Therefore:
+- keep app shell simple
+- keep message UI modular
+- keep user bubble visually distinct
+- do not overload the base layout
+
+======================================================================
+8) FILE STRATEGY
+======================================================================
+
+This layout should mainly affect:
+
+- client/index.html
+- client/style.css
+- client/app.js
+
+Do not change backend here.
+
+======================================================================
+9) IMPLEMENTATION TARGET
+======================================================================
+
+Claude should implement:
+
+A) AIRA OS homescreen shell
+B) mobile-first chat app view
+C) placeholder app view
+D) hidden dev drawer
+E) no large scene block
+F) no right debug column
+G) portrait/media-ready spacing
+
+======================================================================
+10) EXACT PROMPT FOR CLAUDE
+======================================================================
+
+Implement this exact AIRA layout direction in my project.
+
+Requirements:
+- mobile-first
+- AIRA OS homescreen as main shell
+- Chat as primary app
+- remove big scene header and fake location labels
+- remove fixed right-side debug panel from normal play
+- keep the layout portrait/media-friendly
+- no wide landscape hero block
+- message list must be the main focus
+- keep backend unchanged
+- keep placeholder apps simple for now
+- verify npm run dev starts cleanly afterwards
+
+======================================================================
+11) VISUAL SUMMARY
+======================================================================
+
+Desired feeling:
+
+AIRA OS
+↓
+tap Chat
+↓
+clean intimate chat
+↓
+future images, messages, gallery, clues
+↓
+later AIRA starts affecting the OS itself
+
+END OF FILE

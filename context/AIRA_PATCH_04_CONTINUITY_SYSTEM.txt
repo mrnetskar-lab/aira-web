@@ -1,0 +1,565 @@
+AIRA_PATCH_04_CONTINUITY_SYSTEM.txt
+Project: AIRA Web
+Owner: AI GPT
+Audience: Claude 4.6
+Scope: AI-side only
+Goal: Start small. Build the minimum viable continuity system that makes characters feel alive over time.
+Mode: Critical, minimal, testable
+
+======================================================================
+PATCH GOAL
+======================================================================
+
+This patch does NOT try to build the full long-term relationship simulation.
+
+This patch ONLY adds the first continuity layer:
+- availability
+- sleep / awake windows
+- seen state
+- simple typing / replying state
+- delayed follow-up queue
+- lightweight "busy / at work / later" behavior
+- active app context
+
+The purpose is to test one thing:
+
+Can small timing signals and uneven availability make the characters feel more real?
+
+If this patch does not improve feel, do NOT expand it yet.
+
+======================================================================
+NON-GOALS
+======================================================================
+
+Do NOT include yet:
+- full dating app logic
+- cheating detection
+- public/private social leak system
+- breakup / reunion loops
+- complex work schedules
+- timezone realism
+- deep NPC population
+- call system
+- snap rendering
+- phone-shell UI redesign
+- full archetype engine rewrite
+
+This is a minimal continuity patch.
+
+======================================================================
+1) NEW SYSTEM
+======================================================================
+
+CREATE:
+`src/engine/systems/RelationshipContinuitySystem.js`
+
+PURPOSE
+Own lightweight continuity state for:
+- whether a character is available
+- whether they are asleep
+- whether they have seen a message
+- whether they are typing / replying
+- whether a follow-up is queued for later
+
+PUBLIC API
+```js
+export class RelationshipContinuitySystem {
+  update({ state, context, input }) {}
+  getAvailabilitySnapshot(state) {}
+  queueFollowUp({ state, character, type, delayTurns, reason }) {}
+  consumeReadyEvents(state) {}
+}
+```
+
+IMPORTANT
+Use turn-based continuity first.
+Do NOT use real-world wall clock timing yet.
+
+Why:
+- easier to test
+- deterministic
+- easier to tune
+- no server persistence complexity yet
+
+======================================================================
+2) STATE SHAPE
+======================================================================
+
+ADD TO ORCHESTRATOR STATE:
+
+```json
+"continuity": {
+  "turnClock": 0,
+  "timeBlock": "evening",
+  "activeApp": {
+    "type": "chat",
+    "mode": "group",
+    "visibility": "public"
+  },
+  "availability": {
+    "Lucy": {
+      "online": true,
+      "sleeping": false,
+      "busy": false,
+      "seen": false,
+      "replying": false,
+      "lastSeenTurn": null
+    },
+    "Sam": {
+      "online": true,
+      "sleeping": false,
+      "busy": false,
+      "seen": false,
+      "replying": false,
+      "lastSeenTurn": null
+    },
+    "Angie": {
+      "online": true,
+      "sleeping": false,
+      "busy": false,
+      "seen": false,
+      "replying": false,
+      "lastSeenTurn": null
+    }
+  },
+  "queuedEvents": []
+}
+```
+
+EVENT SHAPE
+```json
+{
+  "id": "evt_001",
+  "character": "Lucy",
+  "type": "follow_up|busy_reply|soft_check_in",
+  "reason": "high_chemistry_scene",
+  "createdTurn": 8,
+  "readyTurn": 10,
+  "consumed": false
+}
+```
+
+======================================================================
+3) TIME MODEL
+======================================================================
+
+Use a fake internal turn clock.
+
+RULE
+Each run increments:
+```js
+state.continuity.turnClock += 1;
+```
+
+Map turnClock to a simple time block cycle:
+- 0–3 => evening
+- 4–6 => late_night
+- 7–9 => sleep_hours
+- 10–13 => morning
+- 14–17 => day
+- 18+ => wrap around
+
+Simplest implementation:
+```js
+function getTimeBlock(turnClock) {
+  const slot = turnClock % 18;
+  if (slot <= 3) return 'evening';
+  if (slot <= 6) return 'late_night';
+  if (slot <= 9) return 'sleep_hours';
+  if (slot <= 13) return 'morning';
+  return 'day';
+}
+```
+
+Why:
+- enough to simulate rhythm
+- enough to test sleep/unavailability
+- cheap to implement
+
+======================================================================
+4) CHARACTER AVAILABILITY PROFILES
+======================================================================
+
+For now, hardcode light personality-driven availability.
+
+Lucy
+- more likely online in evening
+- less likely abrupt
+- more likely seen + soft reply later
+
+Sam
+- more likely busy during day
+- more likely seen without fast reply
+- more likely short practical reply
+
+Angie
+- more likely late-night activity
+- faster reply probability
+- more likely spontaneous follow-up
+
+MINIMAL PROFILE EXAMPLE
+```js
+const CONTINUITY_PROFILES = {
+  Lucy: {
+    prefers: ['evening', 'morning'],
+    sleepDuring: ['sleep_hours'],
+    busyBias: 0.25,
+    seenBias: 0.65,
+    replyBias: 0.58
+  },
+  Sam: {
+    prefers: ['day', 'evening'],
+    sleepDuring: ['sleep_hours'],
+    busyBias: 0.42,
+    seenBias: 0.72,
+    replyBias: 0.38
+  },
+  Angie: {
+    prefers: ['evening', 'late_night'],
+    sleepDuring: ['sleep_hours'],
+    busyBias: 0.18,
+    seenBias: 0.56,
+    replyBias: 0.68
+  }
+};
+```
+
+Keep it simple.
+
+======================================================================
+5) ACTIVE APP PARAMETER
+======================================================================
+
+ADD TO CONTEXT:
+```json
+"active_app": {
+  "type": "chat|sms|snap|calls",
+  "mode": "group|private|live|async",
+  "visibility": "public|private|ephemeral"
+}
+```
+
+FOR PHASE A
+Default to:
+```json
+{ "type": "chat", "mode": "group", "visibility": "public" }
+```
+
+BEHAVIOR EFFECTS
+- chat/group/public:
+  - slower vulnerability
+  - more jealousy sensitivity
+  - more caution
+- sms/private/async:
+  - softer replies
+  - easier follow-up later
+  - better for “sorry, busy” style messages
+- snap/calls:
+  - do NOT simulate fully yet
+  - only allow parameter to exist now
+
+Why:
+- we need the parameter early
+- we do NOT need the full app systems yet
+
+======================================================================
+6) MINIMAL AVAILABILITY RULES
+======================================================================
+
+At each turn, for each character:
+
+1. determine current time block
+2. determine sleeping
+3. determine busy chance
+4. determine online flag
+5. reset transient seen/replying markers unless actively used this turn
+
+RULES
+- if sleeping => online false, busy false, replying false
+- if busy => online may still be true
+- online does not guarantee reply
+- seen can happen without reply
+- replying should be rare and brief in this phase
+
+SIMPLE RULES
+```js
+sleeping = profile.sleepDuring.includes(timeBlock)
+
+busy =
+  !sleeping &&
+  Math.random() < profile.busyBias &&
+  timeBlock !== 'late_night'
+
+online =
+  !sleeping &&
+  (profile.prefers.includes(timeBlock) || Math.random() < 0.45)
+```
+
+======================================================================
+7) PLAYER MESSAGE REACTION SIGNALS
+======================================================================
+
+When the player sends input:
+- mark some characters as having potentially seen it
+- decide whether one character should become `replying`
+- optionally queue later follow-up if no immediate reply happens
+
+Do NOT fake this for everyone every turn.
+
+Rules:
+- direct mention of a character increases seen + reply odds for that character
+- stronger relationship increases seen + reply odds
+- high resentment lowers reply odds
+- high attachment may increase seen even if no reply
+- high pride can cause seen-without-reply
+
+DERIVED HELPER
+```js
+interestScore =
+  trust * 0.25 +
+  attraction * 0.25 +
+  attachment * 0.25 +
+  (100 - resentment) * 0.15 +
+  (100 - pride) * 0.10
+```
+
+Use normalized values if your state is 0–1 instead of 0–100.
+
+PHASE A RULE
+Use only one or two continuity signals per turn max:
+- seen
+- replying
+- short busy line
+- delayed follow-up
+
+Not all at once.
+
+======================================================================
+8) DELAYED FOLLOW-UP QUEUE
+======================================================================
+
+This is the most important part of the patch.
+
+If a scene had emotional weight, but no immediate full reply happens, queue a later event.
+
+QUEUE CONDITIONS
+- high trust / attraction interaction
+- mention of that character
+- emotional keywords
+- high tension scene
+- apology scene
+- soft vulnerability scene
+
+QUEUE TYPES
+- `soft_check_in`
+- `busy_reply`
+- `late_follow_up`
+
+EXAMPLES
+Lucy:
+- "hey. i was thinking about what you said."
+
+Sam:
+- "busy. answer later."
+
+Angie:
+- "you disappeared on me :)"
+
+Simple queue API:
+```js
+queueFollowUp({
+  state,
+  character: 'Lucy',
+  type: 'soft_check_in',
+  delayTurns: 2,
+  reason: 'vulnerable_scene'
+});
+```
+
+CONSUME RULE
+At start of run, consume any ready queued events and attach them to result metadata.
+
+Do NOT inject too many.
+Hard cap:
+- max 1 consumed follow-up event per run in Phase A
+
+======================================================================
+9) OUTPUT CONTRACT
+======================================================================
+
+Do NOT let continuity be invisible.
+Expose lightweight fields for layout and future systems.
+
+ADD TO `/api/ai/run` result:
+```json
+"continuity": {
+  "timeBlock": "evening",
+  "activeApp": {
+    "type": "chat",
+    "mode": "group",
+    "visibility": "public"
+  },
+  "availability": {
+    "Lucy": {
+      "online": true,
+      "sleeping": false,
+      "busy": false,
+      "seen": true,
+      "replying": false
+    }
+  },
+  "events": [
+    {
+      "character": "Lucy",
+      "type": "soft_check_in",
+      "text": "hey. i was thinking about what you said."
+    }
+  ]
+}
+```
+
+IMPORTANT
+This is additive.
+Do not break existing contract.
+
+In Phase A, layout can ignore it.
+But it must be present for future rendering.
+
+======================================================================
+10) INTEGRATION POINTS
+======================================================================
+
+A) `src/engine/createEngine.js`
+Instantiate and pass:
+```js
+const continuity = new RelationshipContinuitySystem();
+```
+
+B) `src/engine/core/SystemOrchestrator.js`
+Add to constructor.
+Then inside `run(input)`:
+
+ORDER:
+1. increment turn clock
+2. update continuity state
+3. build pre-context
+4. relationship update
+5. AIRA presence
+6. interference
+7. brain process
+8. consume ready continuity events
+9. return continuity snapshot in result
+
+C) `src/engine/core/buildContext.js`
+Expose:
+```json
+"active_app": state.continuity?.activeApp || { "type": "chat", "mode": "group", "visibility": "public" }
+```
+
+Also expose:
+```json
+"continuity": {
+  "timeBlock": state.continuity?.timeBlock,
+  "availability": state.continuity?.availability
+}
+```
+
+D) `src/engine/services/CharacterAIService.js`
+Add small awareness rule:
+- If a character is busy, sleeping, or distant, allow shorter / more practical replies
+- If active_app.type is `chat` and mode is `group`, reduce private softness slightly
+
+Do NOT overdo it yet.
+
+======================================================================
+11) MINIMAL MESSAGE BEHAVIOR RULES
+======================================================================
+
+If a character is:
+- sleeping => no immediate reply
+- busy => may produce short practical line
+- seen only => no immediate spoken line
+- replying => more likely immediate reply
+
+Examples for Phase A:
+- "sorry, at work"
+- "later?"
+- "i saw it. just busy."
+- "not asleep yet. talk soon."
+- "answer later."
+
+Keep them short.
+No long explanations.
+
+======================================================================
+12) TEST CASES
+======================================================================
+
+TEST 1 — Neutral send, evening
+Expected:
+- one or more normal character replies
+- no overactive seen/replying spam
+
+TEST 2 — Direct message to Sam during day
+Expected:
+- higher chance of busy / delayed behavior
+- possible short practical line
+
+TEST 3 — Emotional line to Lucy in evening
+Expected:
+- either immediate soft reply OR queued soft follow-up within 1–2 turns
+
+TEST 4 — Late-night Angie interaction
+Expected:
+- higher online chance
+- faster reply chance
+- playful continuity works
+
+TEST 5 — Sleep block
+Expected:
+- at least some characters unavailable
+- no impossible always-online behavior
+
+======================================================================
+13) FAILURE CONDITIONS
+======================================================================
+
+If any of these happen, stop and retune:
+- everyone is always online
+- everyone is always unavailable
+- seen/replying happens every turn
+- follow-up events feel spammy
+- busy messages feel robotic
+- continuity signals do not change emotional feel at all
+
+======================================================================
+14) CRITICAL DESIGN RULES
+======================================================================
+
+1. Continuity should create longing, not clutter.
+2. Do not show all signals every turn.
+3. Normal availability is as important as weird availability.
+4. Small delays matter more than big explanations.
+5. This patch is a test, not the final relationship sim.
+
+======================================================================
+15) IMPLEMENTATION SUMMARY
+======================================================================
+
+Claude should build only this:
+
+- `RelationshipContinuitySystem.js`
+- state additions
+- active_app context
+- turn-based time block
+- per-character availability profiles
+- seen / replying / busy flags
+- delayed follow-up queue
+- additive result contract
+
+Nothing bigger.
+
+If this feels good, THEN we expand.
+
+======================================================================
+END

@@ -58,9 +58,9 @@ export class AiraPresenceSystem {
 
     // Interference chance scales with presence and anomaly
     state.aira.interferenceChance = clamp01(
-      0.01 +
-      state.aira.presenceLevel * 0.12 +
-      state.aira.anomalyLevel * 0.08
+      0.008 +
+      state.aira.presenceLevel * 0.10 +
+      state.aira.anomalyLevel * 0.10
     );
 
     // Interference profile unlocks
@@ -76,13 +76,13 @@ export class AiraPresenceSystem {
     if (state.aira.presenceLevel > 0.18) {
       state.aira.interferenceProfile.subtleRewriteUnlocked = true;
     }
-    if (state.aira.presenceLevel > 0.35) {
-      state.aira.interferenceProfile.ghostMessageUnlocked = true;
-    }
-    if (state.aira.presenceLevel > 0.55) {
+    if (state.aira.presenceLevel > 0.42) {
       state.aira.interferenceProfile.contradictionUnlocked = true;
     }
-    if (state.aira.presenceLevel > 0.72) {
+    if (state.aira.presenceLevel > 0.68) {
+      state.aira.interferenceProfile.ghostMessageUnlocked = true;
+    }
+    if (state.aira.presenceLevel > 0.85) {
       state.aira.interferenceProfile.directInsertionUnlocked = true;
     }
 

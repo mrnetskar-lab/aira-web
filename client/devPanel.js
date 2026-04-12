@@ -1,131 +1,161 @@
-export class AiraDevPanel {
-  constructor() {
-    this.visible = false;
-    this.el = null;
-    this.activeTab = 'overview';
+export class AiraDevDrawer {
+  constructor({ getState, onReset }) {
+    this.getState = getState;
+    this.onReset = onReset;
+    this.isOpen = false;
+    this.pollTimer = null;
+    this.root = null;
 
     window.__AIRA_DEV_MODE__ = false;
+  }
 
-    document.addEventListener('keydown', (e) => {
-      if (e.key === '§') this.toggle();
+  mount() {
+    this.root = document.createElement("aside");
+    this.root.className = "dev-drawer";
+    this.root.setAttribute("aria-hidden", "true");
+
+    this.root.innerHTML = `
+      <div class="dev-drawer__header">
+        <div class="dev-drawer__title">AIRA Dev</div>
+        <button class="dev-drawer__close" type="button" aria-label="Close dev drawer">&#x2715;</button>
+      </div>
+      <div class="dev-drawer__content">
+        <div class="dev-grid" id="devGrid">
+          <div class="dev-card">
+            <div class="dev-card__label">Status</div>
+            <div class="dev-card__value">Waiting&#x2026;</div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(this.root);
+
+    this.root
+      .querySelector(".dev-drawer__close")
+      .addEventListener("click", () => this.close());
+
+    window.addEventListener("keydown", (event) => {
+      if (event.key === "§") {
+        event.preventDefault();
+        this.toggle();
+      }
     });
   }
 
   toggle() {
-    this.visible = !this.visible;
-    window.__AIRA_DEV_MODE__ = this.visible;
-
-    if (this.visible) this.create();
-    else this.destroy();
+    if (this.isOpen) {
+      this.close();
+      return;
+    }
+    this.open();
   }
 
-  create() {
-    if (this.el) return;
+  open() {
+    this.isOpen = true;
+    window.__AIRA_DEV_MODE__ = true;
+    this.root.classList.add("is-open");
+    this.root.setAttribute("aria-hidden", "false");
+    this.refresh();
+    this.startPolling();
+  }
 
-    this.el = document.createElement('div');
-    this.el.id = 'aira-dev-panel';
+  close() {
+    this.isOpen = false;
+    window.__AIRA_DEV_MODE__ = false;
+    this.root.classList.remove("is-open");
+    this.root.setAttribute("aria-hidden", "true");
+    this.stopPolling();
+  }
 
-    Object.assign(this.el.style, {
-      position: 'fixed',
-      bottom: '0',
-      left: '0',
-      right: '0',
-      height: '50%',
-      background: '#0b1020',
-      color: '#fff',
-      zIndex: '9999',
-      borderTop: '1px solid rgba(255,255,255,0.1)',
-      display: 'flex',
-      flexDirection: 'column',
-      fontSize: '12px'
-    });
+  startPolling() {
+    this.stopPolling();
+    this.pollTimer = window.setInterval(() => this.refresh(), 1000);
+  }
 
-    this.el.innerHTML = `
-      <div style="padding:10px;display:flex;justify-content:space-between;">
-        <strong>AIRA DEV</strong>
-        <button id="aira-dev-close">Close</button>
+  stopPolling() {
+    if (this.pollTimer) {
+      window.clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
+  }
+
+  refresh() {
+    const state = this.getState?.() || null;
+    const grid = this.root.querySelector("#devGrid");
+
+    if (!state) {
+      grid.innerHTML = `
+        <div class="dev-card">
+          <div class="dev-card__label">State</div>
+          <div class="dev-card__value">No state loaded yet.</div>
+        </div>
+      `;
+      return;
+    }
+
+    const relationships = state.relationships || {};
+    const aira = state.aira || {};
+
+    grid.innerHTML = `
+      <div class="dev-card">
+        <div class="dev-card__label">Turns</div>
+        <div class="dev-card__value">${safe(state.turnCount)}</div>
       </div>
-
-      <div style="display:flex;gap:8px;padding:6px;">
-        <button data-tab="overview">Overview</button>
-        <button data-tab="relationships">Relations</button>
-        <button data-tab="aira">AIRA</button>
-        <button data-tab="memory">Memory</button>
-        <button data-tab="logs">Logs</button>
+      <div class="dev-card">
+        <div class="dev-card__label">Tension</div>
+        <div class="dev-card__value">${safeNumber(state.tension)}</div>
       </div>
-
-      <div id="aira-dev-content" style="flex:1;overflow:auto;padding:10px;"></div>
+      <div class="dev-card">
+        <div class="dev-card__label">Manifestation</div>
+        <div class="dev-card__value">${safe(aira.manifestation)}</div>
+      </div>
+      <div class="dev-card">
+        <div class="dev-card__label">Presence</div>
+        <div class="dev-card__value">${safeNumber(aira.presenceLevel)}</div>
+      </div>
+      <div class="dev-card">
+        <div class="dev-card__label">Voice Unlocked</div>
+        <div class="dev-card__value">${aira.voiceUnlocked ? "true" : "false"}</div>
+      </div>
+      <div class="dev-card">
+        <div class="dev-card__label">Lucy</div>
+        <div class="dev-card__value">${relationshipText(relationships.Lucy)}</div>
+      </div>
+      <div class="dev-card">
+        <div class="dev-card__label">Sam</div>
+        <div class="dev-card__value">${relationshipText(relationships.Sam)}</div>
+      </div>
+      <div class="dev-card">
+        <div class="dev-card__label">Angie</div>
+        <div class="dev-card__value">${relationshipText(relationships.Angie)}</div>
+      </div>
+      <div class="dev-card">
+        <div class="dev-card__label">Reset</div>
+        <div class="dev-card__value">
+          <button id="devResetBtn" class="icon-button" type="button">Reset chat</button>
+        </div>
+      </div>
     `;
 
-    document.body.appendChild(this.el);
-
-    this.el.querySelector('#aira-dev-close').onclick = () => this.toggle();
-
-    this.el.querySelectorAll('[data-tab]').forEach(btn => {
-      btn.onclick = () => {
-        this.activeTab = btn.dataset.tab;
-        this.fetchAndRender();
-      };
-    });
-
-    this.fetchAndRender();
-    this.interval = setInterval(() => this.fetchAndRender(), 1000);
-  }
-
-  destroy() {
-    clearInterval(this.interval);
-    this.el?.remove();
-    this.el = null;
-  }
-
-  async fetchAndRender() {
-    if (!this.el) return;
-
-    try {
-      const res = await fetch('/api/ai/state');
-      const data = await res.json();
-      this.render(this.activeTab, data);
-    } catch {
-      const content = this.el.querySelector('#aira-dev-content');
-      if (content) content.innerHTML = '<pre>Failed to fetch state.</pre>';
+    const resetBtn = this.root.querySelector("#devResetBtn");
+    if (resetBtn) {
+      resetBtn.addEventListener("click", () => this.onReset?.(), { once: true });
     }
   }
+}
 
-  render(tab = 'overview', data = {}) {
-    if (!this.el) return;
+function safe(value) {
+  return value ?? "&#x2014;";
+}
 
-    const content = this.el.querySelector('#aira-dev-content');
-    if (!content) return;
+function safeNumber(value) {
+  return typeof value === "number" ? value.toFixed(3) : "&#x2014;";
+}
 
-    const state = data.state || {};
-
-    if (tab === 'overview') {
-      content.innerHTML = `<pre>${JSON.stringify({
-        tension: state.tension,
-        turnCount: state.turnCount,
-        location: state.location,
-        focus: data.focus,
-        memoryCount: data.memoryCount,
-        issueCount: data.issueCount
-      }, null, 2)}</pre>`;
-    }
-
-    if (tab === 'relationships') {
-      content.innerHTML = `<pre>${JSON.stringify(state.relationships, null, 2)}</pre>`;
-    }
-
-    if (tab === 'aira') {
-      content.innerHTML = `<pre>${JSON.stringify(state.aira, null, 2)}</pre>`;
-    }
-
-    if (tab === 'memory') {
-      const res = fetch('/api/ai/state').then(r => r.json()).then(d => {
-        content.innerHTML = `<pre>${JSON.stringify(d.state, null, 2)}</pre>`;
-      });
-    }
-
-    if (tab === 'logs') {
-      content.innerHTML = `<pre>Logs coming soon...</pre>`;
-    }
-  }
+function relationshipText(entry) {
+  if (!entry) return "&#x2014;";
+  const trust = typeof entry.trust === "number" ? entry.trust.toFixed(2) : "&#x2014;";
+  const attraction = typeof entry.attraction === "number" ? entry.attraction.toFixed(2) : "&#x2014;";
+  return `trust ${trust} &middot; attraction ${attraction}`;
 }

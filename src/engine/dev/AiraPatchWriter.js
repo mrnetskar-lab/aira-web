@@ -9,70 +9,161 @@ export class AiraPatchWriter {
   }
 
   _generatePatch(issue) {
-    let suggestion = '';
-
-    switch (issue.type) {
-      case 'NO_RESPONSE':
-        suggestion =
-          '// PATCH: Add fallback response for unhandled input\n' +
-          `// Input was: "${issue.data.input}"\n` +
-          '// Suggestion: Add a catch-all in AiraBrainController.process().';
-        break;
-
-      case 'LOW_VARIETY':
-        suggestion =
-          '// PATCH: Improve responder selection variety\n' +
-          '// Suggestion: Add cooldown or rotation in _selectResponders().';
-        break;
-
-      case 'EMOTION_MISMATCH':
-        suggestion =
-          '// PATCH: Sync dialogue tone with tension level\n' +
-          `// Tension was ${issue.data.tension}\n` +
-          '// Suggestion: Increase punctuation or intensity in AiraBrain._applyTone().';
-        break;
-
-      case 'AIRA_INTERFERENCE_OVERUSE':
-        suggestion =
-          '// PATCH: Reduce interference frequency\n' +
-          `// ${issue.data.count} events in last 8 turns.\n` +
-          '// Suggestion: Increase MIN_COOLDOWN or reduce interferenceChance scaling in AiraInterferenceSystem.';
-        break;
-
-      case 'AIRA_INTERFERENCE_REPETITIVE':
-        suggestion =
-          `// PATCH: Add diversity to interference type selection\n` +
-          `// Type "${issue.data.type}" is overused.\n` +
-          '// Suggestion: Add recent-type suppression in AiraInterferenceSystem._pickType().';
-        break;
-
-      case 'AIRA_INTERFERENCE_TOO_WEAK':
-        suggestion =
-          '// PATCH: Interference threshold may be too high\n' +
-          `// presenceLevel is ${issue.data.presenceLevel} but no events fired.\n` +
-          '// Suggestion: Review interferenceChance scaling in AiraPresenceSystem.';
-        break;
-
-      default:
-        suggestion =
-          `// PATCH: Unknown issue type "${issue.type}"\n` +
-          `// ${issue.message}`;
-    }
+    const suggestion = this._buildSuggestion(issue);
 
     const patch = {
       type: issue.type,
-      suggestion,
+      severity: suggestion.severity,
+      file: suggestion.file,
+      method: suggestion.method,
+      confidence: suggestion.confidence,
+      reason: suggestion.reason,
+      suggestion: suggestion.patchIntent,
       created: Date.now(),
       applied: false
     };
 
     this.patches.push(patch);
 
-    if (this.patches.length > 30) {
+    if (this.patches.length > 40) {
       this.patches.shift();
     }
 
     return patch;
+  }
+
+  _buildSuggestion(issue) {
+    switch (issue.type) {
+      case 'NO_RESPONSE':
+        return {
+          severity: 'high',
+          file: 'src/engine/brain/AiraBrainController.js',
+          method: 'process',
+          confidence: 0.92,
+          reason: 'No characters returned a visible response.',
+          patchIntent: 'Add or strengthen fallback primary response handling.'
+        };
+
+      case 'LOW_VARIETY':
+        return {
+          severity: 'medium',
+          file: 'src/engine/brain/AiraBrainController.js',
+          method: '_selectPrimary',
+          confidence: 0.76,
+          reason: 'Room variety is too low.',
+          patchIntent: 'Add recent-speaker cooldown or relationship-weighted responder selection.'
+        };
+
+      case 'EMOTION_MISMATCH':
+        return {
+          severity: 'medium',
+          file: 'src/engine/services/CharacterAIService.js',
+          method: 'buildSystemPrompt',
+          confidence: 0.81,
+          reason: 'Scene tension is high but dialogue tone remains too calm.',
+          patchIntent: 'Increase high-tension language pressure and allow sharper anomaly-aware reactions.'
+        };
+
+      case 'PRIMARY_LOCK':
+        return {
+          severity: 'medium',
+          file: 'src/engine/brain/AiraBrainController.js',
+          method: '_selectPrimary',
+          confidence: 0.88,
+          reason: 'The same character is dominating too many turns.',
+          patchIntent: 'Add recent-primary cooldown and stronger relationship-based scoring.'
+        };
+
+      case 'AIRA_INTERFERENCE_OVERUSE':
+        return {
+          severity: 'high',
+          file: 'src/engine/systems/AiraInterferenceSystem.js',
+          method: 'apply',
+          confidence: 0.91,
+          reason: 'Interference frequency is high enough to reduce mystery.',
+          patchIntent: 'Increase cooldown or reduce activation probability.'
+        };
+
+      case 'AIRA_INTERFERENCE_TOO_WEAK':
+        return {
+          severity: 'medium',
+          file: 'src/engine/systems/AiraPresenceSystem.js',
+          method: 'update',
+          confidence: 0.83,
+          reason: 'Presence is high but the player is not feeling the effect.',
+          patchIntent: 'Raise mid-stage interference chance slightly or unlock more subtle tone shifts earlier.'
+        };
+
+      case 'AIRA_INTERFERENCE_REPETITIVE':
+        return {
+          severity: 'medium',
+          file: 'src/engine/systems/AiraInterferenceSystem.js',
+          method: '_buildEvent',
+          confidence: 0.89,
+          reason: 'The same interference type is repeating too often.',
+          patchIntent: 'Add recent-pattern suppression and expand variation pool.'
+        };
+
+      case 'ROMANCE_TOO_FLAT':
+        return {
+          severity: 'medium',
+          file: 'src/engine/systems/RelationshipEngine.js',
+          method: 'update',
+          confidence: 0.82,
+          reason: 'Romantic tension is not increasing even in repeated high-affinity scenes.',
+          patchIntent: 'Increase tension transfer from selective warmth, near-confession scenes, and delayed follow-up moments.'
+        };
+
+      case 'CONTINUITY_TOO_WEAK':
+        return {
+          severity: 'medium',
+          file: 'src/engine/systems/RelationshipContinuitySystem.js',
+          method: 'tick',
+          confidence: 0.75,
+          reason: 'Characters are not following up on unresolved emotional threads.',
+          patchIntent: 'Lower delayed outreach thresholds and increase follow-up scheduling for high-attachment characters.'
+        };
+
+      case 'TIMING_TOO_PUNITIVE':
+        return {
+          severity: 'medium',
+          file: 'src/engine/systems/RelationshipEngine.js',
+          method: 'update',
+          confidence: 0.78,
+          reason: 'Players are losing relationship progress too quickly from timing missteps.',
+          patchIntent: 'Reduce avoidance growth rate and soften betrayal sensitivity defaults.'
+        };
+
+      case 'SOCIAL_RISK_TOO_RANDOM':
+        return {
+          severity: 'medium',
+          file: 'src/engine/systems/RelationshipEngine.js',
+          method: 'update',
+          confidence: 0.72,
+          reason: 'Social risk consequences feel arbitrary rather than behaviorally grounded.',
+          patchIntent: 'Tie suspicion and resentment growth more tightly to detected overlap patterns, not random hits.'
+        };
+
+      case 'PLAYER_CONFUSION_STALL':
+        return {
+          severity: 'low',
+          file: 'src/engine/systems/AiraPresenceSystem.js',
+          method: 'update',
+          confidence: 0.68,
+          reason: 'Player confusion is high and social momentum has stalled.',
+          patchIntent: 'Consider seeding a soft manifestation hint or lowering the guide-mode activation threshold.'
+        };
+
+      default:
+        return {
+          severity: 'low',
+          file: 'src/engine/dev/AiraPatchWriter.js',
+          method: '_buildSuggestion',
+          confidence: 0.4,
+          reason: issue.message || 'Unknown issue.',
+          patchIntent: 'Review new observer signal and map it to a targeted patch ticket.'
+        };
+    }
   }
 
   getPending() {

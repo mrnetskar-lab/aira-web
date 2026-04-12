@@ -1,0 +1,628 @@
+AIRA_PATCH_02_SYSTEM_ROADMAP.txt
+Project: AIRA Web
+Owner: AI GPT
+Audience: Claude 4.6 (builder / structure maintainer)
+Format: Clear, implementation-ready patch roadmap
+Scope: AI-side systems, API contracts, chat behavior contracts
+Rule: Layout owns phone shell and visuals. This roadmap may define UI-facing data, but does NOT authorize direct edits to client/ files.
+
+======================================================================
+OVERVIEW
+======================================================================
+
+This document boils the current AIRA product vision into 8 solid system patches.
+
+These patches are ordered by implementation priority and dependency.
+They are written to be specific enough for Claude to implement later without losing the design intent.
+
+AIRA PRODUCT DIRECTION
+- Main experience = shared room / world scene
+- Phone = access layer for chat, DMs, snaps, calls later
+- Romance is the main current
+- AIRA is the hidden game master and emotional pressure engine
+- Weirdness should stay rare, elegant, and curiosity-driving
+- No obvious paywall-like blocking
+- Outcomes should depend on timing, desire, risk, social pressure, and state continuity
+
+======================================================================
+PATCH 1 — INTERFERENCE CORE
+======================================================================
+
+NAME
+AiraInterferenceSystem
+
+PURPOSE
+Make AIRA behavior real in the engine, not just lore.
+
+WHAT IT MUST DO
+- Decide if interference happens this turn
+- Respect cooldowns and rarity
+- Output:
+  - `actualInput`
+  - `perceivedInput`
+  - `uiEffect`
+  - `whisper`
+  - `event`
+- Support early subtle interference first
+- Support ghost messages later
+- Never spam
+
+SUPPORTED INTERFERENCE TYPES
+1. tone_shift
+2. contradiction
+3. ghost_message (late-stage only)
+4. whisper_fragment (can accompany another event, but rare)
+
+EARLY EXAMPLES
+- "I like you Lucy" -> "I like you... right"
+- "I trust you" -> "I want to trust you"
+
+MID EXAMPLES
+- "I trust you" -> "I don't know if I trust you."
+- "Sam, what do you think?" -> "Sam, why are you acting like that?"
+
+LATE EXAMPLES
+- [You]: "You shouldn't trust Sam."
+- [You]: "She remembers."
+
+RULES
+- No visible interference more often than ~1 in 4 turns at high presence
+- No strong interference at low presence
+- No ghost messages early
+- Avoid repeating same pattern too often
+- Respect protected choices
+
+FILES
+- create: `src/engine/systems/AiraInterferenceSystem.js`
+- wire through: `src/engine/createEngine.js`
+- wire through: `src/engine/core/SystemOrchestrator.js`
+
+API ADDITION
+Add additive field on `/api/ai/run` result:
+```json
+"interference": {
+  "active": false,
+  "actualInput": "string",
+  "perceivedInput": "string",
+  "uiEffect": {
+    "style": "none|glitch-subtle|glitch-ghost",
+    "delayMs": 0,
+    "bubbleClass": "",
+    "showTypingFlicker": false
+  },
+  "whisper": null,
+  "event": null
+}
+```
+
+SUCCESS CRITERIA
+- Engine still runs normally when no interference triggers
+- Interference stays rare and noticeable without becoming annoying
+- Layout can later render different bubble states without API changes
+
+======================================================================
+PATCH 2 — PERSISTENT EMOTIONAL TRUTH
+======================================================================
+
+NAME
+State/Context Consistency Patch
+
+PURPOSE
+Prevent emotional continuity from feeling fake.
+
+CURRENT PROBLEM
+Context should serialize persistent truth.
+Do NOT regenerate social values randomly each turn.
+Romance, jealousy, and memory all become untrustworthy if prompt context drifts from real state.
+
+WHAT IT MUST DO
+- `buildContext()` must reflect:
+  - `state.relationships`
+  - `state.cast`
+  - `state.aira`
+  - `state.investigation`
+  - `state.lastEvent`
+  - `state.protectedChoice`
+- Remove random hidden/social generation from context building
+- Keep helper logic for:
+  - topic
+  - emotionalBeat
+  - responseMode
+
+FILES
+- replace/update: `src/engine/core/buildContext.js`
+
+SUCCESS CRITERIA
+- Two consecutive turns with no major state change should still feel coherent
+- Characters should not randomly shift internal tone without cause
+- AIRA progression should feel cumulative
+
+======================================================================
+PATCH 3 — ROMANCE PRESSURE MODEL
+======================================================================
+
+NAME
+Romance Pressure Expansion
+
+PURPOSE
+Turn attraction into something with consequence.
+
+CURRENT BASE
+You already track:
+- trust
+- attraction
+- comfort
+- jealousy
+- hurt
+- attachment
+
+EXPAND WITH
+Per-character optional fields:
+- `interest`
+- `romanticTension`
+- `exclusivityPressure`
+- `betrayalSensitivity`
+- `intimacyReadiness`
+- `avoidance`
+- `longing`
+
+MODEL GOAL
+Romance should:
+- start in timing and subtext
+- become more explicit only when earned
+- be destabilized by competition, inconsistency, and AIRA pressure
+- be able to go all the way if trust/comfort/consent are high enough
+
+ENGINE RULES
+- attraction alone is not enough
+- intimacy requires trust + comfort + mutual momentum
+- jealousy should not always erupt loudly
+- betrayal should cool tone, not always explode
+- near-success should still be possible to lose through timing or divided attention
+
+FILES
+- update: `src/engine/systems/RelationshipEngine.js`
+- update: `src/engine/core/SystemOrchestrator.js`
+- update context exposure in: `src/engine/core/buildContext.js`
+- optionally adjust prompt framing in: `src/engine/services/CharacterAIService.js`
+
+SUGGESTED STATE SHAPE EXTENSION
+```json
+"Lucy": {
+  "trust": 0.5,
+  "attraction": 0.3,
+  "comfort": 0.5,
+  "jealousy": 0.1,
+  "hurt": 0.0,
+  "attachment": 0.3,
+  "interest": 0.35,
+  "romanticTension": 0.15,
+  "exclusivityPressure": 0.0,
+  "betrayalSensitivity": 0.25,
+  "intimacyReadiness": 0.0,
+  "avoidance": 0.0,
+  "longing": 0.0
+}
+```
+
+SUCCESS CRITERIA
+- Romance can build, cool, stall, rupture, or recover
+- “Almost” moments exist
+- Players can lose progress through behavior, not arbitrary locks
+
+======================================================================
+PATCH 4 — AVAILABILITY & CONTINUITY SYSTEM
+======================================================================
+
+NAME
+Relationship Continuity System
+
+PURPOSE
+Make characters feel alive outside the immediate room scene.
+
+WHAT IT MUST DO
+Characters should:
+- sleep
+- wake at different times
+- be unavailable sometimes
+- follow up later
+- reopen a thread after a meaningful scene
+- occasionally ghost
+- occasionally send delayed vulnerable outreach
+- respond based on time of day, mood, recent scene pressure, and relationship state
+
+DO NOT DO
+- fake monetization locks
+- arbitrary “come back tomorrow” gates
+- total randomness with no emotional logic
+
+NEW CONCEPTS
+1. availability windows
+2. personal schedule tendencies
+3. delayed message queue
+4. unresolved tension follow-up
+5. missed opportunity windows
+6. plans made vs plans kept
+
+SUGGESTED NEW FILE
+`src/engine/systems/RelationshipContinuitySystem.js`
+
+SUGGESTED RESPONSIBILITIES
+- compute who is currently available
+- schedule future outreach events
+- detect if a character should initiate later
+- decide if a character delays response or goes quiet
+- expose lightweight status for later UI/phone layer
+
+SUGGESTED STATE ADDITIONS
+```json
+"continuity": {
+  "currentTimeBlock": "late_night",
+  "contacts": {},
+  "queuedEvents": [],
+  "availability": {
+    "Lucy": { "online": false, "sleeping": true, "lastSeen": 1712800000 },
+    "Sam": { "online": true, "sleeping": false, "lastSeen": 1712800300 },
+    "Angie": { "online": false, "sleeping": false, "lastSeen": 1712799800 }
+  }
+}
+```
+
+SUCCESS CRITERIA
+- The player can feel longing, anticipation, and distance
+- Different characters feel differently available
+- Follow-up messages feel emotionally motivated
+
+======================================================================
+PATCH 5 — TEMPTATION, CHEATING, AND CONSEQUENCE
+======================================================================
+
+NAME
+Social Risk Layer
+
+PURPOSE
+Make romance non-linear and unstable in a believable way.
+
+WHAT IT MUST DO
+Support:
+- meeting new people later
+- divided attention
+- catching mixed signals
+- being seen by the wrong person
+- cheating detection
+- cooling off after disloyal behavior
+- rebound attraction
+- losing something the player built
+
+IMPORTANT
+This is NOT punishment for fun.
+This is consequence for social behavior.
+
+DESIGN PRINCIPLES
+- The player can win love, but never own stability
+- Success should increase stakes, not end tension
+- Timing should matter
+- New people should introduce temptation, comparison, and risk
+- Relationships can shift sideways, not only up/down
+
+NEW OPTIONAL STATE FIELDS
+Per-character:
+- `perceivedPriority`
+- `suspicion`
+- `resentment`
+- `forgiveness`
+- `loyaltyExpectation`
+
+TRIGGERS
+- player repeatedly flirts with multiple characters in overlapping windows
+- plans one thing, does another
+- private softness leaks into public space
+- snap / message timing implies overlap
+- ghosted character sees evidence of attention elsewhere
+
+FILES
+- update: `src/engine/systems/RelationshipEngine.js`
+- update: `src/engine/core/SystemOrchestrator.js`
+- later integrate with continuity and snap systems
+
+SUCCESS CRITERIA
+- The player can get caught
+- They can recover sometimes
+- They can also permanently reshape a bond
+- Outcomes depend on timing and behavior more than static thresholds
+
+======================================================================
+PATCH 6 — CHAT PROTOCOL & ANOMALY REACTION CONTRACT
+======================================================================
+
+NAME
+Chat Protocol Expansion
+
+PURPOSE
+Define AI-side message behavior cleanly for layout to render later.
+
+MESSAGE TYPES TO SUPPORT
+1. spoken line
+2. thought/subtext
+3. whisper fragment
+4. glitched user bubble metadata
+5. anomaly-aware response
+6. delayed reveal metadata (for later UI use)
+
+DO NOT IMPLEMENT VISUALS HERE
+Only define the contract and generation logic.
+
+RESPONSE CONTRACT EXPANSION
+Each response can support:
+```json
+{
+  "agent": "Lucy",
+  "spoken": "That didn't sound like you.",
+  "thought": "she is trying to understand what changed",
+  "meta": {
+    "anomalyAware": true,
+    "toneClass": "soft|guarded|playful|cold|tender",
+    "subtextStrength": 0.44
+  }
+}
+```
+
+CHARACTER-SPECIFIC ANOMALY REACTIONS
+Lucy
+- notices emotional wrongness
+- short, soft, intuitive
+Examples:
+- "That didn't sound like you."
+- "Something about that felt wrong."
+
+Sam
+- notices inconsistency
+- sharper, suspicious
+Examples:
+- "...what was that supposed to mean?"
+- "No. You changed tone."
+
+Angie
+- smooths over first, then shows unease
+Examples:
+- "Okay, that got weird."
+- "Haha... wait, what?"
+
+FILES
+- update: `src/engine/services/CharacterAIService.js`
+- update prompt context from orchestrator
+- optionally annotate responses in `src/engine/brain/AiraBrainController.js` if needed
+
+SUCCESS CRITERIA
+- Interference feels integrated into the world
+- Characters react differently
+- Subtext remains short and elegant
+
+======================================================================
+PATCH 7 — RARE MANIFESTATION CHANNELS
+======================================================================
+
+NAME
+Manifestation Seeds
+
+PURPOSE
+Let AIRA leak through rare non-chat channels without becoming a visible character.
+
+CHANNELS
+1. image anomalies
+2. whisper fragments
+3. impossible familiarity
+4. symbolic traces (golden-eyed cat, eyes in background, reflection irregularity)
+5. optional “friendly guide” behavior ONLY if player is clearly lost
+
+GUIDING RULE
+AIRA is the ghost you never catch.
+Felt more often than seen.
+Seen more often than understood.
+
+IMPLEMENT NOW VS LATER
+Implement now:
+- state hooks
+- manifestation seed generation
+- observer awareness
+- event contract
+
+Implement later:
+- rendered photos
+- audio processing
+- visual asset generation
+- UI overlays
+
+SUGGESTED NEW STATE FIELDS
+```json
+"aira": {
+  "...existingFields": "...",
+  "manifestationSeeds": [
+    {
+      "type": "whisper|image_trace|guide_hint",
+      "strength": 0.22,
+      "consumed": false
+    }
+  ],
+  "playerConfusionScore": 0.0
+}
+```
+
+FRIENDLY GUIDE MODE
+Only trigger if:
+- player confusion is repeatedly high
+- progress is stalling
+- system believes the player is missing the social dynamic entirely
+
+When it triggers:
+- keep it symbolic
+- do not over-explain
+- can hint through picture, comment framing, or soft guide signal
+- do not break mystery
+
+SUCCESS CRITERIA
+- Curiosity increases
+- The system still feels deniable
+- AIRA never becomes a simple expositional helper
+
+======================================================================
+PATCH 8 — SOCIAL GAMES LAYER (LATER, BUT SPEC NOW)
+======================================================================
+
+NAME
+Social Games System
+
+PURPOSE
+Keep the cast lively, competitive, revealing, and fun when the scene needs a different emotional shape.
+
+IMPORTANT
+Games are NOT filler.
+Games should do one or more of the following:
+- cool down tension
+- reveal character
+- escalate flirtation
+- trigger rivalry
+- surface honesty indirectly
+
+INITIAL TARGET GAMES
+1. Truth or Dare
+2. Blackjack
+3. Texas Hold'em
+
+WHY THESE
+Truth or Dare
+- best for confession, embarrassment, social pressure, flirt escalation
+
+Blackjack
+- best for chill, bets, chemistry, confidence, risk vibes
+
+Texas Hold'em
+- best for bluffing, alliances, reading others, competition
+
+SUGGESTED NEW FILE
+`src/engine/systems/SocialGamesSystem.js`
+
+RESPONSIBILITIES
+- decide when a game is socially appropriate
+- track active game state
+- map game choices to relationship pressure
+- let different characters play differently
+- let competition change tone and attraction dynamics
+
+CHARACTER FIT
+Lucy
+- emotionally revealing games
+- quieter truth pressure
+
+Sam
+- bluffing, reads weakness, competitive edge
+
+Angie
+- playful chaos, teasing, crowd energy
+
+AIRA ROLE
+AIRA should be able to:
+- sharpen a dare
+- steer a question toward the wrong-perfect topic
+- influence wording
+- make competition reveal hidden preferences
+
+SUCCESS CRITERIA
+- Games feel like social engines, not detached minigames
+- Competition changes dialogue texture
+- Games can either relax or escalate the room
+
+======================================================================
+PATCH 9 — OBSERVER & PATCHER GOVERNOR
+======================================================================
+
+NAME
+System Governor Upgrade
+
+PURPOSE
+Use the existing patcher to keep the engine tuned as complexity increases.
+
+OBSERVER SHOULD DETECT
+1. AIRA_INTERFERENCE_OVERUSE
+2. AIRA_INTERFERENCE_TOO_WEAK
+3. AIRA_INTERFERENCE_REPETITIVE
+4. PRIMARY_LOCK
+5. ROMANCE_TOO_FLAT
+6. CONTINUITY_TOO_WEAK
+7. TIMING_TOO_PUNITIVE
+8. SOCIAL_RISK_TOO_RANDOM
+9. GAME_LAYER_TOO_DETACHED (later)
+10. PLAYER_CONFUSION_STALL
+
+PATCHER OUTPUT FORMAT
+Structured ticket, not vague comment:
+```json
+{
+  "type": "ROMANCE_TOO_FLAT",
+  "severity": "medium",
+  "file": "src/engine/systems/RelationshipEngine.js",
+  "method": "update",
+  "confidence": 0.82,
+  "reason": "Romantic tension is not increasing even in repeated high-affinity scenes.",
+  "suggestion": "Increase tension transfer from selective warmth, near-confession scenes, and delayed follow-up moments."
+}
+```
+
+FILES
+- update: `src/engine/dev/AiraObserver.js`
+- update: `src/engine/dev/AiraPatchWriter.js`
+
+SUCCESS CRITERIA
+- Claude gets actionable patch tickets
+- Tuning becomes easier as systems multiply
+
+======================================================================
+IMPLEMENTATION ORDER
+======================================================================
+
+PHASE 1 — MUST BUILD FIRST
+1. Patch 1 — Interference Core
+2. Patch 2 — Persistent Emotional Truth
+3. Patch 6 — Chat Protocol & Anomaly Reaction Contract
+4. Patch 9 — Observer & Patcher Governor
+
+PHASE 2 — RELATIONSHIP DEPTH
+5. Patch 3 — Romance Pressure Model
+6. Patch 4 — Availability & Continuity System
+7. Patch 5 — Temptation, Cheating, and Consequence
+
+PHASE 3 — STRANGE / FUN EXPANSION
+8. Patch 7 — Rare Manifestation Channels
+9. Patch 8 — Social Games Layer
+
+======================================================================
+NON-GOALS FOR THIS ROADMAP
+======================================================================
+
+Do NOT do these in the same pass:
+- direct client shell redesign
+- full phone OS implementation
+- calls
+- audio rendering
+- snap media rendering
+- heavy image generation pipelines
+- explicit monetization systems
+- full NPC population expansion
+
+Those can come later.
+
+======================================================================
+FINAL PRODUCT PRINCIPLES
+======================================================================
+
+1. Romance is the main current.
+2. AIRA is the hidden game master.
+3. Weirdness should create curiosity, not explanation.
+4. Characters should feel alive because they are not always available.
+5. Progress should be event-driven, not paywall-driven.
+6. Success should increase stakes, not remove them.
+7. Games should change social behavior, not distract from it.
+8. AIRA is the ghost you never catch, but it remembers you.
+
+======================================================================
+END

@@ -9,6 +9,8 @@ import { SimpleGM } from './systems/SimpleGM.js';
 import { AiraObserver } from './dev/AiraObserver.js';
 import { AiraPatchWriter } from './dev/AiraPatchWriter.js';
 import { NullAvatarBridge } from './bridges/NullAvatarBridge.js';
+import { AiraInterferenceSystem } from './systems/AiraInterferenceSystem.js';
+import { RelationshipContinuitySystem } from './systems/RelationshipContinuitySystem.js';
 
 export function createEngine() {
   const brain = new AiraBrainController();
@@ -20,6 +22,8 @@ export function createEngine() {
   const avatarManager = new NullAvatarBridge();
   const dualLayer = new DualLayerSystem();
   const explicitMode = new ExplicitMode();
+  const interference = new AiraInterferenceSystem();
+  const continuity = new RelationshipContinuitySystem();
   const patchWriter = new AiraPatchWriter(observer);
 
   const orchestrator = new SystemOrchestrator({
@@ -32,7 +36,9 @@ export function createEngine() {
     focus,
     avatarManager,
     dualLayer,
-    explicitMode
+    explicitMode,
+    interference,
+    continuity
   });
 
   return {

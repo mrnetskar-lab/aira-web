@@ -14,7 +14,8 @@ router.post('/run', async (req, res) => {
       });
     }
 
-    const result = await engine.orchestrator.run(input);
+    const activeApp = req.body?.context?.active_app || null;
+    const result = await engine.orchestrator.run(input, { activeApp });
 
     return res.json({
       ok: true,

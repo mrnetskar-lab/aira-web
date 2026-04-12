@@ -1,0 +1,529 @@
+AIRA PATCH 2 — REFINEMENT LAYER
+=================================
+
+Purpose
+-------
+This patch keeps the new AIRA OS structure intact and refines feel, motion,
+spacing, and future UI hooks.
+
+Scope
+-----
+- client/style.css
+- client/app.js
+
+No backend changes.
+No API changes.
+No layout rewrite.
+
+==================================================
+1) client/style.css — append / replace relevant blocks
+==================================================
+
+Add these variables inside :root:
+
+  --ease-soft: 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-slow: 420ms cubic-bezier(0.22, 1, 0.36, 1);
+  --ring-size: min(84vw, 430px);
+
+Add these keyframes near the top of the file:
+
+  @keyframes airaRingBreath {
+    0%, 100% {
+      transform: scale(1);
+      filter: saturate(0.94);
+    }
+    50% {
+      transform: scale(1.008);
+      filter: saturate(1);
+    }
+  }
+
+  @keyframes airaGlowDrift {
+    0%, 100% {
+      opacity: 0.34;
+      transform: translate(-50%, -50%) scale(1);
+    }
+    50% {
+      opacity: 0.5;
+      transform: translate(-50%, -50%) scale(1.02);
+    }
+  }
+
+  @keyframes airaMessageIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+Replace .home-mark with:
+
+  .home-mark {
+    position: absolute;
+    inset: auto auto 50% 50%;
+    width: calc(var(--ring-size) * 0.92);
+    aspect-ratio: 1;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background:
+      radial-gradient(circle, transparent 54%, rgba(200, 168, 106, 0.07) 55%, transparent 71%);
+    filter: blur(24px);
+    opacity: 0.44;
+    pointer-events: none;
+    animation: airaGlowDrift 7.5s ease-in-out infinite;
+  }
+
+Replace .home-ring with:
+
+  .home-ring {
+    position: relative;
+    width: var(--ring-size);
+    aspect-ratio: 1;
+    border: 0;
+    padding: 0;
+    border-radius: 50%;
+    background: transparent;
+    cursor: pointer;
+    outline: none;
+    transition:
+      transform var(--ease-soft),
+      filter var(--ease-soft);
+    animation: airaRingBreath 8s ease-in-out infinite;
+  }
+
+Replace .home-ring:hover,
+.home-ring:focus-visible with:
+
+  .home-ring:hover,
+  .home-ring:focus-visible {
+    transform: translateY(-2px) scale(1.006);
+    filter: brightness(1.03);
+  }
+
+Replace .home-ring::before with:
+
+  .home-ring::before {
+    background:
+      conic-gradient(
+        from -42deg,
+        transparent 0deg 14deg,
+        #c8a86a 14deg 360deg
+      );
+    -webkit-mask: radial-gradient(circle, transparent calc(50% - 1.5px), #000 calc(50% - 0.5px));
+    mask: radial-gradient(circle, transparent calc(50% - 1.5px), #000 calc(50% - 0.5px));
+    opacity: 0.9;
+    filter: saturate(0.88);
+  }
+
+Replace .home-ring::after with:
+
+  .home-ring::after {
+    inset: -10px;
+    background:
+      conic-gradient(
+        from -42deg,
+        transparent 0deg 14deg,
+        rgba(200, 168, 106, 0.1) 14deg 360deg
+      );
+    -webkit-mask: radial-gradient(circle, transparent calc(50% - 1px), #000 calc(50% + 12px));
+    mask: radial-gradient(circle, transparent calc(50% - 1px), #000 calc(50% + 12px));
+    filter: blur(12px);
+    opacity: 0.24;
+  }
+
+Replace .home-ring__content with:
+
+  .home-ring__content {
+    position: absolute;
+    inset: 13%;
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    gap: 16px;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 50% 45%, rgba(255, 244, 219, 0.012), transparent 50%),
+      radial-gradient(circle at 50% 50%, rgba(200, 168, 106, 0.022), transparent 74%);
+  }
+
+Replace .home-ring__eyebrow with:
+
+  .home-ring__eyebrow {
+    font-size: 0.68rem;
+    letter-spacing: 0.5em;
+    color: rgba(200, 168, 106, 0.68);
+    text-transform: uppercase;
+  }
+
+Replace .home-ring__nav with:
+
+  .home-ring__nav {
+    display: grid;
+    gap: 9px;
+    width: min(100%, 184px);
+  }
+
+Replace .ring-link with:
+
+  .ring-link {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    padding: 3px 0;
+    text-align: center;
+    font-size: clamp(0.94rem, 2.3vw, 1.03rem);
+    font-weight: 300;
+    letter-spacing: 0.16em;
+    color: rgba(245, 242, 235, 0.58);
+    cursor: pointer;
+    transition:
+      color var(--ease-soft),
+      letter-spacing var(--ease-soft),
+      transform var(--ease-soft),
+      opacity var(--ease-soft);
+  }
+
+Replace .ring-link:hover,
+.ring-link:focus-visible with:
+
+  .ring-link:hover,
+  .ring-link:focus-visible {
+    color: rgba(245, 242, 235, 0.88);
+    letter-spacing: 0.18em;
+    transform: translateY(-1px);
+    outline: none;
+  }
+
+Replace .ring-link--primary with:
+
+  .ring-link--primary {
+    color: rgba(200, 168, 106, 0.92);
+  }
+
+Add this new rule for subtle app emphasis:
+
+  .ring-link[data-open-app="chat"]::after {
+    content: "";
+    display: block;
+    width: 28px;
+    height: 1px;
+    margin: 7px auto 0;
+    background: rgba(200, 168, 106, 0.36);
+    border-radius: 999px;
+  }
+
+Replace .topbar-brand__text with:
+
+  .topbar-brand__text {
+    letter-spacing: 0.34em;
+    font-size: 0.75rem;
+    font-weight: 300;
+    color: rgba(245, 242, 235, 0.68);
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+Replace .chat-messages with:
+
+  .chat-messages {
+    overflow-y: auto;
+    padding: 10px 18px 22px;
+    scroll-behavior: smooth;
+    overscroll-behavior: contain;
+  }
+
+Replace .message-row with:
+
+  .message-row {
+    display: flex;
+    margin: 0 0 20px;
+    animation: airaMessageIn 240ms var(--ease-soft);
+  }
+
+Replace .message with:
+
+  .message {
+    max-width: min(84%, 460px);
+  }
+
+Replace .message__name with:
+
+  .message__name {
+    margin: 0 0 8px;
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    color: var(--muted-soft);
+    text-transform: uppercase;
+  }
+
+Replace .message__bubble with:
+
+  .message__bubble {
+    padding: 14px 16px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.042);
+    border: 1px solid rgba(255, 255, 255, 0.045);
+    line-height: 1.58;
+    box-shadow: var(--shadow);
+    word-break: break-word;
+    backdrop-filter: blur(10px);
+  }
+
+Replace .message-row--user .message__bubble with:
+
+  .message-row--user .message__bubble {
+    background:
+      linear-gradient(180deg, rgba(88, 98, 191, 0.24), rgba(61, 69, 144, 0.28));
+    border-color: rgba(109, 122, 226, 0.16);
+  }
+
+Replace .message__meta with:
+
+  .message__meta {
+    margin-top: 8px;
+    font-size: 0.7rem;
+    letter-spacing: 0.06em;
+    color: var(--muted-soft);
+  }
+
+Replace .message__thought with:
+
+  .message__thought {
+    margin-top: 8px;
+    font-size: 0.84rem;
+    line-height: 1.5;
+    color: var(--subtext);
+    font-style: italic;
+  }
+
+Add future-ready anomaly hooks:
+
+  .message.is-anomalous .message__bubble {
+    border-color: rgba(200, 168, 106, 0.22);
+    box-shadow:
+      0 16px 40px rgba(0, 0, 0, 0.35),
+      0 0 0 1px rgba(200, 168, 106, 0.06);
+  }
+
+  .message-row--user.is-anomalous .message__bubble {
+    background:
+      linear-gradient(180deg, rgba(107, 86, 140, 0.26), rgba(66, 62, 118, 0.28));
+  }
+
+  .home-ring.is-reactive::after {
+    opacity: 0.38;
+    filter: blur(14px);
+  }
+
+Replace .composer with:
+
+  .composer {
+    position: sticky;
+    bottom: 0;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    padding:
+      12px 18px
+      calc(14px + var(--safe-bottom));
+    background:
+      linear-gradient(180deg, transparent, rgba(3, 3, 7, 0.8) 18%, rgba(3, 3, 7, 0.94));
+    backdrop-filter: blur(14px);
+  }
+
+Replace .composer__input with:
+
+  .composer__input {
+    resize: none;
+    min-height: 52px;
+    max-height: 180px;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.028);
+    color: var(--text);
+    padding: 14px 16px;
+    outline: none;
+    overflow-y: auto;
+    transition:
+      border-color var(--ease-soft),
+      background var(--ease-soft),
+      transform var(--ease-soft);
+  }
+
+Replace .composer__input:focus with:
+
+  .composer__input:focus {
+    border-color: rgba(200, 168, 106, 0.24);
+    background: rgba(255, 255, 255, 0.04);
+    transform: translateY(-1px);
+  }
+
+Replace .composer__send with:
+
+  .composer__send {
+    min-width: 82px;
+    border: 1px solid rgba(200, 168, 106, 0.18);
+    border-radius: 18px;
+    background:
+      linear-gradient(180deg, rgba(200, 168, 106, 0.1), rgba(200, 168, 106, 0.07));
+    color: var(--gold);
+    padding: 0 16px;
+    cursor: pointer;
+    transition:
+      transform var(--ease-soft),
+      border-color var(--ease-soft),
+      background var(--ease-soft);
+  }
+
+Optional refinement for larger screens:
+
+  @media (min-width: 640px) {
+    .home-ring {
+      width: min(72vw, 430px);
+    }
+
+    .chat-messages,
+    .composer,
+    .topbar {
+      padding-left: 24px;
+      padding-right: 24px;
+    }
+
+    .dev-drawer {
+      left: max(24px, calc(50vw - 280px));
+      right: max(24px, calc(50vw - 280px));
+    }
+  }
+
+==================================================
+2) client/app.js — small refinement edits
+==================================================
+
+A) Add this helper below characterNameClass():
+
+  function createMessageClasses(message) {
+    const classes = ["message"];
+    if (message.anomalous) classes.push("is-anomalous");
+    return classes.join(" ");
+  }
+
+B) In renderMessages(), replace the character message article opening:
+
+FROM:
+  <article class="message">
+
+TO:
+  <article class="${createMessageClasses(message)}">
+
+C) In renderMessages(), replace the user row opening:
+
+FROM:
+  <div class="message-row message-row--user">
+
+TO:
+  <div class="message-row message-row--user ${message.anomalous ? "is-anomalous" : ""}">
+
+D) In normalizeResponses(payload), change the map so future anomaly flags can pass through:
+
+  const items = responses.map((entry) => ({
+    type: "character",
+    agent: entry.agent || "AIRA",
+    text: entry.spoken || "",
+    thought: entry.thought || "",
+    anomalous: Boolean(entry.anomalous),
+    time,
+  }));
+
+E) In sendMessage(text), when pushing the user message, include the future hook:
+
+  state.messages.push({
+    type: "user",
+    text,
+    anomalous: false,
+    time: formatTime(),
+  });
+
+F) Add this helper near the bottom of the file, before bindEvents():
+
+  function updatePresenceHooks() {
+    const ring = elements.homeRing;
+    const manifestation = state.latestState?.aira?.manifestation || "none";
+    const reactiveStages = new Set(["shadow", "figure", "watcher"]);
+    ring.classList.toggle("is-reactive", reactiveStages.has(manifestation));
+  }
+
+G) Call updatePresenceHooks() in these places:
+- at the end of fetchState() after state.latestState is set
+- after state.latestState = payload.state ?? null; inside sendMessage()
+- after state.latestState = null; inside resetChat()
+- inside init() after await fetchState();
+
+Example edit in fetchState():
+
+  if (payload?.ok) {
+    state.latestState = payload.state ?? null;
+    updatePresenceHooks();
+  }
+
+Example edit in sendMessage():
+
+  state.latestState = payload.state ?? null;
+  updatePresenceHooks();
+
+Example edit in resetChat():
+
+  state.messages = [];
+  state.latestState = null;
+  updatePresenceHooks();
+
+H) Add a safer scroll helper below renderMessages():
+
+  function scrollMessagesToBottom() {
+    requestAnimationFrame(() => {
+      elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+    });
+  }
+
+Then in renderMessages(), replace:
+  elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+
+With:
+  scrollMessagesToBottom();
+
+I) Optional polish:
+Inside showChat(), after focus, also scroll:
+
+  requestAnimationFrame(() => {
+    elements.chatInput.focus();
+    scrollMessagesToBottom();
+  });
+
+==================================================
+3) Result
+==================================================
+
+This patch gives you:
+- subtler, more elegant ring motion
+- cleaner typography hierarchy
+- more premium message rhythm
+- smoother message entrance
+- future-ready anomaly classes
+- ring reaction hook tied to AIRA manifestation
+- no structure changes
+
+==================================================
+4) Verification
+==================================================
+
+After applying:
+- Home should feel calmer and more alive
+- Chat bubbles should feel cleaner and softer
+- Dev drawer should still work on §
+- No backend edits required
+- Existing endpoints remain unchanged

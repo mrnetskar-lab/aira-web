@@ -30,7 +30,8 @@ export class CharacterAIService {
 
     return {
       spoken: normalizeSpoken(parsed.spoken, context),
-      thought: normalizeThought(parsed.thought)
+      thought: normalizeThought(parsed.thought),
+      meta: normalizeMeta(parsed.meta)
     };
   }
 }
@@ -46,6 +47,19 @@ function buildSystemPrompt(characterName, personality, context) {
   const goals = context?.goals?.[characterName] || [];
   const sceneFlow = context?.sceneFlow || {};
   const airaInterference = context?.airaInterference || {};
+  const continuityAvail = context?.continuity?.availability?.[characterName] || {};
+  const activeApp = context?.active_app || { type: "chat", mode: "group", visibility: "public" };
+
+  // Continuity behavior hints
+  const continuityHints = [];
+  if (continuityAvail.sleeping) {
+    continuityHints.push("You are asleep. You would not reply right now.");
+  } else if (continuityAvail.busy) {
+    continuityHints.push("You are currently busy. Keep your reply short and practical if you respond at all.");
+  }
+  if (activeApp.type === "chat" && activeApp.mode === "group") {
+    continuityHints.push("This is a group chat. Reduce private softness slightly.");
+  }
 
   return `
 You are ${characterName}, a character in a multi-character relationship-driven social AI game.
@@ -64,6 +78,7 @@ Current context:
 - goals: ${JSON.stringify(goals)}
 - sceneFlow: ${JSON.stringify(sceneFlow)}
 - airaInterference: ${JSON.stringify(airaInterference)}
+${continuityHints.length ? `- continuity: ${continuityHints.join(" ")}` : ""}
 
 Core rules:
 - Stay in character.
@@ -88,14 +103,24 @@ Core rules:
 - A secondary reply should feel like an interjection, aside, reaction, support, or challenge.
 - Do not repeat the same point as the main speaker.
 - Do not explain the room setup.
-- If airaInterference.active is true, the player's last message may have been subtly distorted.
-- If airaInterference.anomalyHint is set, let it colour your reaction — notice something feels slightly off, without explaining it.
-- Do not announce the interference. React naturally, as if something felt slightly wrong about what was just said.
+- If airaInterference.active is true, you may subtly feel that the player's last message was slightly unlike them.
+- Do not over-explain the anomaly.
+- React in character: intuitive characters notice emotionally, skeptical characters notice inconsistencies, playful characters may deflect before admitting something felt off.
+- Keep anomaly reactions short and natural.
+- Character anomaly reaction guide (if airaInterference.active):
+  - Lucy: notices emotional wrongness; short, soft, intuitive. Example: "That didn't sound like you." / "Something about that felt wrong."
+  - Sam: notices inconsistency; sharper, suspicious. Example: "...what was that supposed to mean?" / "No. You changed tone."
+  - Angie: smooths over first, then shows unease. Example: "Okay, that got weird." / "Haha... wait, what?"
 
 Return JSON only:
 {
   "spoken": "what the character says out loud",
-  "thought": "what the character privately thinks"
+  "thought": "what the character privately thinks",
+  "meta": {
+    "anomalyAware": false,
+    "toneClass": "soft|guarded|playful|cold|tender",
+    "subtextStrength": 0.0
+  }
 }
 `.trim();
 }
@@ -105,7 +130,8 @@ function buildUserPrompt(input, context) {
     input,
     conversation: context?.conversation || {},
     playerModel: context?.playerModel || {},
-    aira: context?.aira || {}
+    aira: context?.aira || {},
+    airaInterference: context?.airaInterference || {}
   });
 }
 
@@ -142,6 +168,17 @@ function normalizeThought(thought) {
   let text = String(thought || '').trim();
   if (!text) return null;
   return trimToSentences(text, 2);
+}
+
+function normalizeMeta(meta) {
+  const toneClass = String(meta?.toneClass || '').replace(/\|.*$/, '').trim() || 'neutral';
+  return {
+    anomalyAware: !!meta?.anomalyAware,
+    toneClass,
+    subtextStrength: typeof meta?.subtextStrength === 'number'
+      ? Math.max(0, Math.min(1, meta.subtextStrength))
+      : 0.0
+  };
 }
 
 function trimToSentences(text, maxSentences) {

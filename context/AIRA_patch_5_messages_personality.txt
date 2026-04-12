@@ -1,0 +1,565 @@
+AIRA PATCH 5 — MESSAGES PERSONALITY + TYPING + DELAY + INTERFERENCE HOOKS
+============================================================================
+
+IMPORTANT
+---------
+This patch assumes PATCH 4 (Messages app MVP) has already been applied.
+
+This patch upgrades the Messages app with:
+1. personality per character
+2. typing indicators
+3. delayed replies
+4. future AIRA interference hooks
+
+Scope
+-----
+- client/style.css
+- client/app.js
+
+No backend changes.
+No API changes.
+
+==================================================
+PART 1 — STYLE UPGRADES
+==================================================
+
+--------------------------------------------------
+STEP 1 — Add thread preview emphasis for unread threads
+--------------------------------------------------
+
+In client/style.css, add this block near the other Messages app styles:
+
+.thread.is-unread .thread-name {
+  color: rgba(245, 242, 235, 0.96);
+  font-weight: 500;
+}
+
+.thread.is-unread .thread-preview {
+  color: rgba(245, 242, 235, 0.76);
+}
+
+--------------------------------------------------
+STEP 2 — Add typing indicator styles
+--------------------------------------------------
+
+In client/style.css, add this block near the Messages app styles:
+
+.typing-row {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.typing-bubble {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.08);
+  max-width: 74px;
+}
+
+.typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.55);
+  animation: typingPulse 1s infinite ease-in-out;
+}
+
+.typing-dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.typing-dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes typingPulse {
+  0%, 100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-1px);
+  }
+}
+
+--------------------------------------------------
+STEP 3 — Add subtle personality color accents
+--------------------------------------------------
+
+In client/style.css, add this block:
+
+.msg-them.thread-lucy {
+  background: rgba(201, 167, 255, 0.12);
+  border: 1px solid rgba(201, 167, 255, 0.14);
+}
+
+.msg-them.thread-sam {
+  background: rgba(142, 174, 249, 0.10);
+  border: 1px solid rgba(142, 174, 249, 0.12);
+}
+
+.msg-them.thread-angie {
+  background: rgba(215, 166, 95, 0.12);
+  border: 1px solid rgba(215, 166, 95, 0.14);
+}
+
+--------------------------------------------------
+STEP 4 — Add anomaly / interference styles
+--------------------------------------------------
+
+In client/style.css, add this block:
+
+.msg-bubble.msg-interference {
+  box-shadow:
+    0 0 0 1px rgba(200, 168, 106, 0.12),
+    0 0 18px rgba(200, 168, 106, 0.08);
+}
+
+.messages-thread.is-haunted .messages-topbar {
+  background:
+    linear-gradient(180deg, rgba(30, 24, 18, 0.72), rgba(0, 0, 0, 0));
+}
+
+.messages-thread.is-haunted .messages-title {
+  color: rgba(245, 242, 235, 0.92);
+}
+
+==================================================
+PART 2 — STATE UPGRADE
+==================================================
+
+--------------------------------------------------
+STEP 5 — Expand messagesApp state
+--------------------------------------------------
+
+In client/app.js, find the messagesApp object added in Patch 4.
+
+Replace it with this full version:
+
+messagesApp: {
+  threads: [
+    {
+      id: "lucy",
+      name: "Lucy",
+      preview: "Hey...",
+      unread: true,
+      persona: "lucy"
+    },
+    {
+      id: "sam",
+      name: "Sam",
+      preview: "You there?",
+      unread: false,
+      persona: "sam"
+    },
+    {
+      id: "angie",
+      name: "Angie",
+      preview: "Call me later",
+      unread: true,
+      persona: "angie"
+    }
+  ],
+  activeThread: null,
+  typingThreadId: null,
+  interferenceThreadId: null,
+  messages: {
+    lucy: [
+      { text: "You disappeared.", me: false, tone: "lucy" }
+    ],
+    sam: [
+      { text: "You usually answer faster than that.", me: false, tone: "sam" }
+    ],
+    angie: [
+      { text: "Okay, rude. But hi.", me: false, tone: "angie" }
+    ]
+  }
+},
+
+==================================================
+PART 3 — THREAD LIST RENDERING
+==================================================
+
+--------------------------------------------------
+STEP 6 — Upgrade renderThreads()
+--------------------------------------------------
+
+Find the full renderThreads() function from Patch 4.
+
+Replace it with this:
+
+function renderThreads() {
+  elements.messagesList.innerHTML = state.messagesApp.threads
+    .map((thread) => `
+      <div class="thread ${thread.unread ? "is-unread" : ""}" data-thread="${thread.id}">
+        <div class="thread-name">${escapeHtml(thread.name)}</div>
+        <div class="thread-preview">${escapeHtml(thread.preview)}</div>
+        ${thread.unread ? '<div class="thread-dot"></div>' : ""}
+      </div>
+    `)
+    .join("");
+}
+
+==================================================
+PART 4 — THREAD MESSAGE RENDERING
+==================================================
+
+--------------------------------------------------
+STEP 7 — Upgrade renderThreadMessages()
+--------------------------------------------------
+
+Find the full renderThreadMessages() function from Patch 4.
+
+Replace it with this:
+
+function renderThreadMessages() {
+  const id = state.messagesApp.activeThread;
+  const msgs = state.messagesApp.messages[id] || [];
+  const isTyping = state.messagesApp.typingThreadId === id;
+  const isHaunted = state.messagesApp.interferenceThreadId === id;
+
+  elements.messagesThread.classList.toggle("is-haunted", isHaunted);
+
+  const messageHtml = msgs
+    .map((message) => {
+      const bubbleClasses = [
+        "msg-bubble",
+        message.me ? "msg-me" : "msg-them",
+        message.me ? "" : `thread-${message.tone || id}`,
+        message.interference ? "msg-interference" : ""
+      ]
+        .filter(Boolean)
+        .join(" ");
+
+      return `
+        <div class="${bubbleClasses}">
+          ${escapeHtml(message.text)}
+        </div>
+      `;
+    })
+    .join("");
+
+  const typingHtml = isTyping
+    ? `
+      <div class="typing-row">
+        <div class="typing-bubble">
+          <span class="typing-dot"></span>
+          <span class="typing-dot"></span>
+          <span class="typing-dot"></span>
+        </div>
+      </div>
+    `
+    : "";
+
+  elements.messagesLog.innerHTML = messageHtml + typingHtml;
+  elements.messagesLog.scrollTop = elements.messagesLog.scrollHeight;
+}
+
+==================================================
+PART 5 — PERSONALITY REPLY ENGINE
+==================================================
+
+--------------------------------------------------
+STEP 8 — Add helper functions
+--------------------------------------------------
+
+In client/app.js, add all of these functions below renderThreadMessages():
+
+function getThreadById(id) {
+  return state.messagesApp.threads.find((thread) => thread.id === id) || null;
+}
+
+function getPersonaReplies(id) {
+  const replyMap = {
+    lucy: [
+      "I was waiting for you to say that.",
+      "You sound different tonight.",
+      "I knew you'd message eventually.",
+      "That wasn't really what you meant, was it?"
+    ],
+    sam: [
+      "Right.",
+      "That's not an answer.",
+      "You could have just said that earlier.",
+      "Fine. Go on."
+    ],
+    angie: [
+      "Wow. Dramatic.",
+      "Okay, now I'm listening.",
+      "You always text like something happened.",
+      "That is very you."
+    ]
+  };
+
+  return replyMap[id] || [
+    "I saw that.",
+    "Go on.",
+    "Okay."
+  ];
+}
+
+function pickThreadReply(id) {
+  const replies = getPersonaReplies(id);
+  return replies[Math.floor(Math.random() * replies.length)];
+}
+
+function updateThreadPreview(id, previewText) {
+  const thread = getThreadById(id);
+  if (!thread) return;
+
+  thread.preview = previewText;
+}
+
+==================================================
+PART 6 — TYPING + DELAYED REPLIES
+==================================================
+
+--------------------------------------------------
+STEP 9 — Add async private reply flow
+--------------------------------------------------
+
+In client/app.js, add these functions below updateThreadPreview():
+
+function waitForPrivateReply(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function simulatePrivateReply(id) {
+  state.messagesApp.typingThreadId = id;
+  renderThreadMessages();
+
+  const delay = 900 + Math.floor(Math.random() * 1400);
+  await waitForPrivateReply(delay);
+
+  state.messagesApp.typingThreadId = null;
+
+  const replyText = pickThreadReply(id);
+  state.messagesApp.messages[id].push({
+    text: replyText,
+    me: false,
+    tone: id
+  });
+
+  updateThreadPreview(id, replyText);
+
+  const thread = getThreadById(id);
+  if (thread && state.messagesApp.activeThread !== id) {
+    thread.unread = true;
+  }
+
+  renderThreadMessages();
+  renderThreads();
+}
+
+==================================================
+PART 7 — UPGRADE SEND FLOW
+==================================================
+
+--------------------------------------------------
+STEP 10 — Replace sendThreadMessage()
+--------------------------------------------------
+
+Find the full sendThreadMessage() function from Patch 4.
+
+Replace it with this:
+
+async function sendThreadMessage() {
+  const text = elements.messagesInput.value.trim();
+  if (!text) return;
+
+  const id = state.messagesApp.activeThread;
+  if (!id) return;
+
+  state.messagesApp.messages[id].push({
+    text,
+    me: true
+  });
+
+  updateThreadPreview(id, `You: ${text}`);
+  elements.messagesInput.value = "";
+  renderThreadMessages();
+  renderThreads();
+
+  await simulatePrivateReply(id);
+}
+
+==================================================
+PART 8 — THREAD OPEN / CLOSE POLISH
+==================================================
+
+--------------------------------------------------
+STEP 11 — Upgrade openThread()
+--------------------------------------------------
+
+Find the full openThread() function from Patch 4.
+
+Replace it with this:
+
+function openThread(id) {
+  const thread = getThreadById(id);
+  if (!thread) return;
+
+  state.messagesApp.activeThread = id;
+  state.messagesApp.interferenceThreadId = null;
+  thread.unread = false;
+
+  elements.messagesList.style.display = "none";
+  elements.messagesThread.classList.remove("hidden");
+  elements.messagesTitle.textContent = thread.name;
+
+  renderThreads();
+  renderThreadMessages();
+}
+
+--------------------------------------------------
+STEP 12 — Upgrade closeThread()
+--------------------------------------------------
+
+Find the full closeThread() function from Patch 4.
+
+Replace it with this:
+
+function closeThread() {
+  state.messagesApp.activeThread = null;
+  state.messagesApp.typingThreadId = null;
+  state.messagesApp.interferenceThreadId = null;
+
+  elements.messagesThread.classList.add("hidden");
+  elements.messagesList.style.display = "flex";
+
+  renderThreads();
+}
+
+==================================================
+PART 9 — AIRA INTERFERENCE HOOKS
+==================================================
+
+--------------------------------------------------
+STEP 13 — Add future hook helpers
+--------------------------------------------------
+
+In client/app.js, add these functions below closeThread():
+
+function maybeTriggerMessageInterference() {
+  const manifestation = state.latestState?.aira?.manifestation || "none";
+  const eligibleStages = new Set(["figure", "watcher"]);
+
+  if (!eligibleStages.has(manifestation)) return;
+  if (!state.messagesApp.activeThread) return;
+  if (Math.random() > 0.25) return;
+
+  const id = state.messagesApp.activeThread;
+  state.messagesApp.interferenceThreadId = id;
+
+  const whispers = [
+    "That wasn't what you typed.",
+    "Someone else is reading this.",
+    "You already said that.",
+    "She is closer here."
+  ];
+
+  const whisper = whispers[Math.floor(Math.random() * whispers.length)];
+
+  state.messagesApp.messages[id].push({
+    text: whisper,
+    me: false,
+    tone: id,
+    interference: true
+  });
+
+  updateThreadPreview(id, whisper);
+  renderThreadMessages();
+  renderThreads();
+}
+
+--------------------------------------------------
+STEP 14 — Call interference hook from sendThreadMessage()
+--------------------------------------------------
+
+In sendThreadMessage(), after:
+
+  renderThreads();
+
+Add this line before:
+  await simulatePrivateReply(id);
+
+So the relevant section becomes:
+
+  renderThreadMessages();
+  renderThreads();
+
+  maybeTriggerMessageInterference();
+  await simulatePrivateReply(id);
+
+==================================================
+PART 10 — INPUT QUALITY OF LIFE
+==================================================
+
+--------------------------------------------------
+STEP 15 — Add Enter-to-send for Messages app
+--------------------------------------------------
+
+In bindEvents(), add this block with the other Messages app listeners:
+
+elements.messagesInput.addEventListener("keydown", async (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    await sendThreadMessage();
+  }
+});
+
+==================================================
+PART 11 — OPENING MESSAGES APP
+==================================================
+
+--------------------------------------------------
+STEP 16 — Make sure Messages opens cleanly
+--------------------------------------------------
+
+In showPlaceholder(appName), replace the Patch 4 messages block:
+
+if (appName === "messages") {
+  renderThreads();
+}
+
+With this:
+
+if (appName === "messages") {
+  state.messagesApp.activeThread = null;
+  state.messagesApp.typingThreadId = null;
+  state.messagesApp.interferenceThreadId = null;
+  elements.messagesThread.classList.add("hidden");
+  elements.messagesList.style.display = "flex";
+  renderThreads();
+}
+
+==================================================
+EXPECTED RESULT
+==================================================
+
+After this patch:
+
+- Lucy, Sam, and Angie feel different in Messages
+- private replies arrive after a short delay
+- typing dots appear before replies
+- unread threads show a gold dot
+- Messages feels more like a real messenger
+- AIRA interference can begin to appear inside private threads
+
+==================================================
+NOTES
+==================================================
+
+This is still local placeholder behavior.
+It is intentionally frontend-only.
+
+That is good for now because:
+- many more characters can join later
+- secret threads can be added later
+- backend integration can happen after the UX feels right
+
+END

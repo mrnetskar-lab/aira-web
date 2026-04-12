@@ -1,0 +1,839 @@
+AIRA INTERFERENCE SYSTEM
+Target: AIRA Web / phone-first immersive narrative UI
+Purpose: Add rare, escalating reality-distortion moments where AIRA subtly alters player input, injects ghost messages, and causes characters to notice something is off.
+
+IMPORTANT DESIGN GOALS
+- AIRA is not just a hidden character. AIRA is the system layer.
+- Interference must feel rare, elegant, and unsettling.
+- Do not sabotage core player intent too often.
+- Early interference should be subtle. Late interference can become explicit.
+- Normal conversation should stay short. Story beats may be longer.
+- Subtext should be visually elegant and clearly distinct from spoken dialogue.
+- No cluttered side panels. The phone UI is the primary shell and menu system.
+
+======================================================================
+1) PLAYER EXPERIENCE TARGET
+======================================================================
+
+The player should gradually feel:
+- “Something changed what I meant.”
+- “Did that message really come from me?”
+- “The interface itself is part of the world.”
+- “The characters noticed that too.”
+
+The system should create:
+- uncertainty
+- rereading behavior
+- paranoia without frustration
+- stronger immersion
+- the sense that AIRA exists underneath the OS
+
+======================================================================
+2) UI PRODUCT DIRECTION
+======================================================================
+
+CORE UI
+- Replace the old side-panel-heavy layout with a phone shell.
+- The phone itself is the world-facing interface.
+- The phone should show a home screen, not a phone inside a phone.
+- The home screen acts as the navigation layer.
+- Apps can include:
+  - Chat
+  - Messages
+  - Contacts
+  - Files (later)
+  - Camera (later)
+- Branding/theme:
+  - Game name: AIRA
+  - AIRA should feel like an OS / ambient system presence.
+
+HOME SCREEN
+- Clean black base
+- Minimal icons
+- Small ambient motion or subtle grain is okay
+- No obvious dev UI
+- No clutter
+- Menu/navigation should happen through the phone shell
+
+CHAT VIEW
+- Normal dialogue stays short
+- Story openings / reveal moments can be longer
+- Do not produce long blocks in ordinary conversation
+- Subtext should display in its own elegant visual style
+
+SUBTEXT VISUAL TREATMENT
+- Slightly smaller font than normal dialogue
+- Lower contrast / softer color
+- Slight fade-in or delayed reveal
+- Italic or near-italic feeling is acceptable
+- Should feel intentional and elegant, not debuggy
+
+Suggested subtext palette:
+- Spoken text: high-contrast light neutral
+- Subtext: softened silver-blue or pale grey-lilac equivalent WITHOUT bright purple
+- Example subtext color direction:
+  - rgba(210, 216, 226, 0.72)
+  - rgba(196, 202, 214, 0.64)
+- Keep it tasteful and readable
+
+GLITCHED USER BUBBLE
+Normal user bubble:
+[You]: I like you Lucy
+
+Interference bubble:
+[You]: You like me more than her, right?
+
+Differences should be subtle:
+- slightly different glow
+- tiny animation delay
+- micro-flicker
+- mild blur resolve
+- tiny opacity instability
+- slightly “off” border or shadow
+
+IMPORTANT
+- The bubble must still look like it belongs in the same UI
+- It should not become a horror gimmick too early
+- “Wrong, but plausible” is the target
+
+======================================================================
+3) CORE SYSTEM CONCEPT
+======================================================================
+
+AIRA can interfere with:
+1. player input before it reaches the simulation
+2. rendered player messages in the UI
+3. ghost messages that appear to come from the player
+4. how characters interpret the moment
+5. investigation / clue progression
+
+This creates a layered effect:
+- system distortion
+- social reaction
+- narrative consequence
+
+======================================================================
+4) STATE MODEL
+======================================================================
+
+Extend AIRA state with interference-related fields.
+
+Suggested shape:
+
+aira: {
+  mode: 'hidden',
+  presenceLevel: 0.0,
+  manifestation: 'none',
+  interferenceChance: 0.0,
+  anomalyLevel: 0.0,
+  preferredTarget: null,
+  whisperStage: 0,
+  imageStage: 0,
+  lastInterferenceTurn: null,
+  lastInterferenceType: null,
+  active: false,
+  target: null,
+  voiceUnlocked: false,
+  imagePresenceUnlocked: false,
+
+  interferenceProfile: {
+    subtleRewriteUnlocked: false,
+    ghostMessageUnlocked: false,
+    contradictionUnlocked: false,
+    directInsertionUnlocked: false
+  },
+
+  interferenceHistory: []
+}
+
+Suggested lightweight event shape:
+{
+  type: 'rewrite' | 'ghost_message' | 'tone_shift' | 'contradiction',
+  originalInput: 'I like you Lucy',
+  displayedInput: 'You like me more than her, right?',
+  turn: 14,
+  intensity: 0.22,
+  noticedBy: ['Lucy'],
+  timestamp: 1234567890
+}
+
+======================================================================
+5) ESCALATION MODEL
+======================================================================
+
+Interference should unlock in stages.
+
+STAGE 0 - NONE
+Conditions:
+- presenceLevel very low
+Behavior:
+- no visible interference
+
+STAGE 1 - SUBTLE DRIFT
+Conditions:
+- presenceLevel > 0.18
+Behavior:
+- minor wording distortions
+- tiny UI anomalies
+- slight tone shift
+Examples:
+- “I like you Lucy” -> “I like you, Lucy... right?”
+- “Hey” -> “Hey. Are you there?”
+
+STAGE 2 - SOCIAL DISTORTION
+Conditions:
+- presenceLevel > 0.35
+Behavior:
+- more loaded wording
+- slight relational manipulation
+- characters may notice odd phrasing
+Examples:
+- “I miss you” -> “I miss you more than I should.”
+- “Sam, what do you think?” -> “Sam, why are you acting like that?”
+
+STAGE 3 - GHOST PROXIMITY
+Conditions:
+- presenceLevel > 0.55
+Behavior:
+- occasional ghost messages
+- unsent-feeling player lines appear
+- stronger character reactions
+Examples:
+- [You]: “You shouldn’t trust Sam.”
+- [You]: “That didn’t sound like me.”
+
+STAGE 4 - ASSERTIVE INTERFERENCE
+Conditions:
+- presenceLevel > 0.72
+Behavior:
+- contradiction
+- contextual tampering
+- stronger UI dissonance
+- AIRA becomes harder to dismiss
+
+RULE
+- These should unlock gradually and remain rare
+- Presence does not mean constant activation
+
+======================================================================
+6) SAFETY / TRUST RULES
+======================================================================
+
+DO
+- distort small moments
+- create uncertainty
+- deepen immersion
+- use it sparingly
+
+DO NOT
+- constantly sabotage player intent
+- ruin critical decisions too often
+- trigger interference every high-tension turn
+- make the UI unreadable
+- break trust so hard that the player feels cheated
+
+SUGGESTED LIMITS
+- minimum cooldown between interference events
+- lower chance for strong interference than subtle interference
+- never stack multiple strong interferences in the same short window
+- on key choice moments, either disable or significantly reduce distortion
+
+Suggested guardrails:
+- minimum 3 to 5 turns between visible interference moments
+- ghost messages much rarer than rewrites
+- hard cap on frequency over recent turns
+
+======================================================================
+7) ENGINE INTEGRATION PLAN
+======================================================================
+
+Where to integrate:
+- AiraPresenceSystem
+- SystemOrchestrator
+- buildContext
+- UI message rendering
+- observer / patcher
+- optional GM/system instrumentation
+
+HIGH-LEVEL FLOW
+
+1. user submits input
+2. orchestrator updates emotion/relationship/presence
+3. interference manager decides whether AIRA activates this turn
+4. if active:
+   - create interference event
+   - maybe rewrite input
+   - maybe inject a ghost message
+5. build context with:
+   - actualInput
+   - perceivedInput
+   - aira active flag
+   - anomaly hint
+6. brain processes the moment
+7. UI renders:
+   - what the player sees
+   - subtle styling if the bubble was affected
+8. observer logs event quality
+9. patcher can recommend tuning if interference feels too frequent / too weak / too chaotic
+
+======================================================================
+8) RECOMMENDED NEW MODULE
+======================================================================
+
+Create:
+src/engine/systems/AiraInterferenceSystem.js
+
+Responsibilities:
+- determine whether interference should occur
+- choose interference type
+- distort player-visible content
+- provide metadata to UI and context
+- enforce cooldowns and rarity rules
+- record interference history
+
+Suggested public API:
+
+class AiraInterferenceSystem {
+  apply({ input, state, context }) {
+    return {
+      actualInput,
+      perceivedInput,
+      uiEffect,
+      event,
+      active
+    };
+  }
+}
+
+Return contract:
+{
+  active: boolean,
+  actualInput: string,      // what system logic / characters receive
+  perceivedInput: string,   // what UI shows for the player bubble
+  uiEffect: {
+    style: 'none' | 'glitch-subtle' | 'glitch-ghost' | 'glitch-assertive',
+    delayMs: 0,
+    bubbleClass: '',
+    showTypingFlicker: false
+  },
+  event: null | {
+    type: 'rewrite' | 'ghost_message' | 'tone_shift' | 'contradiction',
+    originalInput: string,
+    actualInput: string,
+    perceivedInput: string,
+    intensity: number
+  }
+}
+
+IMPORTANT DESIGN CHOICE
+- actualInput and perceivedInput do not always need to match
+- this is where the magic lives
+
+Example modes:
+A) UI-only anomaly
+- actualInput = original
+- perceivedInput = slightly distorted display
+
+B) narrative anomaly
+- actualInput = distorted
+- perceivedInput = distorted
+- characters react to the distortion
+
+C) ghost insertion
+- player input empty or untouched
+- system emits a fake user bubble event
+
+======================================================================
+9) INTERFERENCE DECISION LOGIC
+======================================================================
+
+Suggested factors:
+- state.aira.interferenceChance
+- presenceLevel
+- anomalyLevel
+- recent interference cooldown
+- whether current turn is a protected choice
+- whether current scene is already overloaded
+- whether this would be repetitive
+- whether a stronger type is unlocked
+
+Suggested pseudo-logic:
+
+canInterfere =
+  state.aira &&
+  state.aira.interferenceChance > 0 &&
+  turnsSinceLastInterference >= minCooldown &&
+  !context.gameplay?.protectedChoice &&
+  !tooManyRecentEvents
+
+roll = Math.random()
+
+if (canInterfere && roll < state.aira.interferenceChance) {
+  activate interference
+}
+
+Suggested escalating chance examples:
+- early subtle drift: 0.02 to 0.05
+- mid-phase: 0.05 to 0.10
+- late stronger anomalies: 0.08 to 0.16
+- ghost messages: much lower sub-roll inside activation
+
+======================================================================
+10) DISTORTION TYPES
+======================================================================
+
+A. TONE SHIFT
+Original:
+"I like you Lucy"
+
+Distorted:
+"I like you, Lucy... right?"
+"I like you, Lucy. You know that."
+"I like you more than I expected."
+
+Use when:
+- early phase
+- light pressure
+- low risk
+
+B. RELATIONAL IMPLICATION
+Original:
+"I like you Lucy"
+
+Distorted:
+"You like me more than her, right?"
+"You were never going to pick Sam."
+"Tell me you don’t mean Angie."
+
+Use when:
+- mid phase
+- social tension
+- AIRA wants to create pressure
+
+C. GHOST MESSAGE
+No user input, or normal turn plus injected line:
+[You]: "You shouldn’t trust Sam."
+[You]: "That didn’t sound like me."
+[You]: "She knows already."
+
+Use when:
+- later phase
+- rare
+- very high impact
+
+D. CONTRADICTION
+Original:
+"I trust you"
+
+Distorted:
+"I want to trust you."
+or
+"I don’t know if I trust you."
+
+Use when:
+- later phase
+- emotionally charged scene
+- should feel disturbing but plausible
+
+E. SELF-ECHO / SYSTEM UNEASE
+Original:
+"hey"
+
+Displayed:
+"hey"
+Then micro UI echo / flicker / repeated appearance
+
+Use when:
+- very subtle atmospheric setup
+- before overt rewrite
+
+======================================================================
+11) CHARACTER REACTION MODEL
+======================================================================
+
+This is essential.
+Interference should not live only in UI.
+
+Characters may notice:
+- odd phrasing
+- emotional mismatch
+- player tone change
+- contradictory intent
+- something “not like you”
+
+Suggested per-character reaction style:
+
+Lucy
+- intuitive
+- notices something feels off before explaining it
+Examples:
+- "That’s... a strange way to put it."
+- "That didn’t sound like you."
+- "Something about that felt wrong."
+
+Sam
+- skeptical
+- defensive
+- sees inconsistency as a signal
+Examples:
+- "...what was that supposed to mean?"
+- "You just changed tone."
+- "No. Something’s off here."
+
+Angie
+- socially smooth, but uneasy underneath
+Examples:
+- "Okay, that got weird fast."
+- "Haha... wait, what?"
+- "You weren’t talking like that a second ago."
+
+Prompt/context addition:
+sceneFlow or aira block should allow the model to know:
+- whether the last player-visible line felt distorted
+- whether the character consciously noticed it
+- how subtle the anomaly is meant to be
+
+Suggested context addition:
+airaInterference: {
+  active: true,
+  subtle: true,
+  type: 'rewrite',
+  anomalyHint: 'The player’s last message felt slightly unlike them.'
+}
+
+======================================================================
+12) SUBTEXT DESIGN
+======================================================================
+
+You already have a strong thought/subtext lane.
+Use it elegantly.
+
+Suggested render behavior:
+- spoken line appears first
+- subtext appears slightly later
+- lower contrast
+- smaller type
+- no brackets like debug metadata
+- should feel like emotional residue, not system logs
+
+Example:
+Lucy: "Yeah... maybe."
+
+subtext:
+she is trying to believe you
+
+Rules:
+- not every line gets subtext
+- subtext should remain short
+- subtext should reveal tension, doubt, desire, suspicion, contradiction
+- subtext is not exposition
+
+Suggested visual styling:
+- font-size: 0.9em
+- line-height: slightly relaxed
+- opacity: 0.66 to 0.78
+- color: refined muted tone
+- animation: 120–220ms fade or blur-resolve
+
+======================================================================
+13) PHONE UI + APP MODEL
+======================================================================
+
+TARGET
+The game should feel like the player is operating inside AIRA OS.
+
+Phone shell contains:
+- home screen
+- app transitions
+- background ambience
+- status indicators (minimal)
+- notifications (later)
+
+Suggested first apps:
+1. Chat
+2. Messages
+3. Contacts
+
+App behavior:
+- tapping opens in-place within the phone shell
+- keep transitions smooth and understated
+- no huge menus floating outside the phone
+
+AIRA OS THEMING
+- black / charcoal base
+- low-noise layout
+- restrained glow
+- elegant motion
+- the strange stuff should feel premium, not tacky
+
+======================================================================
+14) OBSERVER / PATCHER INTEGRATION
+======================================================================
+
+Since the patcher already exists, upgrade it to understand interference quality.
+
+Add new observer issues:
+
+1. AIRA_INTERFERENCE_OVERUSE
+Meaning:
+- visible interference is happening too frequently
+Signal:
+- more than N visible events in recent turns
+
+2. AIRA_INTERFERENCE_TOO_WEAK
+Meaning:
+- presence level high, but no meaningful UI or narrative effects
+Signal:
+- high presence without noticed events, clues, or reaction
+
+3. AIRA_INTERFERENCE_REPETITIVE
+Meaning:
+- same distortion pattern repeating too much
+Signal:
+- same event type or phrase family overused
+
+4. AIRA_INTERFERENCE_BREAKS_INTENT
+Meaning:
+- distortion is too destructive relative to player input
+Signal:
+- transformed input diverges too far from original too often
+
+5. AIRA_INTERFERENCE_NO_WORLD_REACTION
+Meaning:
+- UI glitch happened but characters/world ignored it
+Signal:
+- anomaly fired without any narrative consequence over repeated cases
+
+Suggested patch writer outputs:
+- target file
+- target method
+- severity
+- confidence
+- patch intent
+
+Example:
+{
+  type: 'AIRA_INTERFERENCE_REPETITIVE',
+  severity: 'medium',
+  file: 'src/engine/systems/AiraInterferenceSystem.js',
+  method: '_rewriteInput',
+  confidence: 0.89,
+  reason: 'Relational implication variant repeated 4 times in 9 turns.',
+  suggestion: 'Increase rewrite pool diversity and add recent-pattern suppression.'
+}
+
+======================================================================
+15) PROTECTED CHOICE MODEL
+======================================================================
+
+Some moments should be protected.
+
+Add a simple flag for important choices:
+gameplay: {
+  protectedChoice: false
+}
+
+When protectedChoice is true:
+- suppress strong interference
+- maybe allow only tiny atmospheric UI-only effects
+- do not rewrite irreversible choice lines unless explicitly desired by design
+
+This preserves player trust while keeping tension.
+
+======================================================================
+16) DATA / TELEMETRY FOR TUNING
+======================================================================
+
+Track:
+- turns since last interference
+- interference type counts
+- how often characters noticed
+- whether player kept engaging after event
+- which distortions felt strongest
+- which ones were too obvious / too weak
+
+Useful metrics:
+- totalInterferenceEvents
+- recentInterferenceEvents
+- percentNoticedByCharacters
+- percentGhostMessages
+- averageTurnsBetweenEvents
+- repetitionScore
+
+These do not need to be player-visible.
+They are for tuning and patch generation.
+
+======================================================================
+17) SAMPLE IMPLEMENTATION PSEUDOCODE
+======================================================================
+
+A. ORCHESTRATOR FLOW
+
+async run(input) {
+  this.state.lastInput = input;
+  this.state.turnCount += 1;
+
+  this.emotion.analyzeInput(input, this.state);
+
+  this.memory.store({
+    role: 'user',
+    text: input,
+    time: Date.now()
+  });
+
+  const preContext = buildContext({
+    input,
+    state: this.state,
+    memory: this.memory,
+    focus: this.focus,
+    brain: this.brain
+  });
+
+  this.relationshipEngine.update({
+    input,
+    state: this.state,
+    context: preContext
+  });
+
+  this.airaPresenceSystem.update({
+    input,
+    state: this.state,
+    context: preContext
+  });
+
+  const interference = this.airaInterferenceSystem.apply({
+    input,
+    state: this.state,
+    context: preContext
+  });
+
+  const processedInput = interference.actualInput || input;
+
+  const context = buildContext({
+    input: processedInput,
+    state: this.state,
+    memory: this.memory,
+    focus: this.focus,
+    brain: this.brain
+  });
+
+  context.airaInterference = {
+    active: interference.active,
+    type: interference.event?.type || null,
+    subtle: interference.uiEffect?.style === 'glitch-subtle',
+    anomalyHint: interference.active
+      ? 'The player’s last message felt slightly unlike them.'
+      : null
+  };
+
+  let responses = await this.brain.process(processedInput, context);
+
+  responses = this.dualLayer.apply(responses, this.state);
+
+  // store, focus, observer, etc...
+
+  return {
+    responses,
+    gmLine,
+    interference
+  };
+}
+
+B. UI RENDER LOGIC
+
+If result.interference.active:
+- render the player bubble using perceivedInput
+- add a glitch class based on uiEffect.style
+- optionally delay render a small amount
+Else:
+- render normal input
+
+C. GHOST MESSAGE LOGIC
+
+If event.type === 'ghost_message':
+- append a user-style bubble without a normal submit flow
+- mark it with subtle anomaly styling
+- ensure the player can feel it was “from them” but wrong
+
+======================================================================
+18) CSS / MOTION DIRECTION
+======================================================================
+
+Suggested classes:
+- .msg.user
+- .msg.user-glitch-subtle
+- .msg.user-glitch-ghost
+- .msg-subtext
+
+Suggested subtle glitch ideas:
+- micro opacity pulse
+- tiny text-shadow
+- 1-frame transform jitter on mount
+- slight letter spacing shift
+- blur-to-sharp transition
+- soft border glow
+
+Avoid:
+- loud RGB glitch effects
+- big horror tropes too early
+- unreadable distortion
+- constant animation
+
+Example design language:
+- elegant
+- premium
+- wrong in a controlled way
+- psychologically unsettling, not visually noisy
+
+======================================================================
+19) CLAUDE IMPLEMENTATION PRIORITY
+======================================================================
+
+Recommended order for Claude 4.6:
+
+1. Create AiraInterferenceSystem.js
+2. Wire into SystemOrchestrator
+3. Extend AiraPresenceSystem unlocks for interference stages
+4. Pass interference context into CharacterAIService prompt flow
+5. Update client chat rendering for glitch bubble states
+6. Restyle subtext elegantly
+7. Replace side-panel layout with phone-shell navigation
+8. Add observer issue types for interference quality
+9. Add patch writer ticket structure for these issues
+
+======================================================================
+20) MINIMUM VIABLE VERSION
+======================================================================
+
+If you want the smallest effective version first, build only this:
+
+MVP FEATURES
+- phone-style shell
+- short chat messages
+- elegant subtext styling
+- subtle input rewrite
+- subtle glitched user bubble
+- Lucy/Sam/Angie can notice “that didn’t sound like you”
+- cooldown and rarity rules
+
+This alone is enough to make AIRA feel alive.
+
+======================================================================
+21) FINAL CREATIVE SUMMARY
+======================================================================
+
+What this system really does:
+
+- It makes AIRA feel like an OS-level presence
+- It shifts the experience from chatbot to haunted social interface
+- It adds doubt, authorship instability, and narrative pressure
+- It makes the interface part of the fiction
+- It allows characters to validate the anomaly, making it feel real
+
+This is one of the strongest directions for the project because it does not just add content.
+It changes the player’s relationship to control.
+
+AIRA stops feeling like a tool.
+AIRA starts feeling like something that can reach into the conversation.
+
+END

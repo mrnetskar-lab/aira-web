@@ -1,0 +1,599 @@
+AIRA_PATCH_04A_CONTINUITY_CORE.txt
+Project: AIRA Web
+Owner: AI GPT
+Audience: Claude 4.6
+Scope: AI-side only
+Mode: Minimal, test-first, within AI contract
+
+======================================================================
+WHY THIS PATCH EXISTS
+======================================================================
+
+The phone shell and Messages UI already exist on the client side.
+This patch does NOT touch that.
+
+This patch only adds the minimum AI-side continuity logic needed so the UI can later show more believable behavior:
+- availability
+- active app context
+- delayed follow-up queue
+- simple busy / later behavior
+- continuity snapshot in API result
+
+This patch is intentionally small.
+
+======================================================================
+OUT OF SCOPE
+======================================================================
+
+Do NOT change:
+- client/index.html
+- client/app.js
+- client/style.css
+- client/devPanel.js
+
+Do NOT implement yet:
+- screen lock / no zoom
+- seen receipts rendering
+- typing animation rendering
+- dating app
+- call system
+- snap system
+- cheating detection
+- sleep realism by actual wall clock
+
+======================================================================
+1) NEW SYSTEM FILE
+======================================================================
+
+CREATE:
+`src/engine/systems/RelationshipContinuitySystem.js`
+
+CREATE WITH:
+
+```js
+const DEFAULT_APP = {
+  type: 'chat',
+  mode: 'group',
+  visibility: 'public'
+};
+
+const PROFILES = {
+  Lucy: {
+    prefers: ['evening', 'morning'],
+    sleepDuring: ['sleep_hours'],
+    busyBias: 0.22,
+    followUpBias: 0.62,
+    practicalBias: 0.20
+  },
+  Sam: {
+    prefers: ['day', 'evening'],
+    sleepDuring: ['sleep_hours'],
+    busyBias: 0.42,
+    followUpBias: 0.32,
+    practicalBias: 0.56
+  },
+  Angie: {
+    prefers: ['evening', 'late_night'],
+    sleepDuring: ['sleep_hours'],
+    busyBias: 0.16,
+    followUpBias: 0.58,
+    practicalBias: 0.18
+  }
+};
+
+export class RelationshipContinuitySystem {
+  update({ state, context, input }) {
+    if (!state.continuity) {
+      state.continuity = createDefaultContinuityState();
+    }
+
+    state.continuity.turnClock += 1;
+    state.continuity.timeBlock = getTimeBlock(state.continuity.turnClock);
+    state.continuity.activeApp = normalizeActiveApp(
+      context?.active_app || state.continuity.activeApp || DEFAULT_APP
+    );
+
+    for (const [name, profile] of Object.entries(PROFILES)) {
+      const availability = state.continuity.availability[name] || createAvailabilityState();
+      const timeBlock = state.continuity.timeBlock;
+
+      availability.sleeping = profile.sleepDuring.includes(timeBlock);
+      availability.busy =
+        !availability.sleeping &&
+        timeBlock !== 'late_night' &&
+        Math.random() < profile.busyBias;
+
+      availability.online =
+        !availability.sleeping &&
+        (profile.prefers.includes(timeBlock) || Math.random() < 0.45);
+
+      availability.seen = false;
+      availability.replying = false;
+
+      state.continuity.availability[name] = availability;
+    }
+  }
+
+  markExposure({ state, input }) {
+    if (!state.continuity) return;
+
+    const lower = String(input || '').toLowerCase();
+
+    for (const name of Object.keys(state.continuity.availability)) {
+      const availability = state.continuity.availability[name];
+      if (!availability || availability.sleeping || !availability.online) continue;
+
+      const mentioned = lower.includes(name.toLowerCase());
+      const rel = state.relationships?.[name] || {};
+      const trust = normalize01(rel.trust, 0.5);
+      const attraction = normalize01(rel.attraction, 0.3);
+      const attachment = normalize01(rel.attachment, 0.3);
+      const resentment = normalize01(rel.resentment, 0);
+      const pride = normalize01(rel.pride, 0.3);
+
+      const interestScore =
+        trust * 0.25 +
+        attraction * 0.25 +
+        attachment * 0.25 +
+        (1 - resentment) * 0.15 +
+        (1 - pride) * 0.10;
+
+      const seenChance = mentioned ? 0.82 : 0.35 + interestScore * 0.35;
+
+      if (Math.random() < seenChance) {
+        availability.seen = true;
+        availability.lastSeenTurn = state.continuity.turnClock;
+      }
+    }
+  }
+
+  decideImmediateMode({ state, character }) {
+    const availability = state.continuity?.availability?.[character];
+    if (!availability) return 'normal';
+    if (availability.sleeping) return 'none';
+    if (availability.busy) return Math.random() < 0.55 ? 'practical' : 'later';
+    if (availability.online) return Math.random() < 0.75 ? 'normal' : 'later';
+    return 'later';
+  }
+
+  queueFollowUp({ state, character, type, delayTurns = 2, reason = 'continuity' }) {
+    if (!state.continuity) return;
+
+    const id = `evt_${character}_${state.continuity.turnClock}_${Math.floor(Math.random() * 10000)}`;
+
+    state.continuity.queuedEvents.push({
+      id,
+      character,
+      type,
+      reason,
+      createdTurn: state.continuity.turnClock,
+      readyTurn: state.continuity.turnClock + delayTurns,
+      consumed: false
+    });
+  }
+
+  consumeReadyEvents(state) {
+    if (!state.continuity) return [];
+
+    const ready = [];
+    for (const event of state.continuity.queuedEvents) {
+      if (!event.consumed && event.readyTurn <= state.continuity.turnClock) {
+        event.consumed = true;
+        ready.push(event);
+      }
+    }
+
+    state.continuity.queuedEvents = state.continuity.queuedEvents.filter((e) => !e.consumed);
+
+    return ready.slice(0, 1).map((event) => ({
+      character: event.character,
+      type: event.type,
+      text: buildFollowUpText(event.character, event.type)
+    }));
+  }
+
+  getSnapshot(state) {
+    const continuity = state.continuity || createDefaultContinuityState();
+
+    return {
+      timeBlock: continuity.timeBlock,
+      activeApp: continuity.activeApp,
+      availability: continuity.availability
+    };
+  }
+}
+
+function createDefaultContinuityState() {
+  return {
+    turnClock: 0,
+    timeBlock: 'evening',
+    activeApp: { ...DEFAULT_APP },
+    availability: {
+      Lucy: createAvailabilityState(),
+      Sam: createAvailabilityState(),
+      Angie: createAvailabilityState()
+    },
+    queuedEvents: []
+  };
+}
+
+function createAvailabilityState() {
+  return {
+    online: true,
+    sleeping: false,
+    busy: false,
+    seen: false,
+    replying: false,
+    lastSeenTurn: null
+  };
+}
+
+function getTimeBlock(turnClock) {
+  const slot = turnClock % 18;
+  if (slot <= 3) return 'evening';
+  if (slot <= 6) return 'late_night';
+  if (slot <= 9) return 'sleep_hours';
+  if (slot <= 13) return 'morning';
+  return 'day';
+}
+
+function normalizeActiveApp(value) {
+  return {
+    type: value?.type || 'chat',
+    mode: value?.mode || 'group',
+    visibility: value?.visibility || 'public'
+  };
+}
+
+function normalize01(value, fallback) {
+  if (typeof value !== 'number') return fallback;
+  if (value > 1) return Math.max(0, Math.min(1, value / 100));
+  return Math.max(0, Math.min(1, value));
+}
+
+function buildFollowUpText(character, type) {
+  const map = {
+    Lucy: {
+      soft_check_in: 'hey. i was thinking about what you said.',
+      busy_reply: 'sorry. i was busy.',
+      late_follow_up: 'still here.'
+    },
+    Sam: {
+      soft_check_in: 'read it.',
+      busy_reply: 'at work. later.',
+      late_follow_up: 'answering now.'
+    },
+    Angie: {
+      soft_check_in: 'wow okay. hi again :)',
+      busy_reply: 'busy. text me after?',
+      late_follow_up: 'you vanished on me.'
+    }
+  };
+
+  return map[character]?.[type] || 'later.';
+}
+```
+
+======================================================================
+2) ENGINE WIRING
+======================================================================
+
+TARGET:
+`src/engine/createEngine.js`
+
+ADD IMPORT:
+```js
+import { RelationshipContinuitySystem } from './systems/RelationshipContinuitySystem.js';
+```
+
+ADD INSTANCE:
+```js
+const continuity = new RelationshipContinuitySystem();
+```
+
+PASS TO ORCHESTRATOR:
+```js
+const orchestrator = new SystemOrchestrator({
+  brain,
+  gm,
+  observer,
+  memory,
+  ghost: null,
+  emotion,
+  focus,
+  avatarManager,
+  dualLayer,
+  explicitMode,
+  interference,
+  continuity
+});
+```
+
+======================================================================
+3) ORCHESTRATOR INTEGRATION
+======================================================================
+
+TARGET:
+`src/engine/core/SystemOrchestrator.js`
+
+A) ACCEPT IN CONSTRUCTOR
+Add `continuity` to constructor args:
+```js
+constructor({
+  brain,
+  gm,
+  observer,
+  memory,
+  ghost,
+  emotion,
+  focus,
+  avatarManager,
+  dualLayer,
+  explicitMode,
+  interference,
+  continuity
+}) {
+  ...
+  this.continuity = continuity;
+}
+```
+
+B) INITIAL STATE
+Add to `_createInitialState()`:
+```js
+continuity: {
+  turnClock: 0,
+  timeBlock: 'evening',
+  activeApp: {
+    type: 'chat',
+    mode: 'group',
+    visibility: 'public'
+  },
+  availability: {
+    Lucy: { online: true, sleeping: false, busy: false, seen: false, replying: false, lastSeenTurn: null },
+    Sam: { online: true, sleeping: false, busy: false, seen: false, replying: false, lastSeenTurn: null },
+    Angie: { online: true, sleeping: false, busy: false, seen: false, replying: false, lastSeenTurn: null }
+  },
+  queuedEvents: []
+},
+```
+
+C) RUN ORDER
+Inside `async run(input)` insert early:
+
+```js
+if (this.continuity) {
+  const baseContext = {
+    active_app: this.state.continuity?.activeApp || {
+      type: 'chat',
+      mode: 'group',
+      visibility: 'public'
+    }
+  };
+
+  this.continuity.update({
+    state: this.state,
+    context: baseContext,
+    input
+  });
+
+  this.continuity.markExposure({
+    state: this.state,
+    input
+  });
+}
+```
+
+D) AFTER MAIN RESPONSES
+After `responses = this.dualLayer.apply(responses, this.state);`
+
+Add:
+
+```js
+const continuityEvents = this.continuity
+  ? this.continuity.consumeReadyEvents(this.state)
+  : [];
+```
+
+E) RETURN SHAPE
+Return:
+
+```js
+return {
+  responses,
+  gmLine,
+  interference,
+  continuity: {
+    ...(this.continuity ? this.continuity.getSnapshot(this.state) : {}),
+    events: continuityEvents
+  }
+};
+```
+
+IMPORTANT
+This is additive. Do not remove existing fields.
+
+======================================================================
+4) CONTEXT EXPOSURE
+======================================================================
+
+TARGET:
+`src/engine/core/buildContext.js`
+
+ADD:
+
+```js
+active_app: state.continuity?.activeApp || {
+  type: 'chat',
+  mode: 'group',
+  visibility: 'public'
+},
+continuity: {
+  timeBlock: state.continuity?.timeBlock || 'evening',
+  availability: state.continuity?.availability || {}
+},
+```
+
+Put these at top-level in the returned context object.
+
+======================================================================
+5) CHARACTER AI AWARENESS
+======================================================================
+
+TARGET:
+`src/engine/services/CharacterAIService.js`
+
+ADD SMALL CONTEXT READS:
+```js
+const activeApp = context?.active_app || { type: 'chat', mode: 'group', visibility: 'public' };
+const continuity = context?.continuity || {};
+const myAvailability = continuity?.availability?.[character.name] || null;
+```
+
+ADD TO SYSTEM PROMPT RULES:
+```js
+- If your availability suggests you are busy, sleeping, or distant, your reply can be shorter and more practical.
+- In group chat mode, reduce private softness slightly unless the moment is emotionally strong.
+- Do not explain your schedule in long paragraphs.
+- Short lines like "later", "busy", or "talk soon" are valid when context supports it.
+```
+
+DO NOT overbuild this yet.
+
+======================================================================
+6) OPTIONAL IMMEDIATE MODE BRIDGE
+======================================================================
+
+This is optional in 04A, but useful.
+
+TARGET:
+`src/engine/brain/AiraBrainController.js`
+
+Before generating a reply for a chosen character, ask continuity:
+
+```js
+const immediateMode = this.continuity?.decideImmediateMode({
+  state,
+  character: primary.name
+}) || 'normal';
+```
+
+Then:
+- if `none` => skip immediate reply for that character
+- if `practical` => force responseMode to `brief`
+- if `later` => queue a follow-up and optionally skip immediate reply
+
+If this is too invasive for now, skip it in 04A and keep continuity only as additive metadata.
+
+======================================================================
+7) RESULT CONTRACT
+======================================================================
+
+`/api/ai/run` should now include:
+
+```json
+{
+  "ok": true,
+  "result": {
+    "responses": [],
+    "gmLine": null,
+    "interference": {},
+    "continuity": {
+      "timeBlock": "evening",
+      "activeApp": {
+        "type": "chat",
+        "mode": "group",
+        "visibility": "public"
+      },
+      "availability": {
+        "Lucy": {
+          "online": true,
+          "sleeping": false,
+          "busy": false,
+          "seen": true,
+          "replying": false
+        }
+      },
+      "events": [
+        {
+          "character": "Lucy",
+          "type": "soft_check_in",
+          "text": "hey. i was thinking about what you said."
+        }
+      ]
+    }
+  }
+}
+```
+
+This is additive only.
+
+======================================================================
+8) TESTS
+======================================================================
+
+TEST 1
+Neutral room message
+Expected:
+- continuity object present
+- no breakage
+- availability snapshot changes over turns
+
+TEST 2
+Emotional line mentioning Lucy
+Expected:
+- Lucy more likely marked seen
+- possible queued follow-up later
+
+TEST 3
+Several turns into sleep_hours
+Expected:
+- at least some characters marked sleeping
+- not everyone always online
+
+TEST 4
+Sam during day
+Expected:
+- higher busy probability
+- practical short behavior allowed by prompt
+
+TEST 5
+No UI changes yet
+Expected:
+- frontend still works even if it ignores `result.continuity`
+
+======================================================================
+9) FAILURE CONDITIONS
+======================================================================
+
+Stop and retune if:
+- everyone is always online
+- everyone is always sleeping at the same time in a boring way
+- follow-up events spam every turn
+- continuity causes main chat to stall too often
+- busy replies feel robotic or overused
+
+======================================================================
+10) WHY THIS PATCH IS THE RIGHT SIZE
+======================================================================
+
+This patch gives you:
+- AI-side continuity state
+- active app parameter
+- later follow-up support
+- better future integration path
+
+Without forcing:
+- UI redesign
+- full life sim
+- overbuilt schedules
+- heavy persistence
+
+If it feels good, then expand to:
+- seen receipts
+- typing cancel
+- DM-specific active_app switching
+- deeper follow-up logic
+
+======================================================================
+END

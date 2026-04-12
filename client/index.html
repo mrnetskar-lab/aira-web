@@ -1,99 +1,201 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>AIRA</title>
-  <link rel="stylesheet" href="./style.css" />
-</head>
-<body>
-  <div class="phone">
-    <div class="phone-screen">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>AIRA</title>
+    <meta
+      name="description"
+      content="AIRA Web — a living AI room in a minimal AIRA OS shell."
+    />
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <link rel="stylesheet" href="./style.css?v=20260412c" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <main class="screen-stack">
+        <section id="homeView" class="view view--active" aria-label="AIRA home">
+          <div class="home-view">
+<div class="home-mark" aria-hidden="true"></div>
 
-      <!-- Status bar -->
-      <div class="status-bar">
-        <span class="status-time" id="statusTime">9:41</span>
-        <span class="status-brand">AIRA</span>
-        <span class="status-signal">●●●</span>
-      </div>
+            <div
+              id="homeRing"
+              class="home-ring"
+              aria-label="AIRA home"
+            >
+              <div class="home-ring__content">
+                <span class="home-ring__eyebrow">AIRA</span>
 
-      <!-- Home screen -->
-      <div id="homeScreen" class="screen active">
-        <div class="home-content">
-          <div class="home-hero">
-            <div class="aira-logo">AIRA</div>
-            <div class="home-clock" id="homeClock">9:41</div>
+                <nav class="home-ring__nav" aria-label="AIRA apps">
+                  <button
+                    class="ring-link ring-link--primary"
+                    type="button"
+                    data-open-app="chat"
+                  >
+                    Chat
+                  </button>
+                  <button
+                    class="ring-link"
+                    type="button"
+                    data-open-app="messages"
+                  >
+                    Messages
+                  </button>
+                  <button
+                    class="ring-link"
+                    type="button"
+                    data-open-app="gallery"
+                  >
+                    Gallery
+                  </button>
+                  <button
+                    class="ring-link"
+                    type="button"
+                    data-open-app="clues"
+                  >
+                    Clues
+                  </button>
+                  <button
+                    class="ring-link"
+                    type="button"
+                    data-open-app="settings"
+                  >
+                    Settings
+                  </button>
+                </nav>
+              </div>
+            </div>
           </div>
-          <div class="app-grid">
-            <button class="app-icon" data-app="chat">
-              <div class="app-icon-bg icon-chat"></div>
-              <span>Chat</span>
-            </button>
-            <button class="app-icon" data-app="messages">
-              <div class="app-icon-bg icon-messages"></div>
-              <span>Messages</span>
-            </button>
-            <button class="app-icon" data-app="gallery">
-              <div class="app-icon-bg icon-gallery"></div>
-              <span>Gallery</span>
-            </button>
-            <button class="app-icon" data-app="clues">
-              <div class="app-icon-bg icon-clues"></div>
-              <span>Clues</span>
-            </button>
-            <button class="app-icon" data-app="settings">
-              <div class="app-icon-bg icon-settings"></div>
-              <span>Settings</span>
-            </button>
+        </section>
+
+        <section id="chatView" class="view" aria-label="AIRA chat">
+          <div class="chat-view">
+            <header class="topbar">
+              <button
+                id="backToHomeBtn"
+                class="icon-button"
+                type="button"
+                aria-label="Back to home"
+              >
+                <span aria-hidden="true">&#8592;</span>
+              </button>
+
+              <div class="topbar-brand" aria-label="AIRA">
+                <span class="topbar-brand__ring" aria-hidden="true"></span>
+                <span class="topbar-brand__text">AIRA</span>
+              </div>
+
+              <button
+                id="resetChatBtn"
+                class="icon-button icon-button--ghost"
+                type="button"
+                aria-label="Reset chat"
+                title="Reset chat"
+              >
+                <span aria-hidden="true">&#x27F3;</span>
+              </button>
+            </header>
+
+            <div id="chatMessages" class="chat-messages" aria-live="polite">
+              <div class="message-row message-row--system">
+                <div class="system-note">
+                  The room is quiet. Start with something small.
+                </div>
+              </div>
+            </div>
+
+            <form id="chatForm" class="composer" autocomplete="off">
+              <label class="sr-only" for="chatInput">Message</label>
+              <textarea
+                id="chatInput"
+                class="composer__input"
+                rows="1"
+                maxlength="1200"
+                placeholder="Say something..."
+              ></textarea>
+              <button id="sendBtn" class="composer__send" type="submit">
+                Send
+              </button>
+            </form>
           </div>
-        </div>
-        <div class="home-dock">
-          <button class="app-icon dock-icon" data-app="chat">
-            <div class="app-icon-bg icon-chat"></div>
-          </button>
-        </div>
-      </div>
+        </section>
 
-      <!-- Chat screen -->
-      <div id="chatScreen" class="screen">
-        <div class="app-bar">
-          <button id="backBtn" class="app-back-btn">&#8249;</button>
-          <span class="app-bar-mark">AIRA</span>
-          <div class="presence-dot" id="presenceDot"></div>
-        </div>
+        <section id="appView" class="view" aria-label="App">
+          <div class="placeholder-view">
+            <header id="appTopbar" class="topbar">
+              <button
+                id="backFromAppBtn"
+                class="icon-button"
+                type="button"
+                aria-label="Back to home"
+              >
+                <span aria-hidden="true">&#8592;</span>
+              </button>
 
-        <div id="log" class="chat-log"></div>
+              <div class="topbar-brand" aria-label="AIRA">
+                <span class="topbar-brand__ring" aria-hidden="true"></span>
+                <span id="placeholderTitle" class="topbar-brand__text">
+                  Messages
+                </span>
+              </div>
 
-        <div class="chip-row">
-          <button class="chip-btn" data-prompt="truth or dare">Truth or dare</button>
-          <button class="chip-btn" data-prompt="let's talk honestly">Be honest</button>
-          <button class="chip-btn" data-prompt="i want to get closer to lucy">Closer to Lucy</button>
-          <button class="chip-btn" data-prompt="sam, what do you really think">Ask Sam</button>
-        </div>
+              <div class="topbar-spacer" aria-hidden="true"></div>
+            </header>
 
-        <form id="form" class="chat-bar" autocomplete="off">
-          <input id="input" type="text" placeholder="Message..." />
-          <button type="submit" class="send-btn">&#8593;</button>
-        </form>
-      </div>
+            <div id="appPlaceholderBody" class="placeholder-body">
+              <div class="placeholder-card">
+                <div class="placeholder-card__ring" aria-hidden="true"></div>
+                <h2 id="placeholderHeading">Messages</h2>
+                <p id="placeholderText">
+                  This space is waiting quietly.
+                </p>
+              </div>
+            </div>
 
-      <!-- Placeholder screen (Messages / Gallery / Clues / Settings) -->
-      <div id="placeholderScreen" class="screen">
-        <div class="app-bar">
-          <button class="app-back-btn" data-back="home">&#8249;</button>
-          <span class="app-bar-mark" id="placeholderTitle">App</span>
-        </div>
-        <div class="placeholder-body">
-          <div class="placeholder-icon" id="placeholderIcon"></div>
-          <p class="placeholder-label" id="placeholderLabel">Coming soon</p>
-          <p class="placeholder-sub">This feature is being built.</p>
-        </div>
-      </div>
+            <div id="messagesApp" class="messages-app" hidden>
+              <div id="messagesList" class="messages-list"></div>
 
+              <div id="messagesThread" class="messages-thread hidden">
+                <header class="messages-topbar">
+                  <button
+                    id="messagesBackBtn"
+                    class="messages-back"
+                    type="button"
+                    aria-label="Back to messages"
+                  >
+                    <span aria-hidden="true">&#8592;</span>
+                  </button>
+
+                  <span id="messagesTitle" class="messages-title"></span>
+
+                  <div class="messages-topbar-spacer" aria-hidden="true"></div>
+                </header>
+
+                <div id="messagesLog" class="messages-log" aria-live="polite"></div>
+
+                <form id="messagesForm" class="messages-composer" autocomplete="off">
+                  <input
+                    id="messagesInput"
+                    class="messages-input"
+                    type="text"
+                    placeholder="Message..."
+                    maxlength="600"
+                    autocomplete="off"
+                  />
+                  <button class="messages-send" type="submit">Send</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
     </div>
-    <div class="phone-indicator"></div>
-  </div>
 
-  <script type="module" src="./app.js"></script>
-</body>
+    <script type="module" src="./app.js?v=20260412c"></script>
+  </body>
 </html>

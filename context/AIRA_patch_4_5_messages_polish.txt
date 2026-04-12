@@ -1,0 +1,556 @@
+AIRA PATCH 4.5 — MESSAGES POLISH
+==================================
+
+Goal
+----
+Keep the Messages app familiar and calm like a real messenger,
+but give it AIRA-specific elegance through spacing, tone, and restraint.
+
+STRICT SCOPE
+------------
+- frontend only
+- no personality logic
+- no AI behavior
+- no interference
+- no backend changes
+- no extra systems
+
+Files
+-----
+- client/style.css
+- client/app.js
+- client/index.html (small top bar cleanup only if needed)
+
+Assumption
+----------
+This patch assumes the Messages app MVP from Patch 4 exists.
+
+==================================================
+PART 1 — VISUAL DIRECTION
+==================================================
+
+Design rules for this patch:
+- familiar messenger structure
+- cleaner than iPhone, not copying it
+- darker, quieter, more elegant
+- one gold accent only: unread dot / subtle actions
+- no logos inside Messages
+- top bar shows only the contact name
+- softer separators, less contrast, more breathing room
+
+==================================================
+PART 2 — TOP BAR CLEANUP
+==================================================
+
+--------------------------------------------------
+STEP 1 — client/index.html
+Make the Messages thread top bar minimal
+--------------------------------------------------
+
+Find this block inside the Messages thread section:
+
+  <header class="messages-topbar">
+    <button id="messagesBackBtn" class="messages-back">&#8592;</button>
+    <div id="messagesTitle" class="messages-title">Lucy</div>
+    <div></div>
+  </header>
+
+Replace it with:
+
+  <header class="messages-topbar">
+    <button id="messagesBackBtn" class="messages-back" aria-label="Back">&#8592;</button>
+    <div id="messagesTitle" class="messages-title">Lucy</div>
+    <div class="messages-topbar-spacer" aria-hidden="true"></div>
+  </header>
+
+This keeps the title visually centered.
+
+==================================================
+PART 3 — THREAD LIST POLISH
+==================================================
+
+--------------------------------------------------
+STEP 2 — client/style.css
+Replace the current Messages app CSS blocks with these
+--------------------------------------------------
+
+Find the Messages app CSS section from Patch 4 and replace the key blocks below.
+
+A) Replace .messages-app with:
+
+.messages-app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background:
+    linear-gradient(180deg, rgba(8, 8, 12, 0.98), rgba(4, 4, 7, 1));
+}
+
+B) Replace .messages-list with:
+
+.messages-list {
+  display: flex;
+  flex-direction: column;
+  padding-top: 6px;
+}
+
+C) Replace .thread with:
+
+.thread {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 15px 18px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.035);
+  cursor: pointer;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease;
+}
+
+.thread:hover,
+.thread:focus-visible {
+  background: rgba(255, 255, 255, 0.02);
+  border-color: rgba(255, 255, 255, 0.05);
+  outline: none;
+}
+
+D) Replace .thread-name with:
+
+.thread-name {
+  grid-column: 1 / 2;
+  font-size: 1rem;
+  font-weight: 420;
+  line-height: 1.2;
+  color: rgba(245, 242, 235, 0.92);
+  letter-spacing: 0.01em;
+}
+
+E) Replace .thread-preview with:
+
+.thread-preview {
+  grid-column: 1 / 2;
+  font-size: 0.82rem;
+  color: rgba(245, 242, 235, 0.46);
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+F) Replace .thread-dot with:
+
+.thread-dot {
+  grid-column: 2 / 3;
+  grid-row: 1 / 3;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(200, 168, 106, 0.9);
+  box-shadow: 0 0 0 1px rgba(200, 168, 106, 0.08);
+  align-self: center;
+  justify-self: center;
+}
+
+G) Add these new unread refinements:
+
+.thread.is-unread .thread-name {
+  color: rgba(245, 242, 235, 0.98);
+}
+
+.thread.is-unread .thread-preview {
+  color: rgba(245, 242, 235, 0.68);
+}
+
+==================================================
+PART 4 — CONVERSATION VIEW POLISH
+==================================================
+
+--------------------------------------------------
+STEP 3 — client/style.css
+Replace conversation view styling
+--------------------------------------------------
+
+A) Replace .messages-thread with:
+
+.messages-thread {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background:
+    linear-gradient(180deg, rgba(6, 6, 9, 0.98), rgba(3, 3, 6, 1));
+}
+
+B) Keep .messages-thread.hidden as-is, or ensure it is:
+
+.messages-thread.hidden {
+  display: none;
+}
+
+C) Replace .messages-topbar with:
+
+.messages-topbar {
+  display: grid;
+  grid-template-columns: 56px 1fr 56px;
+  align-items: center;
+  min-height: 52px;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  background: rgba(7, 7, 11, 0.92);
+  backdrop-filter: blur(14px);
+}
+
+D) Add this new spacer rule:
+
+.messages-topbar-spacer {
+  width: 56px;
+  height: 1px;
+}
+
+E) Replace .messages-title with:
+
+.messages-title {
+  text-align: center;
+  font-size: 0.98rem;
+  font-weight: 500;
+  color: rgba(245, 242, 235, 0.92);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+F) Replace .messages-back with:
+
+.messages-back {
+  justify-self: start;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  font-size: 1.3rem;
+  color: rgba(200, 168, 106, 0.92);
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.messages-back:hover,
+.messages-back:focus-visible {
+  background: rgba(200, 168, 106, 0.08);
+  transform: translateX(-1px);
+  outline: none;
+}
+
+--------------------------------------------------
+STEP 4 — client/style.css
+Refine message log and bubbles
+--------------------------------------------------
+
+A) Replace .messages-log with:
+
+.messages-log {
+  flex: 1;
+  padding: 16px 14px 18px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  scroll-behavior: smooth;
+}
+
+B) Replace .msg-bubble with:
+
+.msg-bubble {
+  max-width: 74%;
+  padding: 10px 14px;
+  border-radius: 18px;
+  font-size: 0.96rem;
+  line-height: 1.42;
+  word-break: break-word;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.16);
+}
+
+C) Replace .msg-me with:
+
+.msg-me {
+  align-self: flex-end;
+  background:
+    linear-gradient(180deg, rgba(77, 86, 168, 0.96), rgba(60, 68, 145, 0.96));
+  color: white;
+  border-bottom-right-radius: 6px;
+}
+
+D) Replace .msg-them with:
+
+.msg-them {
+  align-self: flex-start;
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(245, 242, 235, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom-left-radius: 6px;
+}
+
+==================================================
+PART 5 — INPUT BAR POLISH
+==================================================
+
+--------------------------------------------------
+STEP 5 — client/style.css
+Replace the Messages input area
+--------------------------------------------------
+
+A) Replace .messages-input with:
+
+.messages-input {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  padding: 10px 12px calc(12px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  background: rgba(7, 7, 11, 0.94);
+  backdrop-filter: blur(14px);
+}
+
+B) Replace .messages-input input with:
+
+.messages-input input {
+  width: 100%;
+  min-height: 42px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(245, 242, 235, 0.96);
+  font-size: 0.95rem;
+  outline: none;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease;
+}
+
+.messages-input input::placeholder {
+  color: rgba(245, 242, 235, 0.38);
+}
+
+.messages-input input:focus {
+  border-color: rgba(200, 168, 106, 0.18);
+  background: rgba(255, 255, 255, 0.065);
+}
+
+C) Replace .messages-input button with:
+
+.messages-input button {
+  min-width: 68px;
+  min-height: 42px;
+  border-radius: 999px;
+  border: 1px solid rgba(200, 168, 106, 0.18);
+  padding: 0 14px;
+  background:
+    linear-gradient(180deg, rgba(200, 168, 106, 0.13), rgba(200, 168, 106, 0.09));
+  color: rgba(245, 242, 235, 0.94);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.messages-input button:hover,
+.messages-input button:focus-visible {
+  border-color: rgba(200, 168, 106, 0.28);
+  background:
+    linear-gradient(180deg, rgba(200, 168, 106, 0.16), rgba(200, 168, 106, 0.12));
+  transform: translateY(-1px);
+  outline: none;
+}
+
+==================================================
+PART 6 — APP HEADER POLISH
+==================================================
+
+--------------------------------------------------
+STEP 6 — client/app.js
+Hide generic AIRA topbar when Messages app is open
+--------------------------------------------------
+
+In showPlaceholder(appName), keep the existing logic, but add this behavior:
+
+- when appName === "messages"
+  - hide the generic placeholder title shell if needed
+  - show the Messages app only
+- when appName !== "messages"
+  - keep current placeholder behavior
+
+If your current #appView still shows the old placeholder header above Messages,
+do this exact fix:
+
+A) In client/index.html, find inside #appView:
+
+  <header class="topbar">
+
+and add an id to it:
+
+  <header id="appPlaceholderTopbar" class="topbar">
+
+B) In client/app.js, add this to elements:
+
+  appPlaceholderTopbar: document.getElementById("appPlaceholderTopbar"),
+
+C) Then inside showPlaceholder(appName), add:
+
+  if (appName === "messages") {
+    elements.appPlaceholderTopbar.style.display = "none";
+    renderThreads();
+    return;
+  }
+
+  elements.appPlaceholderTopbar.style.display = "";
+  elements.placeholderTitle.textContent = copy.title;
+  elements.placeholderHeading.textContent = copy.title;
+  elements.placeholderText.textContent = copy.text;
+  setActiveView("app", "forward");
+
+IMPORTANT:
+If you already route Messages differently, adapt this so Messages does not show any extra branded top bar.
+The goal is:
+- Messages list = no AIRA title
+- Thread view = only contact name
+
+==================================================
+PART 7 — SIMPLE UX CLEANUP
+==================================================
+
+--------------------------------------------------
+STEP 7 — client/app.js
+Make Messages open cleanly every time
+--------------------------------------------------
+
+In showPlaceholder(appName), when appName === "messages", ensure these happen before renderThreads():
+
+  state.messagesApp.activeThread = null;
+  elements.messagesThread.classList.add("hidden");
+  elements.messagesList.style.display = "flex";
+  elements.messagesInput.value = "";
+
+If not already present, add them.
+
+--------------------------------------------------
+STEP 8 — client/app.js
+Improve thread rendering safety
+--------------------------------------------------
+
+Replace renderThreads() with this version:
+
+function renderThreads() {
+  if (!elements.messagesList) return;
+
+  elements.messagesList.innerHTML = state.messagesApp.threads
+    .map((thread) => `
+      <button class="thread ${thread.unread ? "is-unread" : ""}" type="button" data-thread="${thread.id}">
+        <div class="thread-name">${escapeHtml(thread.name)}</div>
+        <div class="thread-preview">${escapeHtml(thread.preview)}</div>
+        ${thread.unread ? '<div class="thread-dot"></div>' : ""}
+      </button>
+    `)
+    .join("");
+}
+
+This improves semantics and keeps styling simple.
+
+--------------------------------------------------
+STEP 9 — client/style.css
+Support button-based thread items
+--------------------------------------------------
+
+Because renderThreads() now uses <button>, add this line inside .thread:
+
+  appearance: none;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+
+So the full .thread block should include those properties.
+
+==================================================
+PART 8 — SCROLL / OPEN POLISH
+==================================================
+
+--------------------------------------------------
+STEP 10 — client/app.js
+Scroll Messages thread to bottom after render
+--------------------------------------------------
+
+Replace renderThreadMessages() with this polished version:
+
+function renderThreadMessages() {
+  const id = state.messagesApp.activeThread;
+  const msgs = state.messagesApp.messages[id] || [];
+
+  elements.messagesLog.innerHTML = msgs
+    .map((message) => `
+      <div class="msg-bubble ${message.me ? "msg-me" : "msg-them"}">
+        ${escapeHtml(message.text)}
+      </div>
+    `)
+    .join("");
+
+  requestAnimationFrame(() => {
+    elements.messagesLog.scrollTop = elements.messagesLog.scrollHeight;
+  });
+}
+
+No personality classes.
+No special effects.
+Just clean rendering.
+
+==================================================
+PART 9 — KEEP IT MODEST
+==================================================
+
+Do NOT add:
+- typing indicators
+- delayed auto-replies
+- persona-specific styles
+- interference
+- extra icons
+- message timestamps
+- avatar circles
+
+This patch is about:
+- believable
+- calm
+- elegant
+- simple
+
+==================================================
+EXPECTED RESULT
+==================================================
+
+After this patch:
+- Messages thread list feels cleaner and more premium
+- gold unread dot feels quieter and more intentional
+- top bar is minimal and centered
+- conversation bubbles feel less generic
+- input bar feels closer to a native messenger
+- app feels familiar, but still distinctly AIRA through tone and restraint
+
+==================================================
+OPTIONAL NEXT STEP
+==================================================
+
+After this, the best next move is not more logic.
+
+The best next move would be:
+- Patch 4.6 — Gallery app shell
+or
+- Patch 4.6 — Messages micro-animation pass
+
+END

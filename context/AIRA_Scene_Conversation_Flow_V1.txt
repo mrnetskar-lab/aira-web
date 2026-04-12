@@ -1,0 +1,368 @@
+AIRA SCENE CONVERSATION FLOW V1
+Target: D:\V3\Aira_web
+
+PURPOSE
+Fix the "3 separate chats in 1 room" problem.
+
+Right now the system often feels like:
+- Lucy has her own chat
+- Sam has his own chat
+- Angie has her own chat
+
+This patch changes that into:
+- one shared scene
+- one main responder
+- optional short follow-up from one other character
+- reactions that feel connected to the same moment
+
+GOAL
+Make the room feel like one conversation, not three parallel private chats.
+
+IMPORTANT
+- Keep this patch focused on backend conversation flow.
+- Do NOT redesign UI here.
+- Do NOT add new frontend components.
+- Do NOT add interference yet.
+- Keep current architecture and context system.
+
+======================================================================
+1) CONVERSATION DESIGN
+======================================================================
+
+New response behavior:
+
+1. Choose ONE primary responder
+- the one most likely to answer directly
+
+2. Optionally choose ONE secondary responder
+- only sometimes
+- only if it improves the scene
+- should be short and connected to the primary response
+
+3. Prevent isolated follow-ups
+- do not let every character answer as if they are in different chats
+- secondary response should feel like:
+  - reaction
+  - aside
+  - interruption
+  - support
+  - challenge
+
+4. Keep room feeling coherent
+- same topic
+- same emotional beat
+- same moment
+
+======================================================================
+2) REPLACE FILE
+======================================================================
+
+FILE: src/engine/brain/AiraBrainController.js
+
+Replace the full file with this:
+
+----------------------------------------------------------------------
+CODE
+----------------------------------------------------------------------
+
+import { CHARACTER_PROFILES } from './characterProfiles.js';
+import { CharacterAIService } from '../services/CharacterAIService.js';
+
+export class AiraBrainController {
+  constructor() {
+    this.brains = new Map();
+    this.aiService = new CharacterAIService();
+
+    for (const [name, profile] of Object.entries(CHARACTER_PROFILES)) {
+      this.register(name, profile);
+    }
+  }
+
+  register(name, profile) {
+    this.brains.set(name, {
+      name,
+      personality: profile
+    });
+  }
+
+  async process(input, context) {
+    const candidates = [...this.brains.values()];
+    const plan = this._buildScenePlan(candidates, input, context);
+
+    const responses = [];
+
+    if (plan.primary) {
+      const primary = await this.aiService.generate({
+        characterName: plan.primary.name,
+        personality: plan.primary.personality,
+        input,
+        context: {
+          ...context,
+          conversation: {
+            ...context.conversation,
+            responseMode: plan.primaryMode || context.conversation?.responseMode || 'brief'
+          },
+          sceneFlow: {
+            role: 'primary',
+            mainSpeaker: plan.primary.name,
+            followUpSpeaker: plan.secondary?.name || null,
+            instruction: 'Answer directly and naturally as the main speaker.'
+          }
+        }
+      });
+
+      if (primary && (primary.spoken || primary.thought)) {
+        responses.push({
+          agent: plan.primary.name,
+          spoken: primary.spoken || '',
+          thought: primary.thought || null
+        });
+      }
+    }
+
+    if (plan.secondary) {
+      const lastPrimary = responses[0]?.spoken || '';
+
+      const secondary = await this.aiService.generate({
+        characterName: plan.secondary.name,
+        personality: plan.secondary.personality,
+        input,
+        context: {
+          ...context,
+          conversation: {
+            ...context.conversation,
+            responseMode: 'brief'
+          },
+          sceneFlow: {
+            role: 'secondary',
+            mainSpeaker: plan.primary?.name || null,
+            followUpSpeaker: plan.secondary.name,
+            primarySpoken: lastPrimary,
+            instruction:
+              'Do not start a new conversation. React briefly to the same moment. You are a short in-room follow-up only.'
+          }
+        }
+      });
+
+      if (secondary && (secondary.spoken || secondary.thought)) {
+        responses.push({
+          agent: plan.secondary.name,
+          spoken: shortenSecondary(secondary.spoken || ''),
+          thought: secondary.thought || null
+        });
+      }
+    }
+
+    return responses;
+  }
+
+  _buildScenePlan(candidates, input, context) {
+    const lowerInput = String(input || '').toLowerCase();
+    const emotionalBeat = context?.conversation?.emotionalBeat || 'neutral';
+    const tension =
+      context?.world?.tension ??
+      context?.conversation?.intensity ??
+      0;
+
+    const primary = this._selectPrimary(candidates, lowerInput, context);
+    const secondary = this._selectSecondary(candidates, primary, lowerInput, emotionalBeat, tension);
+
+    return {
+      primary,
+      secondary,
+      primaryMode: this._getPrimaryMode(emotionalBeat, tension)
+    };
+  }
+
+  _selectPrimary(candidates, lowerInput, context) {
+    const focus = context?.cast || {};
+
+    if (/\b(lucy)\b/.test(lowerInput)) {
+      return candidates.find((brain) => brain.name === 'Lucy') || candidates[0];
+    }
+
+    if (/\b(sam)\b/.test(lowerInput)) {
+      return candidates.find((brain) => brain.name === 'Sam') || candidates[0];
+    }
+
+    if (/\b(angie)\b/.test(lowerInput)) {
+      return candidates.find((brain) => brain.name === 'Angie') || candidates[0];
+    }
+
+    const focused = candidates.find((brain) => focus?.[brain.name]?.focus);
+    if (focused) return focused;
+
+    return candidates[Math.floor(Math.random() * candidates.length)];
+  }
+
+  _selectSecondary(candidates, primary, lowerInput, emotionalBeat, tension) {
+    if (!primary) return null;
+
+    const others = candidates.filter((brain) => brain.name !== primary.name);
+    if (!others.length) return null;
+
+    let chance = 0.18;
+
+    if (emotionalBeat === 'intimacy' || emotionalBeat === 'rupture') {
+      chance = 0.42;
+    } else if (tension > 0.65) {
+      chance = 0.36;
+    } else if (/\b(lucy|sam|angie)\b/.test(lowerInput)) {
+      chance = 0.28;
+    }
+
+    if (Math.random() > chance) {
+      return null;
+    }
+
+    return others[Math.floor(Math.random() * others.length)];
+  }
+
+  _getPrimaryMode(emotionalBeat, tension) {
+    if (emotionalBeat === 'intimacy' || emotionalBeat === 'repair') {
+      return 'normal';
+    }
+
+    if (emotionalBeat === 'rupture' || tension > 0.7) {
+      return 'normal';
+    }
+
+    return 'brief';
+  }
+
+  getBrain(name) {
+    return this.brains.get(name);
+  }
+}
+
+function shortenSecondary(text) {
+  const raw = String(text || '').trim();
+  if (!raw) return '';
+
+  const oneSentence = trimToSentences(raw, 1);
+  return trimToWords(oneSentence, 16);
+}
+
+function trimToSentences(text, maxSentences) {
+  const parts = text.match(/[^.!?]+[.!?]?/g);
+  if (!parts) return text;
+  return parts.slice(0, maxSentences).join(' ').trim();
+}
+
+function trimToWords(text, maxWords) {
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length <= maxWords) return text;
+  return words.slice(0, maxWords).join(' ').trim();
+}
+
+======================================================================
+3) UPDATE FILE
+======================================================================
+
+FILE: src/engine/services/CharacterAIService.js
+
+Do NOT replace the full file unless needed.
+Make these changes.
+
+----------------------------------------------------------------------
+A) UPDATE buildSystemPrompt()
+----------------------------------------------------------------------
+
+Inside buildSystemPrompt(characterName, personality, context),
+add this line near the other extracted values:
+
+  const sceneFlow = context?.sceneFlow || {};
+
+Then add this line inside the "Current context:" section:
+
+- sceneFlow: ${JSON.stringify(sceneFlow)}
+
+----------------------------------------------------------------------
+B) ADD THESE RULES TO THE PROMPT
+----------------------------------------------------------------------
+
+Inside the "Core rules:" section, add:
+
+- You are in one shared room conversation, not an isolated private chat.
+- If sceneFlow.role is "primary", answer directly and naturally to the player.
+- If sceneFlow.role is "secondary", do NOT start a separate conversation.
+- Secondary replies should be short, reactive, and tied to the same moment.
+- A secondary reply should feel like an interjection, aside, reaction, support, or challenge.
+- Do not repeat the same point as the main speaker.
+- Do not explain the room setup.
+
+======================================================================
+4) OPTIONAL SAFETY RULE
+======================================================================
+
+FILE: src/engine/services/CharacterAIService.js
+
+Inside normalizeSpoken(spoken, context), keep current logic,
+but ensure secondary speakers stay shorter.
+
+Add this near the start of normalizeSpoken:
+
+  const role = context?.sceneFlow?.role || 'primary';
+
+Then before the existing mode-based trimming, add:
+
+  if (role === 'secondary') {
+    text = trimToSentences(text, 1);
+    text = trimToWords(text, 16);
+    return text || fallbackSpoken('brief');
+  }
+
+======================================================================
+5) EXPECTED RESULT
+======================================================================
+
+Before:
+- every turn can feel like a separate private thread
+
+After:
+- one main reply
+- sometimes one short follow-up
+- room feels more alive
+- same moment, same scene, same topic
+
+Example desired flow:
+
+YOU: sam, what do you really think
+
+Sam: Depends on what you mean.
+Lucy: Come on, you know what they meant.
+
+That feels like one room.
+
+======================================================================
+6) EXACT PROMPT FOR CLAUDE
+======================================================================
+
+Implement this exact AIRA Scene Conversation Flow V1 patch in my project.
+
+Requirements:
+- replace src/engine/brain/AiraBrainController.js exactly as provided
+- update src/engine/services/CharacterAIService.js exactly as described
+- do not redesign frontend
+- do not add UI changes
+- do not add interference yet
+- keep responses scene-based, not isolated
+- verify npm run dev starts cleanly afterwards
+
+======================================================================
+7) TEST CHECKLIST
+======================================================================
+
+After implementation, test:
+- "hei"
+- "sam, what do you really think"
+- "lucy, i like you"
+- "truth or dare"
+
+Verify:
+- usually only one main response
+- sometimes one short second response
+- second response feels connected
+- no more "3 chats in 1 room" feeling
+
+END OF FILE

@@ -1,0 +1,582 @@
+AIRA_PATCH_03_DEBUG_AND_INTEGRATION_FIXES.txt
+Project: AIRA Web
+Audience: Claude 4.6
+Purpose: Fix the current integration bugs between the updated chat UI and the AI engine
+Rule: This patch file is explicit and conservative. Apply in order.
+
+======================================================================
+0) WHAT IS BROKEN RIGHT NOW
+======================================================================
+
+The updated chat UI in `client/app.js` is already trying to use:
+- `payload.result.interference`
+- `interference.uiEffect.bubbleClass`
+- `entry.meta.toneClass`
+- `entry.meta.anomalyAware`
+- delayed whisper/system insertion
+
+This is visible in the current frontend file. fileciteturn5file1
+
+But the last known AI contract and engine flow still center on:
+- `result.responses`
+- `result.gmLine`
+- no required `interference` field
+- no guaranteed `meta` field on responses
+- observer called without interference input
+- orchestrator returning only `{ responses, gmLine }`
+
+This is visible in:
+- the current team contract response shape, which still documents only `responses` and `gmLine` in `result` fileciteturn6file13
+- the last known orchestrator file, which returns only `{ responses, gmLine }` and calls `observer.analyze(input, responses, this.state)` without interference fileciteturn6file16
+
+So the current bug is primarily an API / engine / UI contract mismatch. fileciteturn5file1turn6file13turn6file16
+
+======================================================================
+1) FIX ORDER
+======================================================================
+
+Apply in this exact order:
+
+1. AI contract update
+2. Orchestrator response shape
+3. Route shape and async safety
+4. Character response meta normalization
+5. Frontend safety fixes
+6. Whisper identity fix
+7. Dev issue formatting fix
+8. Contract / docs update
+
+Do NOT do these out of order.
+
+======================================================================
+2) PATCH A — UPDATE AI CONTRACT
+======================================================================
+
+TARGET
+`AIRA_CONTRACT.md`
+
+PROBLEM
+The documented `/api/ai/run` result shape does not include:
+- `interference`
+- response `meta`
+
+That makes the current frontend technically ahead of the contract. fileciteturn6file13turn5file1
+
+PATCH INTENT
+Keep the existing contract stable, but add these fields as OPTIONAL / additive.
+
+REPLACE THE `/api/ai/run` RESPONSE EXAMPLE WITH:
+
+```json
+{
+  "ok": true,
+  "result": {
+    "responses": [
+      {
+        "agent": "Lucy",
+        "spoken": "string",
+        "thought": "string|null",
+        "meta": {
+          "toneClass": "string",
+          "anomalyAware": false
+        }
+      }
+    ],
+    "gmLine": "string|null",
+    "interference": {
+      "active": false,
+      "actualInput": "string",
+      "perceivedInput": "string",
+      "uiEffect": {
+        "style": "none|glitch-subtle|glitch-ghost",
+        "delayMs": 0,
+        "bubbleClass": ""
+      },
+      "whisper": "string|null",
+      "event": null
+    }
+  },
+  "state": {},
+  "issues": [],
+  "patches": []
+}
+```
+
+WHY
+This makes the current frontend legal instead of speculative. fileciteturn5file1turn6file13
+
+======================================================================
+3) PATCH B — FIX ORCHESTRATOR RESULT SHAPE
+======================================================================
+
+TARGET
+`src/engine/core/SystemOrchestrator.js`
+
+PROBLEM
+The last known orchestrator returns only:
+```js
+return {
+  responses,
+  gmLine
+};
+```
+It does not expose interference, and the observer call is still:
+```js
+this.observer.analyze(input, responses, this.state);
+```
+fileciteturn6file16
+
+PATCH INTENT
+Upgrade the orchestrator so the UI receives exactly what it expects, while preserving existing behavior when interference is inactive.
+
+REQUIRED CHANGES
+1. Accept `interference` system in constructor.
+2. After presence update, call interference system.
+3. Use:
+   - `actualInput` for AI processing
+   - `perceivedInput` for UI rendering metadata
+4. Return:
+   - `responses`
+   - `gmLine`
+   - `interference`
+5. Call observer with interference included:
+```js
+this.observer.analyze(input, responses, this.state, interference);
+```
+
+TARGET RETURN SHAPE
+```js
+return {
+  responses,
+  gmLine,
+  interference
+};
+```
+
+IMPORTANT
+Even if interference is inactive, always return:
+```js
+interference: {
+  active: false,
+  actualInput: input,
+  perceivedInput: input,
+  uiEffect: { style: 'none', delayMs: 0, bubbleClass: '', showTypingFlicker: false },
+  whisper: null,
+  event: null
+}
+```
+
+WHY
+The frontend currently assumes this object may exist and behaves around it. fileciteturn5file1turn6file16
+
+======================================================================
+4) PATCH C — FIX ROUTE ASYNC / RESPONSE SAFETY
+======================================================================
+
+TARGET
+`server/routes/ai.js`
+
+PROBLEM
+Your current frontend is doing:
+```js
+const payload = await response.json();
+const interference = payload.result?.interference || {};
+```
+So `/api/ai/run` must reliably return the final engine result shape. fileciteturn5file1
+
+The older pack routes shown in the uploaded packs call:
+```js
+const result = engine.orchestrator.run(input);
+```
+without `await`, which is wrong for the richer async engine path. fileciteturn6file1turn6file7
+
+PATCH INTENT
+Make sure the live route does all of the following:
+- uses `await engine.orchestrator.run(input)`
+- returns `result` exactly as orchestrator produced it
+- returns `state`, `issues`, `patches`
+- keeps existing HTTP shape
+
+REQUIRED ROUTE SHAPE
+```js
+router.post('/run', async (req, res) => {
+  try {
+    const input = String(req.body?.input || '').trim();
+
+    if (!input) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Input is required.'
+      });
+    }
+
+    const result = await engine.orchestrator.run(input);
+
+    return res.json({
+      ok: true,
+      result,
+      state: engine.orchestrator.getState(),
+      recentMemory: engine.memory.getRecent(12),
+      issues: engine.observer.getIssues(),
+      patches: engine.patchWriter.getPending()
+    });
+  } catch (error) {
+    console.error('AI route error:', error);
+    return res.status(500).json({
+      ok: false,
+      error: error.message || 'Internal server error.'
+    });
+  }
+});
+```
+
+WHY
+Without this, the frontend may receive stale or incomplete result state. fileciteturn5file1turn6file1turn6file7
+
+======================================================================
+5) PATCH D — GUARANTEE RESPONSE META ON CHARACTER OUTPUT
+======================================================================
+
+TARGET
+`src/engine/services/CharacterAIService.js`
+and/or
+`src/engine/brain/AiraBrainController.js`
+
+PROBLEM
+The frontend now reads:
+- `entry.meta?.toneClass`
+- `entry.meta?.anomalyAware`
+fileciteturn5file1
+
+But the old contract never required `meta`, and the last known orchestrator/contract examples do not include it. fileciteturn6file13turn6file16
+
+PATCH INTENT
+Always normalize every response to include `meta`, even if minimal.
+
+TARGET RESPONSE SHAPE
+```js
+{
+  agent: 'Lucy',
+  spoken: 'string',
+  thought: 'string|null',
+  meta: {
+    toneClass: 'soft',
+    anomalyAware: false
+  }
+}
+```
+
+RULES
+- If a character notices interference, set `anomalyAware: true`
+- Map tone classes consistently:
+  - Lucy -> `soft`
+  - Sam -> `guarded`
+  - Angie -> `playful`
+- Use stronger variants only when needed:
+  - `cold`
+  - `tender`
+
+WHY
+This removes a silent UI dependency and makes rendering stable. fileciteturn5file1
+
+======================================================================
+6) PATCH E — FIX CURRENT FRONTEND BUGS IN app.js
+======================================================================
+
+TARGET
+`client/app.js`
+
+IMPORTANT
+This file is Layout-owned under the contract, but these are integration fixes needed for the current UI to work with the AI contract. The frontend already contains the newer hooks. fileciteturn6file13turn5file1
+
+BUG 1 — USER MESSAGE IS RENDERED BEFORE FINAL INTERFERENCE STATE
+CURRENT BEHAVIOR
+The app pushes a normal user message first, renders it, then later mutates it with `setTimeout()` if interference is active. fileciteturn5file1
+
+WHY IT FEELS WRONG
+That creates an “edited after send” feel instead of “this is what got sent.”
+
+FIX
+Move the user push until AFTER the payload is known.
+
+REPLACE THE CURRENT FLOW INSIDE `sendMessage(text)` WITH:
+
+```js
+async function sendMessage(text) {
+  if (state.isSending) return;
+
+  state.isSending = true;
+  elements.sendBtn.disabled = true;
+
+  try {
+    const response = await fetch("/api/ai/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ input: text }),
+    });
+
+    const payload = await response.json();
+
+    if (!response.ok || !payload?.ok) {
+      throw new Error(payload?.error || "Request failed");
+    }
+
+    state.latestState = payload.state ?? null;
+    updatePresenceHooks();
+
+    const interference = payload?.result?.interference ?? null;
+    const time = formatTime();
+
+    const displayText = interference?.active
+      ? (interference.perceivedInput || text)
+      : text;
+
+    state.messages.push({
+      type: "user",
+      text: displayText,
+      anomalous: Boolean(interference?.active),
+      bubbleClass: interference?.uiEffect?.bubbleClass || "",
+      time,
+    });
+
+    if (interference?.whisper) {
+      const whisperDelay = (interference.uiEffect?.delayMs ?? 120) + 200 + Math.random() * 500;
+      setTimeout(() => {
+        state.messages.push({
+          type: "system",
+          text: interference.whisper,
+          whisper: true,
+          time: formatTime(),
+        });
+        renderMessages();
+      }, whisperDelay);
+    }
+
+    state.messages.push(...normalizeResponses(payload));
+
+    if (Array.isArray(payload.issues) && payload.issues.length && window.__AIRA_DEV_MODE__) {
+      state.messages.push({
+        type: "system",
+        text: `Issues: ${payload.issues.map((issue) => issue.type || issue).join(", ")}`,
+        time: formatTime(),
+      });
+    }
+
+    renderMessages();
+  } catch (error) {
+    console.error(error);
+    state.messages.push({
+      type: "system",
+      text: "Something slipped in the dark. Try again.",
+      time: formatTime(),
+    });
+    renderMessages();
+  } finally {
+    state.isSending = false;
+    elements.sendBtn.disabled = false;
+  }
+}
+```
+
+WHY
+- avoids awkward mutation
+- keeps the sent message truthful to the final system output
+- keeps interference creepy instead of buggy fileciteturn5file1
+
+BUG 2 — WHISPERS ARE NOT VISUALLY DISTINCT
+CURRENT BEHAVIOR
+Whispers are pushed as plain `type: "system"` entries with no flag. fileciteturn5file1
+
+FIX
+Render them differently.
+
+IN `renderMessages()`, CHANGE:
+```js
+<div class="system-note">${escapeHtml(message.text)}</div>
+```
+
+TO:
+```js
+<div class="system-note${message.whisper ? " system-note--whisper" : ""}">
+  ${escapeHtml(message.text)}
+</div>
+```
+
+WHY
+Whispers need their own visual lane. fileciteturn5file1
+
+BUG 3 — DEV ISSUE RENDERING IS WRONG
+CURRENT BEHAVIOR
+The app currently does:
+```js
+text: `Issues: ${payload.issues.join(", ")}`
+```
+But `issues` is an array of objects in the current engine/dev pattern, not strings. This will print `[object Object]`. fileciteturn5file1turn6file16
+
+FIX
+Use:
+```js
+text: `Issues: ${payload.issues.map((issue) => issue.type || issue).join(", ")}`
+```
+
+BUG 4 — TIMESTAMP DRIFT ON DELAYED MUTATION
+By mutating the original user message after a timeout, the UI can show a visually shifted message with the old timestamp and a delayed rewrite. Removing mutation fixes this automatically. fileciteturn5file1
+
+======================================================================
+7) PATCH F — FIX NORMALIZE RESPONSES SAFETY
+======================================================================
+
+TARGET
+`client/app.js`
+
+PATCH INTENT
+Make response parsing resilient even if `meta` is missing.
+
+REPLACE `normalizeResponses(payload)` WITH:
+
+```js
+function normalizeResponses(payload) {
+  const responses = payload?.result?.responses ?? [];
+  const gmLine = payload?.result?.gmLine ?? null;
+  const time = formatTime();
+
+  const items = responses.map((entry) => ({
+    type: "character",
+    agent: entry.agent || "AIRA",
+    text: entry.spoken || "",
+    thought: entry.thought || "",
+    anomalous: Boolean(entry.anomalous),
+    toneClass: entry.meta?.toneClass || "",
+    anomalyAware: Boolean(entry.meta?.anomalyAware),
+    time,
+  }));
+
+  if (gmLine && window.__AIRA_DEV_MODE__) {
+    items.push({
+      type: "system",
+      text: gmLine,
+      time,
+    });
+  }
+
+  return items;
+}
+```
+
+WHY
+This matches the current UI assumptions and fails safely. fileciteturn5file1
+
+======================================================================
+8) PATCH G — UPDATE OBSERVER TO ACCEPT INTERFERENCE
+======================================================================
+
+TARGET
+`src/engine/dev/AiraObserver.js`
+
+PROBLEM
+The last known observer signature is:
+```js
+analyze(input, responses, state)
+```
+fileciteturn6file16
+
+PATCH INTENT
+Change it to:
+```js
+analyze(input, responses, state, interference = null)
+```
+
+Then log:
+- `interferenceActive`
+- `interferenceType`
+
+This is needed for:
+- AIRA overuse detection
+- repetitive interference detection
+- future patch tuning
+
+WHY
+Without this, the patcher cannot govern AIRA quality. fileciteturn6file16
+
+======================================================================
+9) PATCH H — UPDATE DEVLOG / README TO MATCH REAL SYSTEM
+======================================================================
+
+TARGETS
+- `README.md`
+- `DEVLOG.md`
+
+PROBLEM
+README still describes the architecture without the interference layer in the main run loop. fileciteturn6file12
+
+PATCH INTENT
+Update the architecture section to:
+- include `AiraInterferenceSystem`
+- note additive `interference` contract on `/api/ai/run`
+- note anomaly-aware response meta
+
+WHY
+The docs are now behind the app behavior. fileciteturn6file12turn5file1
+
+======================================================================
+10) FAST MANUAL TEST PLAN
+======================================================================
+
+AFTER APPLYING THIS PATCH FILE, TEST IN THIS ORDER:
+
+TEST 1 — NORMAL SEND
+Input:
+`hello`
+Expected:
+- user bubble appears once
+- no delayed mutation
+- normal reply(s)
+- no whisper most turns
+
+TEST 2 — SUBTLE INTERFERENCE
+Use a build where interference chance is nonzero.
+Input:
+`i trust you`
+Expected:
+- user bubble may appear already rewritten
+- no "normal first, rewritten later" effect
+- possible whisper appears later, visually distinct
+
+TEST 3 — META SAFETY
+Expected:
+- no console errors if `meta` missing
+- `toneClass` and `anomalyAware` do not break rendering
+
+TEST 4 — DEV ISSUES
+Enable dev mode.
+Expected:
+- issues line shows type names, not `[object Object]`
+
+TEST 5 — API SHAPE
+Check `/api/ai/run`
+Expected:
+- `result.interference` always present
+- `result.responses` always array
+- `state` still present
+- existing reset/state endpoints still work
+
+======================================================================
+11) MOST LIKELY ROOT CAUSE SUMMARY
+======================================================================
+
+The current build is not mainly failing because the chat UI is wrong.
+The chat UI is already mostly prepared.
+
+The real bug is:
+- frontend moved ahead
+- backend contract did not catch up completely
+
+So the correct fix is NOT a redesign.
+It is a contract reconciliation patch between:
+- orchestrator
+- route
+- character response normalization
+- app message handling
+
+======================================================================
+END

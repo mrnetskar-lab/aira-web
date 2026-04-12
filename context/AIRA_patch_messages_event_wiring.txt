@@ -1,0 +1,128 @@
+AIRA PATCH — MESSAGES EVENT WIRING (SURGICAL)
+===================================================
+
+Goal
+----
+Fix the Messages app interactivity without changing architecture.
+
+Scope
+-----
+- client/app.js only
+
+Do NOT refactor.
+Do NOT add features.
+Do NOT touch AI logic.
+Do NOT touch OS shell.
+
+This patch only connects existing UI to existing Messages functions.
+
+==================================================
+STEP 1 — FIND bindEvents()
+==================================================
+
+In client/app.js, find the function:
+
+  function bindEvents() {
+    ...
+  }
+
+Stay inside that function.
+
+==================================================
+STEP 2 — ADD MESSAGES EVENT LISTENERS
+==================================================
+
+Inside bindEvents(), add these exact blocks near the bottom of the function,
+before the closing `}` of bindEvents().
+
+--------------------------------------------------
+A) Thread list click → open thread
+--------------------------------------------------
+
+  elements.messagesList.addEventListener("click", (event) => {
+    const threadButton = event.target.closest("[data-thread]");
+    if (!threadButton) return;
+
+    const threadId = threadButton.dataset.thread;
+    if (!threadId) return;
+
+    openThread(threadId);
+  });
+
+--------------------------------------------------
+B) Messages form submit → send message
+--------------------------------------------------
+
+  elements.messagesForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await sendThreadMessage();
+  });
+
+--------------------------------------------------
+C) Messages back button → close thread
+--------------------------------------------------
+
+  elements.messagesBackBtn.addEventListener("click", () => {
+    closeThread();
+  });
+
+==================================================
+STEP 3 — DO NOT ADD DUPLICATES
+==================================================
+
+Before saving:
+- make sure these listeners do NOT already exist elsewhere
+- there should only be ONE listener for each of:
+  - messagesList click
+  - messagesForm submit
+  - messagesBackBtn click
+
+If duplicates exist, remove duplicates and keep only one copy.
+
+==================================================
+STEP 4 — OPTIONAL SAFETY TWEAK
+==================================================
+
+In showPlaceholder(appName), inside the `if (appName === "messages")` block,
+find this line:
+
+  elements.messagesList.style.display = "flex";
+
+If the list layout looks wrong after opening Messages, replace that line with:
+
+  elements.messagesList.style.display = "";
+
+Only do this if layout breaks.
+If layout already looks correct, leave it as-is.
+
+==================================================
+EXPECTED RESULT
+==================================================
+
+After this patch:
+
+1. Open Messages
+2. Click a thread like Lucy
+   -> thread view opens
+
+3. Type a message and press Send
+   -> message appears in the thread
+
+4. Tap back arrow
+   -> returns to thread list
+
+==================================================
+WHY THIS PATCH IS NEEDED
+==================================================
+
+The current app already has:
+- renderThreads()
+- openThread()
+- closeThread()
+- sendThreadMessage()
+
+But the UI elements are not wired to those functions yet.
+
+This patch only adds the missing connections.
+
+END

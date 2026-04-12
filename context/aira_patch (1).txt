@@ -1,0 +1,70 @@
+AIRA PATCHED VERSION (FRONTEND-ONLY FAKE APP)
+
+===================== INDEX.HTML (patched) ===================== -
+Change outer homeRing from to
+-   Keep inner buttons unchanged
+
+Replace: <button id=“homeRing” …>
+
+With:
+
+…
+
+===================== APP.JS (patched core changes)
+=====================
+
+1.  Replace sendMessage()
+
+async function sendMessage(text) { if (state.isSending) return;
+
+state.isSending = true; elements.sendBtn.disabled = true;
+
+const time = formatTime();
+
+state.messages.push({ type: “user”, text, anomalous: false, bubbleClass:
+““, time, }); renderMessages(); saveLocalState();
+
+await wait(500 + Math.random() * 500);
+
+const fakeReplies = [ { agent: “Lucy”, spoken: “You always say that.” },
+{ agent: “Sam”, spoken: “I’m here.” }, { agent: “Angie”, spoken: “That
+felt strange.” }, ];
+
+const reply = fakeReplies[state.messages.length % fakeReplies.length];
+
+state.messages.push({ type: “character”, agent: reply.agent, text:
+reply.spoken, thought: ““, anomalous: false, toneClass:”“, anomalyAware:
+false, time: formatTime(), });
+
+renderMessages(); saveLocalState();
+
+state.isSending = false; elements.sendBtn.disabled = false; }
+
+2.  Replace simulateThreadResponse()
+
+async function simulateThreadResponse(id, text) { await wait(600 +
+Math.random() * 900);
+
+const fakeReplies = { lucy: “You vanished again.”, sam: “Yeah, I’m
+here.”, angie: “Later. Busy right now.”, };
+
+const reply = fakeReplies[id] || “…”;
+
+state.messagesApp.messages[id].push({ text: reply, me: false, });
+
+updateThreadPreview(id, reply); renderThreadMessages(); renderThreads();
+saveLocalState(); }
+
+3.  Replace fetchState()
+
+async function fetchState() { state.latestState = { aira: {
+manifestation: “none”, presenceLevel: 0, voiceUnlocked: false, },
+relationships: {}, turnCount: state.messages.length, tension: 0, };
+updatePresenceHooks(); }
+
+4.  Replace resetChat()
+
+async function resetChat() { state.messages = [];
+localStorage.removeItem(“aira_state”); renderMessages(); }
+
+===================== DONE =====================

@@ -48,7 +48,8 @@ export class AiraBrainController {
         responses.push({
           agent: plan.primary.name,
           spoken: primary.spoken || '',
-          thought: primary.thought || null
+          thought: primary.thought || null,
+          meta: primary.meta || null
         });
       }
     }
@@ -81,7 +82,8 @@ export class AiraBrainController {
         responses.push({
           agent: plan.secondary.name,
           spoken: shortenSecondary(secondary.spoken || ''),
-          thought: secondary.thought || null
+          thought: secondary.thought || null,
+          meta: secondary.meta || null
         });
       }
     }
@@ -98,7 +100,7 @@ export class AiraBrainController {
       0;
 
     const primary = this._selectPrimary(candidates, lowerInput, context);
-    const secondary = this._selectSecondary(candidates, primary, lowerInput, emotionalBeat, tension);
+    const secondary = this._selectSecondary(candidates, primary, lowerInput, emotionalBeat, tension, context);
 
     return {
       primary,
@@ -109,6 +111,14 @@ export class AiraBrainController {
 
   _selectPrimary(candidates, lowerInput, context) {
     const focus = context?.cast || {};
+
+    // DM thread — always use the thread's character as the speaker
+    const threadId = context?.active_app?.threadId;
+    if (context?.active_app?.type === 'messages' && threadId) {
+      const threadName = threadId.charAt(0).toUpperCase() + threadId.slice(1);
+      const match = candidates.find((brain) => brain.name === threadName);
+      if (match) return match;
+    }
 
     if (/\b(lucy)\b/.test(lowerInput)) {
       return candidates.find((brain) => brain.name === 'Lucy') || candidates[0];
@@ -128,8 +138,11 @@ export class AiraBrainController {
     return candidates[Math.floor(Math.random() * candidates.length)];
   }
 
-  _selectSecondary(candidates, primary, lowerInput, emotionalBeat, tension) {
+  _selectSecondary(candidates, primary, lowerInput, emotionalBeat, tension, context) {
     if (!primary) return null;
+
+    // No secondary speakers in private DM threads
+    if (context?.active_app?.type === 'messages') return null;
 
     const others = candidates.filter((brain) => brain.name !== primary.name);
     if (!others.length) return null;

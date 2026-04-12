@@ -1,0 +1,550 @@
+AIRA PATCH 3 — REPAIR + APP TRANSITIONS + PRESENCE + TIMING
+===============================================================
+
+Purpose
+-------
+This patch does two things in one pass:
+
+1) REPAIR:
+   Make the running app visibly prove it is the new build.
+   Add a visible build marker and a strong emergency fallback style
+   so old cached UI is easy to detect.
+
+2) PATCH 3:
+   Add app-like screen transitions, message timing, and basic presence-aware UI behavior.
+
+Scope
+-----
+- client/index.html
+- client/style.css
+- client/app.js
+
+No backend changes.
+No API contract changes.
+
+IMPORTANT
+---------
+Apply these changes exactly.
+Do not rewrite files unless the instruction says REPLACE ENTIRE BLOCK.
+All new code is additive unless noted otherwise.
+
+==================================================
+PART 1 — REPAIR PATCH
+==================================================
+
+--------------------------------------------------
+STEP 1 — client/index.html
+Add a visible build marker
+--------------------------------------------------
+
+Find this line:
+
+  <body>
+
+Replace it with:
+
+  <body data-build="AIRA-P3-REPAIR">
+
+Then find this line inside #homeView, directly under:
+
+  <div class="home-view">
+
+Add this exact block immediately below it:
+
+  <div class="build-badge" aria-hidden="true">AIRA P3</div>
+
+This is temporary and intentional.
+It helps verify the correct frontend is live.
+
+--------------------------------------------------
+STEP 2 — client/style.css
+Add visible repair badge styling
+--------------------------------------------------
+
+Add this block anywhere after the body styles:
+
+  .build-badge {
+    position: fixed;
+    top: calc(12px + var(--safe-top));
+    right: 12px;
+    z-index: 999;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    letter-spacing: 0.14em;
+    color: rgba(245, 242, 235, 0.88);
+    background: rgba(200, 168, 106, 0.16);
+    border: 1px solid rgba(200, 168, 106, 0.24);
+    backdrop-filter: blur(8px);
+    text-transform: uppercase;
+    pointer-events: none;
+  }
+
+If the new build is live, this badge should appear on the home screen.
+
+--------------------------------------------------
+STEP 3 — client/app.js
+Log build to console
+--------------------------------------------------
+
+Find the import line at the very top:
+
+  import { AiraDevDrawer } from "./devPanel.js";
+
+Add this directly below it:
+
+  console.log("[AIRA] build active: AIRA PATCH 3 REPAIR");
+
+This is also intentional.
+It gives you a second proof in DevTools console.
+
+==================================================
+PART 2 — APP TRANSITIONS
+==================================================
+
+--------------------------------------------------
+STEP 4 — client/style.css
+Add transition state styles
+--------------------------------------------------
+
+Add these variables inside :root if they do not already exist:
+
+  --view-duration-fast: 220ms;
+  --view-duration-slow: 360ms;
+
+Add these keyframes anywhere near the other keyframes:
+
+  @keyframes viewEnterForward {
+    from {
+      opacity: 0;
+      transform: translateY(14px) scale(0.992);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes viewEnterBack {
+    from {
+      opacity: 0;
+      transform: translateY(-6px) scale(0.996);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes viewExitForward {
+    from {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(-10px) scale(1.005);
+    }
+  }
+
+  @keyframes viewExitBack {
+    from {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(8px) scale(0.996);
+    }
+  }
+
+Add these new rules anywhere after .view and .view--active:
+
+  .view {
+    position: absolute;
+    inset: 0;
+    display: none;
+    opacity: 0;
+    transform: translateY(0) scale(1);
+  }
+
+  .view--active {
+    display: block;
+    opacity: 1;
+  }
+
+  .view.is-entering-forward {
+    display: block;
+    animation: viewEnterForward var(--view-duration-slow) cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .view.is-entering-back {
+    display: block;
+    animation: viewEnterBack var(--view-duration-fast) cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .view.is-leaving-forward {
+    display: block;
+    animation: viewExitForward var(--view-duration-fast) cubic-bezier(0.22, 1, 0.36, 1) both;
+    pointer-events: none;
+  }
+
+  .view.is-leaving-back {
+    display: block;
+    animation: viewExitBack var(--view-duration-fast) cubic-bezier(0.22, 1, 0.36, 1) both;
+    pointer-events: none;
+  }
+
+--------------------------------------------------
+STEP 5 — client/app.js
+Replace the simple setActiveView() with transition-aware navigation
+--------------------------------------------------
+
+Find this entire function:
+
+  function setActiveView(name) {
+    Object.entries(views).forEach(([key, node]) => {
+      node.classList.toggle("view--active", key === name);
+    });
+    state.currentView = name;
+  }
+
+Replace the entire function with this:
+
+  function clearViewTransitionClasses(node) {
+    node.classList.remove(
+      "is-entering-forward",
+      "is-entering-back",
+      "is-leaving-forward",
+      "is-leaving-back"
+    );
+  }
+
+  function setActiveView(name, direction = "forward") {
+    const previous = views[state.currentView];
+    const next = views[name];
+
+    if (!next) return;
+    if (state.currentView === name) return;
+
+    if (previous) {
+      clearViewTransitionClasses(previous);
+      previous.classList.remove("view--active");
+      previous.classList.add(
+        direction === "forward" ? "is-leaving-forward" : "is-leaving-back"
+      );
+
+      window.setTimeout(() => {
+        clearViewTransitionClasses(previous);
+        if (state.currentView !== previous.id?.replace("View", "").toLowerCase()) {
+          previous.classList.remove("view--active");
+        }
+      }, 380);
+    }
+
+    clearViewTransitionClasses(next);
+    next.classList.add("view--active");
+    next.classList.add(
+      direction === "forward" ? "is-entering-forward" : "is-entering-back"
+    );
+
+    window.setTimeout(() => {
+      clearViewTransitionClasses(next);
+      next.classList.add("view--active");
+    }, 380);
+
+    state.currentView = name;
+  }
+
+--------------------------------------------------
+STEP 6 — client/app.js
+Update callers to pass direction
+--------------------------------------------------
+
+Find:
+
+  setActiveView("home");
+
+Replace with:
+
+  setActiveView("home", "back");
+
+Find both occurrences of:
+
+  setActiveView("chat");
+
+Replace with:
+
+  setActiveView("chat", "forward");
+
+Find:
+
+  setActiveView("app");
+
+Replace with:
+
+  setActiveView("app", "forward");
+
+==================================================
+PART 3 — CHAT FOCUS MODE
+==================================================
+
+--------------------------------------------------
+STEP 7 — client/style.css
+Add focus-mode shell styles
+--------------------------------------------------
+
+Add these rules anywhere after .app-shell:
+
+  body.is-chat-active {
+    background:
+      radial-gradient(circle at 50% 18%, rgba(42, 34, 20, 0.26), transparent 28%),
+      radial-gradient(circle at 68% 72%, rgba(24, 18, 12, 0.16), transparent 24%),
+      radial-gradient(circle at 30% 28%, rgba(16, 16, 32, 0.28), transparent 32%),
+      linear-gradient(180deg, #030307 0%, #020204 100%);
+  }
+
+  body.is-chat-active .topbar {
+    background:
+      linear-gradient(180deg, rgba(3, 3, 7, 0.94), rgba(3, 3, 7, 0.68) 74%, transparent);
+  }
+
+  body.is-chat-active .composer {
+    background:
+      linear-gradient(180deg, transparent, rgba(3, 3, 7, 0.84) 18%, rgba(3, 3, 7, 0.97));
+  }
+
+--------------------------------------------------
+STEP 8 — client/app.js
+Add body mode sync
+--------------------------------------------------
+
+Add this function anywhere above showHome():
+
+  function syncBodyMode() {
+    document.body.classList.toggle("is-chat-active", state.currentView === "chat");
+  }
+
+Then update the end of setActiveView() so it becomes:
+
+    state.currentView = name;
+    syncBodyMode();
+
+Also add this near the start of init(), before bindEvents():
+
+  syncBodyMode();
+
+==================================================
+PART 4 — MESSAGE TIMING / STAGGER
+==================================================
+
+--------------------------------------------------
+STEP 9 — client/app.js
+Add helpers for staggered response delivery
+--------------------------------------------------
+
+Add these functions anywhere below normalizeResponses(payload):
+
+  function wait(ms) {
+    return new Promise((resolve) => window.setTimeout(resolve, ms));
+  }
+
+  async function appendMessagesSequentially(items) {
+    for (let i = 0; i < items.length; i += 1) {
+      const item = items[i];
+      state.messages.push(item);
+      renderMessages();
+
+      const isLast = i === items.length - 1;
+      if (!isLast) {
+        await wait(320);
+      }
+    }
+  }
+
+--------------------------------------------------
+STEP 10 — client/app.js
+Use staggered delivery instead of instant push
+--------------------------------------------------
+
+Find this line inside sendMessage():
+
+  state.messages.push(...normalizeResponses(payload));
+
+Replace it with:
+
+  const responseItems = normalizeResponses(payload);
+  await appendMessagesSequentially(responseItems);
+
+Do not change anything else in that area.
+
+==================================================
+PART 5 — PRESENCE / RING REACTION
+==================================================
+
+--------------------------------------------------
+STEP 11 — client/style.css
+Strengthen ring response to presence
+--------------------------------------------------
+
+Add these rules anywhere after .home-ring.is-reactive::after if that rule exists.
+If it does not exist, add all 3 rules together:
+
+  .home-ring.is-reactive {
+    filter: brightness(1.03);
+  }
+
+  .home-ring.is-reactive::after {
+    opacity: 0.42;
+    filter: blur(16px);
+  }
+
+  .home-ring.is-reactive .home-ring__eyebrow {
+    color: rgba(200, 168, 106, 0.86);
+  }
+
+--------------------------------------------------
+STEP 12 — client/app.js
+Upgrade updatePresenceHooks()
+--------------------------------------------------
+
+Find the entire function:
+
+  function updatePresenceHooks() {
+    const ring = elements.homeRing;
+    const manifestation = state.latestState?.aira?.manifestation || "none";
+    const reactiveStages = new Set(["shadow", "figure", "watcher"]);
+    ring.classList.toggle("is-reactive", reactiveStages.has(manifestation));
+  }
+
+Replace with:
+
+  function updatePresenceHooks() {
+    const ring = elements.homeRing;
+    const manifestation = state.latestState?.aira?.manifestation || "none";
+    const reactiveStages = new Set(["shadow", "figure", "watcher"]);
+    const isReactive = reactiveStages.has(manifestation);
+
+    ring.classList.toggle("is-reactive", isReactive);
+    document.body.dataset.manifestation = manifestation;
+  }
+
+==================================================
+PART 6 — INPUT UX
+==================================================
+
+--------------------------------------------------
+STEP 13 — client/style.css
+Add typing state styling
+--------------------------------------------------
+
+Add these rules anywhere after .composer__input:
+
+  .composer.is-typing .composer__send {
+    border-color: rgba(200, 168, 106, 0.3);
+    background:
+      linear-gradient(180deg, rgba(200, 168, 106, 0.14), rgba(200, 168, 106, 0.1));
+  }
+
+  .composer.is-typing .composer__input {
+    border-color: rgba(200, 168, 106, 0.22);
+  }
+
+--------------------------------------------------
+STEP 14 — client/app.js
+Track typing state
+--------------------------------------------------
+
+In the elements object, add this line:
+
+  composer: document.getElementById("chatForm"),
+
+Place it with the other element references.
+
+Then add this function anywhere above bindEvents():
+
+  function syncTypingState() {
+    const hasText = elements.chatInput.value.trim().length > 0;
+    elements.composer.classList.toggle("is-typing", hasText);
+  }
+
+Now modify autoResizeTextarea() so the function ends like this:
+
+  function autoResizeTextarea() {
+    const input = elements.chatInput;
+    input.style.height = "0px";
+    input.style.height = `${Math.min(input.scrollHeight, 180)}px`;
+    syncTypingState();
+  }
+
+==================================================
+PART 7 — REPAIR FALLBACK TEST
+==================================================
+
+--------------------------------------------------
+STEP 15 — Verify the new build visually
+--------------------------------------------------
+
+After deploy, the home screen should visibly show:
+
+- build badge: "AIRA P3"
+- central ring
+- no clock
+- no icon grid
+
+If you still see the old UI after these changes, then the deployed app is still serving an old build.
+
+==================================================
+PART 8 — OPTIONAL CLEANUP AFTER VERIFICATION
+==================================================
+
+--------------------------------------------------
+STEP 16 — Remove the build badge later
+--------------------------------------------------
+
+Once the new build is confirmed live, remove these 3 things:
+
+1) In index.html:
+   remove
+
+     <div class="build-badge" aria-hidden="true">AIRA P3</div>
+
+2) In index.html:
+   change
+
+     <body data-build="AIRA-P3-REPAIR">
+
+   back to
+
+     <body>
+
+3) In style.css:
+   remove the entire .build-badge block
+
+==================================================
+EXPECTED RESULT
+==================================================
+
+After this patch:
+
+- You have a visible repair marker proving the new build is live
+- Home → Chat feels like entering an app screen
+- Chat → Home feels like going back
+- AI messages arrive with pacing instead of dumping all at once
+- Ring reacts more clearly when AIRA manifestation rises
+- Chat mode subtly changes the shell
+- Input/send button feel more alive
+
+==================================================
+DEPLOY CHECKLIST
+==================================================
+
+1. Save all files
+2. git add .
+3. git commit -m "AIRA patch 3 repair and transitions"
+4. git push
+5. Trigger Render deploy if needed
+6. Hard refresh browser
+7. Confirm build badge appears
+
+END

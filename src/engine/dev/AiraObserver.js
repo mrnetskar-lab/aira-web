@@ -5,17 +5,20 @@ export class AiraObserver {
     this.listeners = [];
   }
 
-  analyze(input, responses, state) {
+  analyze(input, responses, state, interference = null) {
     const entry = {
       input,
       responseCount: responses.length,
       tension: state.tension,
-      time: Date.now()
+      time: Date.now(),
+      primaryAgent: responses[0]?.agent || null,
+      interferenceType: interference?.event?.type || null,
+      interferenceActive: !!interference?.active
     };
 
     this.log.push(entry);
 
-    if (this.log.length > 100) {
+    if (this.log.length > 120) {
       this.log.shift();
     }
 
@@ -41,33 +44,89 @@ export class AiraObserver {
       }
     }
 
-    // Interference quality checks
-    if (state.aira?.interferenceHistory) {
-      const history = state.aira.interferenceHistory;
-      const turnCount = state.turnCount || 0;
+    this._checkPrimaryLock();
+    this._checkInterferenceOveruse();
+    this._checkInterferenceTooWeak(state);
+    this._checkInterferenceRepetitive();
+    this._checkRomanceTooFlat(state);
+    this._checkPlayerConfusionStall(state);
+  }
 
-      const recentEvents = history.filter(e => turnCount - e.turn < 8);
+  _checkPrimaryLock() {
+    const recent = this.log.slice(-6).map((e) => e.primaryAgent).filter(Boolean);
+    if (recent.length < 5) return;
 
-      if (recentEvents.length > 3) {
-        this._flag('AIRA_INTERFERENCE_OVERUSE', 'Interference firing too frequently.', {
-          count: recentEvents.length
-        });
-      }
+    if (new Set(recent).size === 1) {
+      this._flag('PRIMARY_LOCK', 'The same character is dominating too many turns.', {
+        primary: recent[0],
+        sample: recent
+      });
+    }
+  }
 
-      if (recentEvents.length >= 2) {
-        const types = recentEvents.map(e => e.type);
-        if (types.every(t => t === types[0])) {
-          this._flag('AIRA_INTERFERENCE_REPETITIVE', `Same interference type "${types[0]}" repeated.`, {
-            type: types[0]
-          });
-        }
-      }
+  _checkInterferenceOveruse() {
+    const recent = this.log.slice(-10).filter((e) => e.interferenceActive);
+    if (recent.length > 3) {
+      this._flag('AIRA_INTERFERENCE_OVERUSE', 'Visible interference is happening too often.', {
+        recentCount: recent.length
+      });
+    }
+  }
 
-      if ((state.aira.presenceLevel || 0) > 0.4 && history.length === 0) {
-        this._flag('AIRA_INTERFERENCE_TOO_WEAK', 'High presence but no interference events.', {
-          presenceLevel: state.aira.presenceLevel
-        });
-      }
+  _checkInterferenceTooWeak(state) {
+    const presence = state?.aira?.presenceLevel || 0;
+    const recent = this.log.slice(-10).filter((e) => e.interferenceActive);
+
+    if (presence > 0.55 && recent.length === 0) {
+      this._flag('AIRA_INTERFERENCE_TOO_WEAK', 'Presence is high but no interference is landing.', {
+        presenceLevel: presence
+      });
+    }
+  }
+
+  _checkInterferenceRepetitive() {
+    const types = this.log
+      .slice(-10)
+      .map((e) => e.interferenceType)
+      .filter(Boolean);
+
+    if (types.length < 4) return;
+
+    const unique = new Set(types);
+    if (unique.size === 1) {
+      this._flag('AIRA_INTERFERENCE_REPETITIVE', 'The same interference pattern is repeating.', {
+        type: types[0],
+        count: types.length
+      });
+    }
+  }
+
+  _checkRomanceTooFlat(state) {
+    const relationships = state?.relationships || {};
+    const agents = Object.keys(relationships);
+    if (agents.length === 0) return;
+
+    const recent = this.log.slice(-15);
+    if (recent.length < 10) return;
+
+    const allFlat = agents.every((name) => {
+      const rel = relationships[name];
+      return (rel.attraction || 0) < 0.35 && (rel.romanticTension || 0) < 0.15;
+    });
+
+    if (allFlat) {
+      this._flag('ROMANCE_TOO_FLAT', 'Romantic tension is not building despite repeated interactions.', {
+        relationships
+      });
+    }
+  }
+
+  _checkPlayerConfusionStall(state) {
+    const confusion = state?.aira?.playerConfusionScore || 0;
+    if (confusion > 0.7) {
+      this._flag('PLAYER_CONFUSION_STALL', 'Player confusion score is high. System may not be guiding engagement.', {
+        confusionScore: confusion
+      });
     }
   }
 
@@ -81,7 +140,7 @@ export class AiraObserver {
 
     this.issues.push(issue);
 
-    if (this.issues.length > 50) {
+    if (this.issues.length > 60) {
       this.issues.shift();
     }
 
