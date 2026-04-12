@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: aira-web
+    runtime: node
+    branch: master
+    buildCommand: npm install
+    startCommand: node server/index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: OPENAI_API_KEY
+        sync: false
