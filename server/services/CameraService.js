@@ -435,9 +435,67 @@ async function generateViaDallE(state, customPrompt) {
   };
 }
 
+async function generateViaFalAI(state) {
+  const key = process.env.FAL_API_KEY;
+  if (!key) throw new Error('FAL_API_KEY not set');
+
+  const prompt = buildSDPrompt(state);
+
+  const responseData = await new Promise((resolve, reject) => {
+    const body = JSON.stringify({
+      prompt,
+      image_size: 'landscape_16_9',
+      num_inference_steps: 28,
+      guidance_scale: 3.5,
+      num_images: 1,
+      enable_safety_checker: false,
+    });
+    const req = https.request({
+      hostname: 'fal.run',
+      path: '/fal-ai/flux/dev',
+      method: 'POST',
+      headers: {
+        'Authorization': `Key ${key}`,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body),
+      },
+    }, (res) => {
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => {
+        try { resolve(JSON.parse(data)); }
+        catch { reject(new Error('Invalid JSON from fal.ai: ' + data.slice(0, 200))); }
+      });
+    });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+
+  const imageUrl = responseData.images?.[0]?.url;
+  if (!imageUrl) throw new Error('No image URL from fal.ai: ' + JSON.stringify(responseData).slice(0, 200));
+
+  const filename = `shot_${Date.now()}.png`;
+  const filepath  = path.join(IMAGES_DIR, filename);
+  await downloadFile(imageUrl, filepath);
+
+  return {
+    filename,
+    path: `/images/${filename}`,
+    prompt,
+    revisedPrompt: prompt,
+    usedFallback: false,
+    generatedAt: new Date().toISOString(),
+    backend: 'falai',
+  };
+}
+
 export async function generateCameraShot({ state, customPrompt } = {}) {
   if (!customPrompt && await isComfyUIAvailable()) {
     return generateViaComfyUI(state);
+  }
+  if (process.env.FAL_API_KEY) {
+    return generateViaFalAI(state);
   }
   return generateViaDallE(state, customPrompt);
 }

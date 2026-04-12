@@ -10,3 +10,5 @@ services:
         value: production
       - key: OPENAI_API_KEY
         sync: false
+      - key: FAL_API_KEY
+        sync: false
