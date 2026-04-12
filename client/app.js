@@ -10,6 +10,7 @@ const CHARACTERS = {
   c1: { id: "c1", name: "Lucy",  displayName: "Lucy",  key: "lucy"  },
   c2: { id: "c2", name: "Sam",   displayName: "Sam",   key: "sam"   },
   c3: { id: "c3", name: "Angie", displayName: "Angie", key: "angie" },
+  c4: { id: "c4", name: "Aira",  displayName: "Aira",  key: "aira"  },
 };
 
 /** Look up a character by name or key (e.g. "lucy", "Lucy", "c1"). */
@@ -23,9 +24,10 @@ function getCharacterByKey(nameOrId) {
 /** Default thread/message state — always built from the registry. */
 function buildDefaultMessagesApp() {
   const previews = {
-    c1: "You disappeared.",
-    c2: "Still here.",
-    c3: "Hey, where'd you go?",
+    c1: "Du forsvant.",
+    c2: "Er her fortsatt.",
+    c3: "Hei, hvor ble du av?",
+    c4: "Jeg har ventet.",
   };
   const now = Date.now();
   const seedBase = now - 1000 * 60 * 12;
@@ -33,14 +35,16 @@ function buildDefaultMessagesApp() {
   return {
     activeThread: null,
     threads: [
-      { id: "c1", name: "Lucy", displayName: "Lucy", preview: previews.c1, unread: false },
-      { id: "c2", name: "Sam", displayName: "Sam", preview: previews.c2, unread: false },
+      { id: "c1", name: "Lucy",  displayName: "Lucy",  preview: previews.c1, unread: false },
+      { id: "c2", name: "Sam",   displayName: "Sam",   preview: previews.c2, unread: false },
       { id: "c3", name: "Angie", displayName: "Angie", preview: previews.c3, unread: false },
+      { id: "c4", name: "Aira",  displayName: "Aira",  preview: previews.c4, unread: false },
     ],
     messages: {
       c1: [{ text: previews.c1, me: false, timestamp: new Date(seedBase).toISOString() }],
       c2: [{ text: previews.c2, me: false, timestamp: new Date(seedBase + 1000 * 60 * 3).toISOString() }],
       c3: [{ text: previews.c3, me: false, timestamp: new Date(seedBase + 1000 * 60 * 6).toISOString() }],
+      c4: [{ text: previews.c4, me: false, timestamp: new Date(seedBase + 1000 * 60 * 9).toISOString() }],
     },
   };
 }
