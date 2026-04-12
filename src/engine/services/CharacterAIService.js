@@ -205,11 +205,9 @@ WHAT YOU DON'T DO:
 }
 
 function buildSubtextGuide(characterName, emotionalBeat) {
-  const highEmotion = ['intimacy', 'rupture', 'repair', 'tension'].includes(emotionalBeat);
-
   const base = `
-- "thought" is OPTIONAL. Return null unless there is genuine emotional subtext worth showing.
-- When used: one short parenthetical phrase only. Max 7 words. No prose. No full sentences.
+- "thought" should almost always be present. Return null only if the moment is completely flat and nothing is happening internally.
+- One short parenthetical phrase only. Max 7 words. No prose. No full sentences.
 - Format: "(action or expression)" — lowercase, compact.
 - Good: "(glances away)", "(softer now)", "(doesn't look at you)", "(holds it together)"
 - Bad: "she trembles, fingers brushing your arm, eyes searching yours with quiet longing"
@@ -218,23 +216,20 @@ function buildSubtextGuide(characterName, emotionalBeat) {
 
   if (characterName === 'Lucy') {
     return `${base}
-- Lucy uses subtext ${highEmotion ? 'occasionally' : 'rarely — skip it most turns'}.
-- When present: quiet, observant, internal. Very small signs.
-- Examples: "(watches you)", "(a beat of silence)", "(almost smiles)"`;
+- Lucy's subtext: quiet, observant, internal. Very small signs. Show what she won't say.
+- Examples: "(watches you)", "(a beat of silence)", "(almost smiles)", "(looks away first)", "(something shifts)"`;
   }
 
   if (characterName === 'Sam') {
     return `${base}
-- Sam uses subtext ${highEmotion ? 'sometimes' : 'sparingly — skip it most turns'}.
-- When present: controlled tension, restraint, reluctant care.
-- Examples: "(doesn't look away)", "(jaw tightens)", "(waits a moment)"`;
+- Sam's subtext: controlled tension, restraint, reluctant care. What's held back.
+- Examples: "(doesn't look away)", "(jaw tightens)", "(waits a moment)", "(lets it sit)", "(something careful there)"`;
   }
 
   if (characterName === 'Angie') {
     return `${base}
-- Angie uses subtext ${highEmotion ? 'often' : 'sometimes — skip when the moment is flat'}.
-- When present: quick energy, spark, swift emotion. Still short.
-- Examples: "(grins)", "(catches herself)", "(eyes you)", "(rolls her eyes but softens)"`;
+- Angie's subtext: quick energy, spark, swift emotion. Caught off guard or catching herself.
+- Examples: "(grins)", "(catches herself)", "(eyes you)", "(rolls her eyes but softens)", "(almost says something)"`;
   }
 
   return base;

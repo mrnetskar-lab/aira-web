@@ -660,7 +660,7 @@ function normalizeResponses(payload) {
     type: "character",
     agent: entry.agent || "AIRA",
     text: entry.spoken || "",
-    thought: entry.thought || "",
+    thought: entry.showThought && entry.thought ? entry.thought : null,
     anomalous: Boolean(entry.anomalous),
     toneClass: entry.meta?.toneClass || "",
     anomalyAware: Boolean(entry.meta?.anomalyAware),

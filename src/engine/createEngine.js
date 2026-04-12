@@ -14,7 +14,7 @@ import { RelationshipContinuitySystem } from './systems/RelationshipContinuitySy
 
 export const DEFAULT_TUNING = {
   responseLength:      3,  // 1–5 → word cap per mode
-  subtextFrequency:    3,  // 1–5 → thoughtChance
+  subtextFrequency:    4,  // 1–5 → thoughtChance
   secondaryChance:     3,  // 1–5 → base secondary speaker probability
   temperature:         3,  // 1–5 → AI model temperature
   autoTalkFrequency:   3,  // 1–5 → idle timeout (client reads via /tune GET)
