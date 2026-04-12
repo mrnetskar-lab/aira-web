@@ -687,69 +687,36 @@ function hidePhoneTyping() {
 
 async function simulatePhoneThreadResponse(id, text) {
   showPhoneTyping();
-  await wait(typingDelay(text));
-  hidePhoneTyping();
 
   try {
-    const response = await fetch("/api/ai/run", {
+    const char = CHARACTERS[id];
+    if (!char) return;
+
+    const response = await fetch(`/api/characters/${char.key}/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        input: text,
-        context: {
-          active_app: {
-            type: "messages",
-            mode: "dm",
-            visibility: "private",
-            threadId: id,
-          },
-        },
-      }),
+      body: JSON.stringify({ text }),
     });
 
     const payload = await response.json();
+    hidePhoneTyping();
+
     if (!payload?.ok) return;
 
-    const result = payload.result || {};
-    const responses = result.responses || [];
+    state.messagesApp.messages[id].push({
+      text: payload.reply || "...",
+      me: false,
+      timestamp: new Date().toISOString(),
+      animate: true,
+    });
 
-    if (responses.length) {
-      const threadChar = CHARACTERS[id];
-      const reply = responses.find((r) => r.agent === threadChar?.name) || responses[0];
-
-      state.messagesApp.messages[id].push({
-        text: reply.spoken || "...",
-        me: false,
-        timestamp: new Date().toISOString(),
-        animate: true,
-      });
-
-      updateThreadPreview(id, reply.spoken || "...");
-      playMessageTone("incoming");
-    }
-
-    const events = result.continuity?.events || [];
-    if (events.length) {
-      const event = events[0];
-      setTimeout(() => {
-        state.messagesApp.messages[id].push({
-          text: event.text,
-          me: false,
-          timestamp: new Date().toISOString(),
-          animate: true,
-        });
-        updateThreadPreview(id, event.text);
-        playMessageTone("incoming");
-        renderPhoneThreadMessages();
-        renderPhoneThreads();
-        saveLocalState();
-      }, 1200 + Math.random() * 2000);
-    }
-
+    updateThreadPreview(id, payload.reply || "...");
+    playMessageTone("incoming");
     renderPhoneThreadMessages();
     renderPhoneThreads();
     saveLocalState();
   } catch (err) {
+    hidePhoneTyping();
     console.warn("Phone thread response failed", err);
   }
 }

@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import aiRouter from './routes/ai.js';
 import cameraRouter from './routes/camera.js';
+import charactersRouter from './routes/characters.js';
 import { engine } from './services/engineInstance.js';
 import { resolveSafeImagePath } from './utils/safeImagePath.js';
 
@@ -53,6 +54,7 @@ app.use((req, res, next) => {
 
 app.use('/api/ai', aiRouter);
 app.use('/api/camera', cameraRouter);
+app.use('/api/characters', charactersRouter);
 
 // Hard guard: always serve JSON from this route even if router wiring changes.
 app.get('/api/ai/patches', (_req, res) => {
