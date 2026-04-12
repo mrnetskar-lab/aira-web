@@ -306,7 +306,7 @@ export class AiraDevDrawer {
         ${relRow("hurt",            rel.hurt)}
         ${relRow("avoidance",       rel.avoidance)}
       </div>
-    `};
+    `;
     }).join("");
 
     relGrid.querySelectorAll(".dev-mute-btn").forEach((btn) => {
