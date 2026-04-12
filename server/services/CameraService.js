@@ -492,7 +492,11 @@ async function generateViaFalAI(state) {
 
 export async function generateCameraShot({ state, customPrompt } = {}) {
   if (!customPrompt && await isComfyUIAvailable()) {
-    return generateViaComfyUI(state);
+    try {
+      return await generateViaComfyUI(state);
+    } catch (comfyErr) {
+      console.warn('ComfyUI generation failed, falling back:', comfyErr.message);
+    }
   }
   if (process.env.FAL_API_KEY) {
     return generateViaFalAI(state);
