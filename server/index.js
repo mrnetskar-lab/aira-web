@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import aiRouter from './routes/ai.js';
+import cameraRouter from './routes/camera.js';
 import { engine } from './services/engineInstance.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -41,6 +42,7 @@ app.use((req, res, next) => {
 });
 
 app.use('/api/ai', aiRouter);
+app.use('/api/camera', cameraRouter);
 
 // Hard guard: always serve JSON from this route even if router wiring changes.
 app.get('/api/ai/patches', (_req, res) => {
@@ -58,6 +60,11 @@ app.get('/api/ai/reset', (_req, res) => {
     error: 'Use POST /api/ai/reset'
   });
 });
+
+// Serve generated images
+const imagesDir = path.resolve(__dirname, '../images');
+if (!fs.existsSync(imagesDir)) fs.mkdirSync(imagesDir, { recursive: true });
+app.use('/images', express.static(imagesDir));
 
 app.use(express.static(clientDir));
 

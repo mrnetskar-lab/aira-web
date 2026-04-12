@@ -41,6 +41,11 @@ export class AiraDevDrawer {
           <button class="dev-emotion-btn" data-preset="angry">angry</button>
           <button class="dev-emotion-btn" data-preset="jealous">jealous</button>
         </div>
+        <div class="dev-section-title">Camera</div>
+        <div class="dev-camera" id="devCamera">
+          <button id="devCaptureBtn" class="dev-btn" type="button">Capture scene</button>
+          <div class="dev-camera__preview" id="devCameraPreview"></div>
+        </div>
         <div class="dev-section-title">Actions</div>
         <div class="dev-actions" id="devActions">
           <button id="devResetBtn" class="dev-btn" type="button">Reset chat</button>
@@ -54,6 +59,7 @@ export class AiraDevDrawer {
     this.root.querySelector(".dev-drawer__close").addEventListener("click", () => this.close());
     this.root.querySelector("#devResetBtn").addEventListener("click", () => this.onReset?.());
     this.root.querySelector("#devAiraPushBtn").addEventListener("click", () => this._pushAiraPresence());
+    this.root.querySelector("#devCaptureBtn").addEventListener("click", () => this._captureScene());
 
     this.root.querySelectorAll(".dev-emotion-btn").forEach((btn) => {
       btn.addEventListener("click", () => this._setEmotion(btn.dataset.preset));
@@ -70,6 +76,34 @@ export class AiraDevDrawer {
     try {
       await fetch("/api/ai/aira/push", { method: "POST" });
     } catch { /* silent */ }
+  }
+
+  async _captureScene() {
+    const btn = this.root.querySelector("#devCaptureBtn");
+    const preview = this.root.querySelector("#devCameraPreview");
+    if (!btn || !preview) return;
+
+    btn.disabled = true;
+    btn.textContent = "Generating…";
+    preview.innerHTML = `<div class="dev-camera__status">Talking to DALL-E…</div>`;
+
+    try {
+      const res = await fetch("/api/camera/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const data = await res.json();
+      if (data.ok && data.shot?.path) {
+        preview.innerHTML = `
+          <img class="dev-camera__img" src="${data.shot.path}" alt="Scene capture" />
+          <div class="dev-camera__caption">${escapeHtml(data.shot.filename)}</div>
+        `;
+      } else {
+        preview.innerHTML = `<div class="dev-camera__status">Failed: ${escapeHtml(data.error || "unknown error")}</div>`;
+      }
+    } catch (e) {
+      preview.innerHTML = `<div class="dev-camera__status">Error: ${escapeHtml(e.message)}</div>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Capture scene";
+    }
   }
 
   async _setEmotion(preset) {

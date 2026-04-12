@@ -2086,6 +2086,30 @@ body.is-chat-active .composer {
   text-align: right;
 }
 
+/* --- Camera panel --- */
+.dev-camera {
+  margin-bottom: 8px;
+}
+.dev-camera__preview {
+  margin-top: 10px;
+}
+.dev-camera__img {
+  width: 100%;
+  border-radius: 10px;
+  display: block;
+}
+.dev-camera__caption {
+  font-size: 10px;
+  color: rgba(255,255,255,0.3);
+  margin-top: 4px;
+  word-break: break-all;
+}
+.dev-camera__status {
+  font-size: 11px;
+  color: rgba(255,255,255,0.4);
+  padding: 8px 0;
+}
+
 /* --- Aira GM panel --- */
 .dev-aira {
   padding: 0 2px;
