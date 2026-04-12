@@ -1,19 +1,22 @@
-import fs from 'fs';
-import path from 'path';
-import https from 'https';
-import { fileURLToPath } from 'url';
+import { v2 as cloudinary } from 'cloudinary';
 import { ensureOpenAI } from './openaiClient.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// ─── Cloudinary config ────────────────────────────────────────────────────────
 
-// Resolve images dir relative to project root (two levels up from server/services/)
-const IMAGES_DIR = path.resolve(__dirname, '../../images');
-
-if (!fs.existsSync(IMAGES_DIR)) {
-  fs.mkdirSync(IMAGES_DIR, { recursive: true });
+function ensureCloudinary() {
+  const { CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET } = process.env;
+  if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
+    throw new Error('Cloudinary env vars missing: CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET');
+  }
+  cloudinary.config({
+    cloud_name: CLOUDINARY_CLOUD_NAME,
+    api_key:    CLOUDINARY_API_KEY,
+    api_secret: CLOUDINARY_API_SECRET,
+  });
+  return cloudinary;
 }
 
-// ─── Prompt builder ──────────────────────────────────────────────────────────
+// ─── Prompt builder ───────────────────────────────────────────────────────────
 
 const CHARACTER_LOOKS = {
   Lucy:  'a young woman with dark hair and quiet, watchful eyes, dressed simply, calm expression',
@@ -38,72 +41,64 @@ const ATMOSPHERE_STYLES = {
   hostile: 'cold harsh light, sharp shadows, confrontational framing',
 };
 
+const BEAT_HINTS = {
+  intimacy: [
+    'Two figures close together, faces almost touching. Electricity in the space between them. One hand barely grazing the other.',
+    'A woman leaning in, lips parted, eyes half-closed. The other figure very still. The moment before something happens.',
+    'Bodies close in dim light. One figure\'s hand on the other\'s waist. Breath visible. The tension of wanting.',
+    'Two women facing each other, centimeters apart. The moment stretched thin. Eyes locked. Everything unsaid.',
+  ],
+  warmth: [
+    'Two figures side by side, nearly touching. Soft golden light. A quiet moment of closeness.',
+    'A woman leaning her head gently against another. Eyes closed. Safe and warm.',
+  ],
+  jealousy: [
+    'One figure watching the other from across the room, jaw tight, eyes dark with something unspoken.',
+    'Two women in the same frame but worlds apart — one oblivious, one watching with barely-concealed hunger.',
+  ],
+  rupture: [
+    'Distance between the figures. Something has just been said that cannot be unsaid.',
+    'One figure turned away, arms crossed. The other frozen, mid-reach. A gulf between them.',
+  ],
+  repair: [
+    'One figure reaching toward the other tentatively. The other not quite pulling away.',
+    'Two women sitting close, one with her hand covering the other\'s. Quiet forgiveness.',
+  ],
+  rising: [
+    'The figures close but not touching. Energy between them — unresolved, building.',
+    'A charged silence. Two women facing each other in low light, both on the edge of something.',
+  ],
+};
+
 export function buildCameraPrompt(state) {
-  const aira = state?.aira || {};
-  const emotion = state?.emotionOverride;
-  const tension = state?.tension || 0;
+  const aira      = state?.aira || {};
+  const emotion   = state?.emotionOverride;
+  const tension   = state?.tension || 0;
   const relationships = state?.relationships || {};
 
-  // Which characters are active (non-zero presence / relationship)
   const present = Object.keys(relationships).filter(
     (name) => (relationships[name]?.trust ?? 0) > 0
   );
 
-  // Scene atmosphere
   const atmosphere = emotion?.atmosphere ||
     (tension > 0.6 ? 'tense' : tension > 0.3 ? 'charged' : 'calm');
 
   const atmoStyle = ATMOSPHERE_STYLES[atmosphere] || ATMOSPHERE_STYLES.calm;
 
-  // Characters in scene
   const characterDescs = present.length > 0
     ? present.map((name) => CHARACTER_LOOKS[name] || `a young woman named ${name}`).join(' and ')
     : 'a young woman, alone';
 
-  // Aira's presence hint
   const manifestation = aira.manifestation || 'none';
   const airaHint = MANIFESTATION_HINTS[manifestation] || '';
 
-  // Emotional beat hint
-  const beat = emotion?.beat || (tension > 0.6 ? 'tension' : 'calm');
-
-  const BEAT_HINTS = {
-    intimacy: [
-      'Two figures close together, faces almost touching. Electricity in the space between them. One hand barely grazing the other.',
-      'A woman leaning in, lips parted, eyes half-closed. The other figure very still. The moment before something happens.',
-      'Bodies close in dim light. One figure\'s hand on the other\'s waist. Breath visible. The tension of wanting.',
-      'Two women facing each other, centimeters apart. The moment stretched thin. Eyes locked. Everything unsaid.',
-    ],
-    warmth: [
-      'Two figures side by side, nearly touching. Soft golden light. A quiet moment of closeness.',
-      'A woman leaning her head gently against another. Eyes closed. Safe and warm.',
-    ],
-    jealousy: [
-      'One figure watching the other from across the room, jaw tight, eyes dark with something unspoken.',
-      'Two women in the same frame but worlds apart — one oblivious, one watching with barely-concealed hunger.',
-    ],
-    rupture: [
-      'Distance between the figures. Something has just been said that cannot be unsaid.',
-      'One figure turned away, arms crossed. The other frozen, mid-reach. A gulf between them.',
-    ],
-    repair: [
-      'One figure reaching toward the other tentatively. The other not quite pulling away.',
-      'Two women sitting close, one with her hand covering the other\'s. Quiet forgiveness.',
-    ],
-    rising: [
-      'The figures close but not touching. Energy between them — unresolved, building.',
-      'A charged silence. Two women facing each other in low light, both on the edge of something.',
-    ],
-  };
-
+  const beat     = emotion?.beat || (tension > 0.6 ? 'tension' : 'calm');
   const beatPool = BEAT_HINTS[beat];
-  const beatHint = beatPool
-    ? beatPool[Math.floor(Math.random() * beatPool.length)]
-    : '';
+  const beatHint = beatPool ? beatPool[Math.floor(Math.random() * beatPool.length)] : '';
 
   const chargedBeat = ['intimacy', 'warmth', 'jealousy', 'rising'].includes(beat);
 
-  const prompt = [
+  return [
     `Cinematic still photograph.`,
     `${characterDescs}.`,
     atmoStyle + '.',
@@ -114,18 +109,18 @@ export function buildCameraPrompt(state) {
       : `No text. No UI. No phone screens. Shot on 35mm film. Film grain. Shallow depth of field.`,
     `Style: quiet, realistic, cinematic. Not anime. Not illustrated.`,
   ].filter(Boolean).join(' ');
-
-  return prompt;
 }
 
-// ─── Core generator ──────────────────────────────────────────────────────────
+// ─── Core generator ───────────────────────────────────────────────────────────
 
 export async function generateCameraShot({ state, customPrompt } = {}) {
-  const client = ensureOpenAI();
+  const openai = ensureOpenAI();
+  const cld    = ensureCloudinary();
 
   const prompt = customPrompt || buildCameraPrompt(state);
 
-  const response = await client.images.generate({
+  // 1. Generate via DALL-E 3 (returns a temporary URL)
+  const response = await openai.images.generate({
     model: 'dall-e-3',
     prompt,
     n: 1,
@@ -134,49 +129,44 @@ export async function generateCameraShot({ state, customPrompt } = {}) {
     response_format: 'url',
   });
 
-  const url = response.data?.[0]?.url;
-  if (!url) throw new Error('No image URL returned from OpenAI');
+  const tempUrl = response.data?.[0]?.url;
+  if (!tempUrl) throw new Error('No image URL returned from OpenAI');
 
   const revisedPrompt = response.data?.[0]?.revised_prompt || prompt;
 
-  // Save to disk
-  const filename = `shot_${Date.now()}.png`;
-  const filepath = path.join(IMAGES_DIR, filename);
-
-  await downloadFile(url, filepath);
+  // 2. Upload directly from URL to Cloudinary (no disk needed)
+  const filename = `shot_${Date.now()}`;
+  const result = await cld.uploader.upload(tempUrl, {
+    folder:    'aira',
+    public_id: filename,
+    overwrite: false,
+  });
 
   return {
-    filename,
-    path: `/images/${filename}`,
+    filename: result.public_id,
+    path:     result.secure_url,
     prompt,
     revisedPrompt,
     generatedAt: new Date().toISOString(),
   };
 }
 
-export function listShots() {
-  if (!fs.existsSync(IMAGES_DIR)) return [];
-  return fs.readdirSync(IMAGES_DIR)
-    .filter((f) => /\.(png|jpg|jpeg|webp)$/i.test(f))
-    .sort()
-    .reverse()
-    .map((filename) => ({
-      filename,
-      path: `/images/${filename}`,
+// ─── List shots from Cloudinary ───────────────────────────────────────────────
+
+export async function listShots() {
+  try {
+    const cld = ensureCloudinary();
+    const result = await cld.search
+      .expression('folder:aira')
+      .sort_by('created_at', 'desc')
+      .max_results(50)
+      .execute();
+
+    return (result.resources || []).map((r) => ({
+      filename: r.public_id,
+      path:     r.secure_url,
     }));
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function downloadFile(url, destPath) {
-  return new Promise((resolve, reject) => {
-    const file = fs.createWriteStream(destPath);
-    https.get(url, (res) => {
-      res.pipe(file);
-      file.on('finish', () => file.close(resolve));
-    }).on('error', (err) => {
-      fs.unlink(destPath, () => {});
-      reject(err);
-    });
-  });
+  } catch {
+    return [];
+  }
 }

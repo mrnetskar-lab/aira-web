@@ -61,10 +61,6 @@ app.get('/api/ai/reset', (_req, res) => {
   });
 });
 
-// Serve generated images
-const imagesDir = path.resolve(__dirname, '../images');
-if (!fs.existsSync(imagesDir)) fs.mkdirSync(imagesDir, { recursive: true });
-app.use('/images', express.static(imagesDir));
 
 // Serve gallery page
 const galleryDir = path.resolve(__dirname, '../gallery');

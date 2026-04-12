@@ -19,8 +19,13 @@ router.post('/generate', async (req, res) => {
 });
 
 // GET /api/camera/list
-router.get('/list', (_req, res) => {
-  res.json({ ok: true, shots: listShots() });
+router.get('/list', async (_req, res) => {
+  try {
+    const shots = await listShots();
+    res.json({ ok: true, shots });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
 });
 
 export default router;
