@@ -19,6 +19,10 @@ export const DEFAULT_TUNING = {
   temperature:         3,  // 1–5 → AI model temperature
   autoTalkFrequency:   3,  // 1–5 → idle timeout (client reads via /tune GET)
   typingSpeed:         3,  // 1–5 → typing delay multiplier (client reads)
+  languageIntensity:   14, // 0–20 → overall edge/profanity tolerance
+  languageLucy:        12, // 0–20 → Lucy edge
+  languageSam:         16, // 0–20 → Sam edge
+  languageAngie:       15, // 0–20 → Angie edge
 };
 
 export function createEngine() {
@@ -54,9 +58,23 @@ export function createEngine() {
   });
 
   function tune(patch) {
+    const ranges = {
+      responseLength: [1, 5],
+      subtextFrequency: [1, 5],
+      secondaryChance: [1, 5],
+      temperature: [1, 5],
+      autoTalkFrequency: [1, 5],
+      typingSpeed: [1, 5],
+      languageIntensity: [0, 20],
+      languageLucy: [0, 20],
+      languageSam: [0, 20],
+      languageAngie: [0, 20],
+    };
+
     for (const [key, val] of Object.entries(patch)) {
       if (key in tuning && typeof val === 'number') {
-        tuning[key] = Math.min(5, Math.max(1, val));
+        const [min, max] = ranges[key] || [1, 5];
+        tuning[key] = Math.min(max, Math.max(min, Math.round(val)));
       }
     }
     dualLayer.syncTuning(tuning);

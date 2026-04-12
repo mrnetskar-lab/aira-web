@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import aiRouter from './routes/ai.js';
 import cameraRouter from './routes/camera.js';
 import { engine } from './services/engineInstance.js';
+import { resolveSafeImagePath } from './utils/safeImagePath.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -74,7 +75,24 @@ app.get('/api/ai/reset', (_req, res) => {
 // Serve generated images (persisted via Render disk mounted at /images)
 const imagesDir = path.resolve(__dirname, '../images');
 if (!fs.existsSync(imagesDir)) fs.mkdirSync(imagesDir, { recursive: true });
-app.use('/images', express.static(imagesDir));
+app.get('/images/:filename', (req, res) => {
+  const safeImagePath = resolveSafeImagePath(imagesDir, req.params.filename);
+  if (!safeImagePath) {
+    res.status(404).json({ ok: false, error: 'Image not found' });
+    return;
+  }
+
+  if (!fs.existsSync(safeImagePath)) {
+    res.status(404).json({ ok: false, error: 'Image not found' });
+    return;
+  }
+
+  res.sendFile(safeImagePath, (err) => {
+    if (err && !res.headersSent) {
+      res.status(500).json({ ok: false, error: 'Failed to serve image' });
+    }
+  });
+});
 
 // Serve gallery page
 const galleryDir = path.resolve(__dirname, '../gallery');

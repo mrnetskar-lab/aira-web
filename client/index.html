@@ -14,8 +14,8 @@
     <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <meta name="build" content="20260412-b" />
-    <link rel="stylesheet" href="./style.css?v=20260412-b" />
+    <meta name="build" content="20260412-c" />
+    <link rel="stylesheet" href="./style.css?v=20260412-c" />
   </head>
   <body>
     <div class="app-shell">
@@ -37,7 +37,17 @@
                 <span class="topbar-brand__text">World Chat</span>
               </div>
 
-              <div class="topbar-spacer" aria-hidden="true"></div>
+              <button
+                id="serverHeartbeat"
+                class="topbar-heartbeat is-unknown"
+                type="button"
+                aria-live="polite"
+                aria-label="Server status unknown"
+                title="Server status: checking"
+              >
+                <span class="topbar-heartbeat__dot" aria-hidden="true"></span>
+                <span class="sr-only">Server status indicator</span>
+              </button>
             </header>
 
             <div
@@ -66,8 +76,9 @@
                 maxlength="1200"
                 placeholder="Say something..."
               ></textarea>
-              <button id="sendBtn" class="composer__send" type="submit">
-                Send
+              <button id="sendBtn" class="composer__send" type="submit" aria-label="Send message">
+                <span aria-hidden="true">&#8594;</span>
+                <span class="sr-only">Send</span>
               </button>
             </form>
 
@@ -106,10 +117,6 @@
               <div class="phone-home__veil"></div>
 
               <div class="phone-home__content">
-                <div class="phone-home__top">
-                  <div class="phone-home__time">21:47</div>
-                  <div class="phone-home__status-pill">Private</div>
-                </div>
 
                 <div class="phone-home__hero">
                   <div class="phone-home__hero-card">
@@ -171,6 +178,16 @@
                     <span class="phone-app-icon__glyph phone-app-icon__glyph--gallery" aria-hidden="true"></span>
                     <span class="phone-app-icon__label">Photos</span>
                   </button>
+
+                  <button
+                    class="phone-app-icon"
+                    type="button"
+                    data-phone-app="snap"
+                    aria-label="Snap Back"
+                  >
+                    <span class="phone-app-icon__glyph phone-app-icon__glyph--snap" aria-hidden="true"></span>
+                    <span class="phone-app-icon__label">Snap Back</span>
+                  </button>
                 </div>
 
                 <div class="phone-dock" aria-label="Phone dock">
@@ -203,6 +220,67 @@
               aria-label="Phone app"
               hidden
             >
+              <!-- ─── Snap Back App ─────────────────────────────────────── -->
+              <section
+                id="phoneSnapApp"
+                class="phone-app-screen phone-app-screen--snap"
+                aria-label="Snap Back"
+                hidden
+              >
+                <button
+                  id="phoneSnapBackBtn"
+                  class="phone-snap__back"
+                  type="button"
+                  aria-label="Back"
+                >
+                  <span aria-hidden="true">&#8592;</span>
+                </button>
+
+                <div id="phoneSnapViewfinder" class="phone-snap__viewfinder">
+                  <div id="phoneSnapIdle" class="phone-snap__idle">
+                    <div class="phone-snap__idle-icon" aria-hidden="true"></div>
+                    <div class="phone-snap__idle-hint">Tap the shutter</div>
+                  </div>
+
+                  <div id="phoneSnapSpinner" class="phone-snap__spinner hidden" aria-live="polite">
+                    <div class="phone-snap__spinner-ring"></div>
+                    <div class="phone-snap__spinner-label">Capturing…</div>
+                  </div>
+
+                  <img
+                    id="phoneSnapResult"
+                    class="phone-snap__result hidden"
+                    src=""
+                    alt="Captured scene"
+                  />
+                </div>
+
+                <div class="phone-snap__controls">
+                  <button
+                    id="phoneSnapSaveBtn"
+                    class="phone-snap__action phone-snap__action--save hidden"
+                    type="button"
+                    aria-label="Save to Photos"
+                  >Save</button>
+
+                  <button
+                    id="phoneSnapShutterBtn"
+                    class="phone-snap__shutter"
+                    type="button"
+                    aria-label="Capture scene"
+                  >
+                    <span class="phone-snap__shutter-inner" aria-hidden="true"></span>
+                  </button>
+
+                  <button
+                    id="phoneSnapRetakeBtn"
+                    class="phone-snap__action phone-snap__action--retake hidden"
+                    type="button"
+                    aria-label="New shot"
+                  >New shot</button>
+                </div>
+              </section>
+
               <section
                 id="phoneGalleryApp"
                 class="phone-app-screen phone-app-screen--gallery"
@@ -217,14 +295,28 @@
                     aria-label="Back"
                   >
                     <span aria-hidden="true">&#8592;</span>
+                    <span class="phone-app-back__label">Back</span>
                   </button>
                   <div class="phone-app-topbar__title">Photos</div>
-                  <div class="phone-app-topbar__spacer" aria-hidden="true"></div>
+                  <button
+                    id="phoneGalleryCaptureBtn"
+                    class="phone-gallery-capture-btn"
+                    type="button"
+                    aria-label="Capture scene"
+                    title="Generate a scene photo"
+                  >
+                    <span class="phone-gallery-capture-btn__icon" aria-hidden="true"></span>
+                  </button>
                 </header>
                 <div id="phoneGalleryGrid" class="phone-gallery-grid"></div>
+                <div id="phoneGalleryGenerating" class="phone-gallery-generating hidden" aria-live="polite" aria-label="Generating photo">
+                  <div class="phone-gallery-generating__ring"></div>
+                  <div class="phone-gallery-generating__label">Capturing scene…</div>
+                </div>
                 <div id="phoneGalleryLightbox" class="phone-gallery-lightbox hidden">
-                  <button id="phoneGalleryLightboxClose" class="phone-gallery-lightbox__close">&#x2715;</button>
+                  <button id="phoneGalleryLightboxClose" class="phone-gallery-lightbox__close" aria-label="Close">&#x2715;</button>
                   <img id="phoneGalleryLightboxImg" src="" alt="" />
+                  <button id="phoneGalleryLightboxDelete" class="phone-gallery-lightbox__delete" aria-label="Delete photo">Delete</button>
                 </div>
               </section>
 
@@ -242,6 +334,7 @@
                     aria-label="Back"
                   >
                     <span aria-hidden="true">&#8592;</span>
+                    <span class="phone-app-back__label">Back</span>
                   </button>
 
                   <div class="phone-app-topbar__title">Messenger</div>
@@ -260,11 +353,15 @@
                       aria-label="Back to inbox"
                     >
                       <span aria-hidden="true">&#8592;</span>
+                      <span class="phone-app-back__label">Back</span>
                     </button>
 
                     <div class="phone-thread-title-wrap">
+                      <div class="phone-thread-avatar" aria-hidden="true">
+                        <span class="phone-thread-avatar__glyph"></span>
+                      </div>
                       <div id="phoneMessagesTitle" class="phone-thread-title"></div>
-                      <div class="phone-thread-subtitle">Private thread</div>
+                      <div class="phone-thread-subtitle">Text Message</div>
                     </div>
 
                     <div class="phone-app-topbar__spacer" aria-hidden="true"></div>

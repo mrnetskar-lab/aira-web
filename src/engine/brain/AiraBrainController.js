@@ -7,7 +7,15 @@ const RESPONSE_MODE  = [null, 'brief', 'brief', 'normal', 'normal', 'cinematic']
 
 export class AiraBrainController {
   constructor(tuning) {
-    this.tuning = tuning || { secondaryChance: 3, temperature: 3, responseLength: 3 };
+    this.tuning = tuning || {
+      secondaryChance: 3,
+      temperature: 3,
+      responseLength: 3,
+      languageIntensity: 5,
+      languageLucy: 4,
+      languageSam: 5,
+      languageAngie: 5,
+    };
     this.brains = new Map();
     this.muted = new Set();
     this.aiService = new CharacterAIService();
@@ -46,6 +54,7 @@ export class AiraBrainController {
         temperature,
         context: {
           ...context,
+          aiTuning: this._buildAiTuning(plan.primary.name),
           conversation: {
             ...context.conversation,
             responseMode: forcedMode || plan.primaryMode || context.conversation?.responseMode || 'brief'
@@ -79,6 +88,7 @@ export class AiraBrainController {
         temperature,
         context: {
           ...context,
+          aiTuning: this._buildAiTuning(plan.secondary.name),
           conversation: {
             ...context.conversation,
             responseMode: 'brief'
@@ -200,6 +210,20 @@ export class AiraBrainController {
 
   getBrain(name) {
     return this.brains.get(name);
+  }
+
+  _buildAiTuning(characterName) {
+    const keyMap = {
+      Lucy: 'languageLucy',
+      Sam: 'languageSam',
+      Angie: 'languageAngie',
+    };
+    const charKey = keyMap[characterName] || null;
+
+    return {
+      languageIntensity: this.tuning.languageIntensity ?? 3,
+      characterLanguageIntensity: charKey ? (this.tuning[charKey] ?? this.tuning.languageIntensity ?? 3) : (this.tuning.languageIntensity ?? 3),
+    };
   }
 }
 

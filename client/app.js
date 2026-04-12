@@ -27,6 +27,8 @@ function buildDefaultMessagesApp() {
     c2: "Still here.",
     c3: "Hey, where'd you go?",
   };
+  const now = Date.now();
+  const seedBase = now - 1000 * 60 * 12;
 
   return {
     activeThread: null,
@@ -36,11 +38,89 @@ function buildDefaultMessagesApp() {
       { id: "c3", name: "Angie", displayName: "Angie", preview: previews.c3, unread: false },
     ],
     messages: {
-      c1: [{ text: previews.c1, me: false }],
-      c2: [{ text: previews.c2, me: false }],
-      c3: [{ text: previews.c3, me: false }],
+      c1: [{ text: previews.c1, me: false, timestamp: new Date(seedBase).toISOString() }],
+      c2: [{ text: previews.c2, me: false, timestamp: new Date(seedBase + 1000 * 60 * 3).toISOString() }],
+      c3: [{ text: previews.c3, me: false, timestamp: new Date(seedBase + 1000 * 60 * 6).toISOString() }],
     },
   };
+}
+
+function toValidIsoDate(value) {
+  if (typeof value !== "string") return null;
+  const ms = Date.parse(value);
+  if (Number.isNaN(ms)) return null;
+  return new Date(ms).toISOString();
+}
+
+function normalizePhoneMessage(message, fallbackIso = new Date().toISOString()) {
+  if (!message || typeof message.text !== "string") return null;
+  return {
+    text: message.text,
+    me: Boolean(message.me),
+    timestamp: toValidIsoDate(message.timestamp) || fallbackIso,
+  };
+}
+
+function formatPhoneThreadTime(isoDate) {
+  const date = isoDate ? new Date(isoDate) : new Date();
+  return new Intl.DateTimeFormat([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function formatPhoneThreadDate(isoDate) {
+  const date = isoDate ? new Date(isoDate) : new Date();
+  return new Intl.DateTimeFormat([], {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+  }).format(date);
+}
+
+function formatPhoneThreadListDate(isoDate) {
+  const date = isoDate ? new Date(isoDate) : new Date();
+  return new Intl.DateTimeFormat([], {
+    day: "2-digit",
+    month: "short",
+  }).format(date);
+}
+
+let messageToneContext = null;
+
+function playMessageTone(kind = "incoming") {
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  if (!AudioCtx) return;
+
+  try {
+    if (!messageToneContext) {
+      messageToneContext = new AudioCtx();
+    }
+
+    if (messageToneContext.state === "suspended") {
+      messageToneContext.resume().catch(() => {});
+    }
+
+    const now = messageToneContext.currentTime;
+    const oscillator = messageToneContext.createOscillator();
+    const gain = messageToneContext.createGain();
+
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(kind === "incoming" ? 860 : 620, now);
+    oscillator.frequency.exponentialRampToValueAtTime(kind === "incoming" ? 740 : 560, now + 0.16);
+
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(kind === "incoming" ? 0.05 : 0.03, now + 0.018);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.2);
+
+    oscillator.connect(gain);
+    gain.connect(messageToneContext.destination);
+
+    oscillator.start(now);
+    oscillator.stop(now + 0.2);
+  } catch {
+    // Ignore audio failures from autoplay policies or unsupported contexts.
+  }
 }
 
 async function clearLegacyClientCaches() {
@@ -77,6 +157,11 @@ const elements = {
   backToHomeBtn: document.getElementById("backToHomeBtn"),
   resetChatBtn: document.getElementById("resetChatBtn"),
   chatMessages: document.getElementById("chatMessages"),
+  worldRoomBar: document.getElementById("worldRoomBar"),
+  worldRoomCount: document.getElementById("worldRoomCount"),
+  worldRoomVibe: document.getElementById("worldRoomVibe"),
+  worldRoomScene: document.getElementById("worldRoomScene"),
+  serverHeartbeat: document.getElementById("serverHeartbeat"),
   worldPresenceState: document.getElementById("worldPresenceState"),
   chatForm: document.getElementById("chatForm"),
   chatInput: document.getElementById("chatInput"),
@@ -92,9 +177,20 @@ const elements = {
   phoneGalleryApp: document.getElementById("phoneGalleryApp"),
   phoneGalleryGrid: document.getElementById("phoneGalleryGrid"),
   phoneGalleryBackBtn: document.getElementById("phoneGalleryBackBtn"),
+  phoneSnapApp: document.getElementById("phoneSnapApp"),
+  phoneSnapBackBtn: document.getElementById("phoneSnapBackBtn"),
+  phoneSnapShutterBtn: document.getElementById("phoneSnapShutterBtn"),
+  phoneSnapSaveBtn: document.getElementById("phoneSnapSaveBtn"),
+  phoneSnapRetakeBtn: document.getElementById("phoneSnapRetakeBtn"),
+  phoneSnapIdle: document.getElementById("phoneSnapIdle"),
+  phoneSnapSpinner: document.getElementById("phoneSnapSpinner"),
+  phoneSnapResult: document.getElementById("phoneSnapResult"),
+  phoneGalleryGenerating: document.getElementById("phoneGalleryGenerating"),
+  phoneGalleryCaptureBtn: document.getElementById("phoneGalleryCaptureBtn"),
   phoneGalleryLightbox: document.getElementById("phoneGalleryLightbox"),
   phoneGalleryLightboxImg: document.getElementById("phoneGalleryLightboxImg"),
   phoneGalleryLightboxClose: document.getElementById("phoneGalleryLightboxClose"),
+  phoneGalleryLightboxDelete: document.getElementById("phoneGalleryLightboxDelete"),
   phoneMessagesApp: document.getElementById("phoneMessagesApp"),
   phoneMessagesList: document.getElementById("phoneMessagesList"),
   phoneMessagesThread: document.getElementById("phoneMessagesThread"),
@@ -110,6 +206,7 @@ const state = {
   currentView: "chat",
   messages: [],
   latestState: null,
+  serverOnline: null,
   isSending: false,
   messagesApp: buildDefaultMessagesApp(),
   phoneApp: null,
@@ -123,6 +220,7 @@ const state = {
 };
 
 let frozenWorldScrollTop = 0;
+let serverHeartbeatTimer = null;
 
 function syncBodyMode() {
   document.body.classList.toggle("is-chat-active", state.currentView === "chat");
@@ -146,6 +244,76 @@ function setWorldAvailability(isAvailable) {
   if (!isAvailable) {
     elements.chatInput?.blur();
   }
+}
+
+function updateServerHeartbeat(isOnline, detail = "") {
+  state.serverOnline = typeof isOnline === "boolean" ? isOnline : null;
+
+  if (!elements.serverHeartbeat) return;
+
+  elements.serverHeartbeat.classList.remove("is-online", "is-offline", "is-unknown");
+
+  if (isOnline === true) {
+    elements.serverHeartbeat.classList.add("is-online");
+    elements.serverHeartbeat.setAttribute("aria-label", "Server online");
+    elements.serverHeartbeat.title = detail || "Server status: online";
+    return;
+  }
+
+  if (isOnline === false) {
+    elements.serverHeartbeat.classList.add("is-offline");
+    elements.serverHeartbeat.setAttribute("aria-label", "Server offline");
+    elements.serverHeartbeat.title = detail || "Server status: offline";
+    return;
+  }
+
+  elements.serverHeartbeat.classList.add("is-unknown");
+  elements.serverHeartbeat.setAttribute("aria-label", "Server status unknown");
+  elements.serverHeartbeat.title = detail || "Server status: checking";
+}
+
+async function checkServerHeartbeat() {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 2800);
+
+  try {
+    const response = await fetch("/health", {
+      method: "GET",
+      cache: "no-store",
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      updateServerHeartbeat(false, `Server status: HTTP ${response.status}`);
+      return false;
+    }
+
+    const payload = await response.json().catch(() => null);
+    const cloudHint = payload?.cloudinary?.configured === false
+      ? " (cloudinary missing)"
+      : "";
+
+    updateServerHeartbeat(true, `Server status: online${cloudHint}`);
+    return true;
+  } catch {
+    updateServerHeartbeat(false, "Server status: offline");
+    return false;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
+function startServerHeartbeatChecks() {
+  if (serverHeartbeatTimer) {
+    window.clearInterval(serverHeartbeatTimer);
+    serverHeartbeatTimer = null;
+  }
+
+  updateServerHeartbeat(null, "Server status: checking");
+  checkServerHeartbeat();
+  serverHeartbeatTimer = window.setInterval(() => {
+    checkServerHeartbeat();
+  }, 15_000);
 }
 
 function freezeWorldStage() {
@@ -213,6 +381,8 @@ function getClientY(event) {
 }
 
 function beginPhoneDrag(event) {
+  // Prevent swipe-up open; allow drag gestures only when phone is already open.
+  if (!state.phone.open) return;
   state.phone.dragging = true;
   state.phone.startY = getClientY(event);
   state.phone.currentY = 0;
@@ -312,6 +482,11 @@ function openPhoneApp(appName) {
     renderPhoneGallery();
   }
 
+  if (appName === "snap") {
+    elements.phoneSnapApp?.removeAttribute("hidden");
+    resetSnapApp();
+  }
+
   syncPresenceModes();
 }
 
@@ -321,8 +496,19 @@ function closePhoneApp() {
   elements.phoneAppLayer?.setAttribute("hidden", "");
   elements.phoneMessagesApp?.setAttribute("hidden", "");
   elements.phoneGalleryApp?.setAttribute("hidden", "");
+  elements.phoneSnapApp?.setAttribute("hidden", "");
   elements.phoneHome?.removeAttribute("hidden");
   syncPresenceModes();
+}
+
+function resetSnapApp() {
+  elements.phoneSnapIdle?.classList.remove("hidden");
+  elements.phoneSnapSpinner?.classList.add("hidden");
+  elements.phoneSnapResult?.classList.add("hidden");
+  if (elements.phoneSnapResult) elements.phoneSnapResult.src = "";
+  elements.phoneSnapSaveBtn?.classList.add("hidden");
+  elements.phoneSnapRetakeBtn?.classList.add("hidden");
+  elements.phoneSnapShutterBtn?.classList.remove("is-loading");
 }
 
 async function renderPhoneGallery() {
@@ -337,7 +523,7 @@ async function renderPhoneGallery() {
     const shots = data.shots || [];
 
     if (!shots.length) {
-      grid.innerHTML = `<div class="phone-gallery__empty">No photos yet.<br>Use the dev panel to capture a scene.</div>`;
+      grid.innerHTML = `<div class="phone-gallery__empty">No photos yet.<br>Tap the camera button to capture a scene.</div>`;
       return;
     }
 
@@ -371,17 +557,27 @@ function renderPhoneThreads() {
   if (!elements.phoneMessagesList) return;
 
   elements.phoneMessagesList.innerHTML = state.messagesApp.threads
-    .map((thread) => `
+    .map((thread) => {
+      const threadMessages = state.messagesApp.messages[thread.id] || [];
+      const lastMessage = threadMessages[threadMessages.length - 1] || null;
+      const previewText = lastMessage?.text || thread.preview || "";
+      const timeLabel = lastMessage?.timestamp ? formatPhoneThreadTime(lastMessage.timestamp) : "--:--";
+      const dateLabel = lastMessage?.timestamp ? formatPhoneThreadListDate(lastMessage.timestamp) : "";
+
+      return `
       <button
         class="phone-thread ${thread.unread ? "is-unread" : ""}"
         type="button"
         data-thread="${thread.id}"
       >
         <div class="phone-thread__name">${escapeHtml(thread.displayName || thread.name)}</div>
-        <div class="phone-thread__preview">${escapeHtml(thread.preview)}</div>
+        <div class="phone-thread__time">${escapeHtml(timeLabel)}</div>
+        <div class="phone-thread__preview">${escapeHtml(previewText)}</div>
+        <div class="phone-thread__date">${escapeHtml(dateLabel)}</div>
         ${thread.unread ? '<div class="phone-thread__dot"></div>' : ""}
       </button>
-    `)
+    `;
+    })
     .join("");
 }
 
@@ -391,20 +587,33 @@ function renderPhoneThreadMessages() {
 
   if (!elements.phoneMessagesLog) return;
 
-  elements.phoneMessagesLog.innerHTML = msgs
-    .map((message, index) => {
-      const previous = msgs[index - 1];
-      const sameSide = previous && previous.me === message.me;
+  const rows = [];
 
-      return `
-        <div class="phone-msg-row ${message.me ? "phone-msg-row--me" : "phone-msg-row--them"} ${sameSide ? "is-stacked" : ""}">
-          <div class="phone-msg-bubble ${message.me ? "phone-msg-me" : "phone-msg-them"}">
-            ${escapeHtml(message.text)}
-          </div>
+  msgs.forEach((message, index) => {
+    const previous = msgs[index - 1];
+    const sameSide = previous && previous.me === message.me;
+    const dayLabel = formatPhoneThreadDate(message.timestamp);
+    const previousDayLabel = previous ? formatPhoneThreadDate(previous.timestamp) : null;
+
+    if (!previous || dayLabel !== previousDayLabel) {
+      rows.push(`<div class="phone-msg-date">${escapeHtml(dayLabel)}</div>`);
+    }
+
+    rows.push(`
+      <div class="phone-msg-row ${message.me ? "phone-msg-row--me" : "phone-msg-row--them"} ${sameSide ? "is-stacked" : ""} ${message.animate ? "is-new" : ""}">
+        <div class="phone-msg-bubble ${message.me ? "phone-msg-me" : "phone-msg-them"}">
+          ${escapeHtml(message.text)}
         </div>
-      `;
-    })
-    .join("");
+        <div class="phone-msg-meta">${escapeHtml(formatPhoneThreadTime(message.timestamp))}</div>
+      </div>
+    `);
+  });
+
+  elements.phoneMessagesLog.innerHTML = rows.join("");
+
+  for (const message of msgs) {
+    if (message?.animate) message.animate = false;
+  }
 
   requestAnimationFrame(() => {
     elements.phoneMessagesLog.scrollTop = elements.phoneMessagesLog.scrollHeight;
@@ -443,6 +652,8 @@ async function sendPhoneThreadMessage() {
   state.messagesApp.messages[id].push({
     text,
     me: true,
+    timestamp: new Date().toISOString(),
+    animate: true,
   });
 
   updateThreadPreview(id, `You: ${text}`);
@@ -509,9 +720,12 @@ async function simulatePhoneThreadResponse(id, text) {
       state.messagesApp.messages[id].push({
         text: reply.spoken || "...",
         me: false,
+        timestamp: new Date().toISOString(),
+        animate: true,
       });
 
       updateThreadPreview(id, reply.spoken || "...");
+      playMessageTone("incoming");
     }
 
     const events = result.continuity?.events || [];
@@ -521,8 +735,11 @@ async function simulatePhoneThreadResponse(id, text) {
         state.messagesApp.messages[id].push({
           text: event.text,
           me: false,
+          timestamp: new Date().toISOString(),
+          animate: true,
         });
         updateThreadPreview(id, event.text);
+        playMessageTone("incoming");
         renderPhoneThreadMessages();
         renderPhoneThreads();
         saveLocalState();
@@ -569,9 +786,18 @@ function syncTypingState() {
 
 function autoResizeTextarea() {
   const input = elements.chatInput;
+  if (!input) return;
   input.style.height = "0px";
-  input.style.height = `${Math.min(input.scrollHeight, 180)}px`;
+  input.style.height = `${Math.max(60, Math.min(input.scrollHeight, 180))}px`;
   syncTypingState();
+  syncComposerClearance();
+}
+
+function syncComposerClearance() {
+  if (!elements.composer) return;
+  const rect = elements.composer.getBoundingClientRect();
+  const clearance = Math.max(94, Math.ceil(rect.height + 12));
+  document.documentElement.style.setProperty("--composer-clearance", `${clearance}px`);
 }
 
 function formatTime(date = new Date()) {
@@ -581,19 +807,6 @@ function formatTime(date = new Date()) {
   }).format(date);
 }
 
-function updatePhoneClock() {
-  const clock = document.querySelector(".phone-home__time");
-  if (!clock) return;
-
-  const now = new Date();
-  const formatted = new Intl.DateTimeFormat([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(now);
-
-  clock.textContent = formatted;
-}
-
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -601,6 +814,14 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+// Wraps *action text* in styled <em> — safe, escapes content first
+function formatWithActions(text) {
+  return escapeHtml(text).replace(
+    /\*([^*]+)\*/g,
+    (_, inner) => `<em class="message__thought">${inner}</em>`
+  );
 }
 
 function characterNameClass(nameOrId) {
@@ -638,7 +859,7 @@ function renderMessages() {
         return `
           <div class="message-row message-row--user ${message.anomalous ? "is-anomalous" : ""}">
             <article class="${createMessageClasses(message)}">
-              <div class="message__bubble${message.bubbleClass ? ` ${escapeHtml(message.bubbleClass)}` : ""}">${escapeHtml(message.text)}</div>
+              <div class="message__bubble${message.bubbleClass ? ` ${escapeHtml(message.bubbleClass)}` : ""}">${formatWithActions(message.text)}</div>
               <div class="message__meta">${escapeHtml(message.time)}</div>
             </article>
           </div>
@@ -681,6 +902,46 @@ function renderMessages() {
 function updatePresenceHooks() {
   const manifestation = state.latestState?.aira?.manifestation || "none";
   document.body.dataset.manifestation = manifestation;
+  renderWorldRoomBar();
+}
+
+function renderWorldRoomBar() {
+  const availability = state.latestState?.continuity?.availability || null;
+  const timeBlock = state.latestState?.continuity?.timeBlock || "evening";
+  const tension = Number(state.latestState?.tension || 0);
+  const manifestation = state.latestState?.aira?.manifestation || "none";
+
+  const availabilityEntries = availability ? Object.values(availability) : [];
+  const onlineCount = availabilityEntries.length
+    ? availabilityEntries.filter((slot) => slot?.online !== false).length
+    : 3;
+
+  const activeCount = availabilityEntries.length
+    ? availabilityEntries.filter((slot) => slot?.replying || slot?.seen).length
+    : 0;
+
+  let vibe = "Calm";
+  if (tension > 0.7) vibe = "Volatile";
+  else if (tension > 0.45) vibe = "Charged";
+  else if (tension > 0.2) vibe = "Warm";
+
+  const beat = `${capitalizeWord(timeBlock)}${manifestation !== "none" ? " · Strange" : ""}`;
+
+  if (elements.worldRoomCount) {
+    elements.worldRoomCount.textContent = `${onlineCount} online${activeCount ? ` · ${activeCount} active` : ""}`;
+  }
+  if (elements.worldRoomVibe) {
+    elements.worldRoomVibe.textContent = vibe;
+  }
+  if (elements.worldRoomScene) {
+    elements.worldRoomScene.textContent = beat;
+  }
+}
+
+function capitalizeWord(value) {
+  const text = String(value || "").trim();
+  if (!text) return "Evening";
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 async function fetchState() {
@@ -755,8 +1016,18 @@ function restoreLocalState() {
       for (const thread of state.messagesApp.threads) {
         const saved = data.messagesApp.messages[thread.id];
         if (Array.isArray(saved) && saved.length) {
-          state.messagesApp.messages[thread.id] = saved;
-          thread.preview = saved[saved.length - 1]?.text || thread.preview;
+          const base = Date.now() - saved.length * 1000 * 60;
+          const normalized = saved
+            .map((message, index) => normalizePhoneMessage(
+              message,
+              new Date(base + index * 1000 * 60).toISOString(),
+            ))
+            .filter(Boolean);
+
+          if (!normalized.length) continue;
+
+          state.messagesApp.messages[thread.id] = normalized;
+          thread.preview = normalized[normalized.length - 1]?.text || thread.preview;
         }
       }
     }
@@ -917,16 +1188,21 @@ async function resetChat() {
 }
 
 function bindEvents() {
+  const bindTap = (element, handler) => {
+    if (!element) return;
+    element.addEventListener("click", handler);
+    element.addEventListener("touchend", (event) => {
+      event.preventDefault();
+      handler(event);
+    }, { passive: false });
+  };
+
   document.querySelectorAll("[data-phone-app]").forEach((button) => {
     button.addEventListener("click", () => {
       const appName = button.dataset.phoneApp;
-
-      if (appName === "messages") {
-        withTransitionLock(() => {
-          openPhoneApp("messages");
-        }, 220);
-        return;
-      }
+      withTransitionLock(() => {
+        openPhoneApp(appName);
+      }, 220);
     });
   });
 
@@ -936,16 +1212,81 @@ function bindEvents() {
     openPhoneThread(id);
   });
 
-  elements.phoneMessagesBackBtn?.addEventListener("click", () => {
+  const handlePhoneMessagesBack = () => {
     withTransitionLock(() => {
       closePhoneApp();
     }, 220);
+  };
+  bindTap(elements.phoneMessagesBackBtn, handlePhoneMessagesBack);
+
+  const handlePhoneGalleryBack = () => {
+    withTransitionLock(() => {
+      closePhoneApp();
+    }, 220);
+  };
+  bindTap(elements.phoneGalleryBackBtn, handlePhoneGalleryBack);
+
+  // ─── Snap Back ────────────────────────────────────────────────────────
+  bindTap(elements.phoneSnapBackBtn, () => {
+    withTransitionLock(() => { closePhoneApp(); }, 220);
   });
 
-  elements.phoneGalleryBackBtn?.addEventListener("click", () => {
-    withTransitionLock(() => {
-      closePhoneApp();
-    }, 220);
+  let snapCurrentPath = null;
+
+  elements.phoneSnapShutterBtn?.addEventListener("click", async () => {
+    const btn = elements.phoneSnapShutterBtn;
+    if (btn.classList.contains("is-loading")) return;
+
+    btn.classList.add("is-loading");
+    elements.phoneSnapIdle?.classList.add("hidden");
+    elements.phoneSnapResult?.classList.add("hidden");
+    elements.phoneSnapSaveBtn?.classList.add("hidden");
+    elements.phoneSnapRetakeBtn?.classList.add("hidden");
+    elements.phoneSnapSpinner?.classList.remove("hidden");
+    snapCurrentPath = null;
+
+    try {
+      const res = await fetch("/api/camera/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+
+      if (data.ok && data.shot?.path) {
+        snapCurrentPath = data.shot.path;
+        elements.phoneSnapSpinner?.classList.add("hidden");
+        if (elements.phoneSnapResult) {
+          elements.phoneSnapResult.src = data.shot.path;
+          elements.phoneSnapResult.classList.remove("hidden");
+        }
+        elements.phoneSnapSaveBtn?.classList.remove("hidden");
+        elements.phoneSnapRetakeBtn?.classList.remove("hidden");
+      } else {
+        resetSnapApp();
+      }
+    } catch {
+      resetSnapApp();
+    } finally {
+      btn.classList.remove("is-loading");
+      elements.phoneSnapSpinner?.classList.add("hidden");
+    }
+  });
+
+  elements.phoneSnapRetakeBtn?.addEventListener("click", () => {
+    resetSnapApp();
+  });
+
+  elements.phoneSnapSaveBtn?.addEventListener("click", () => {
+    if (!snapCurrentPath) return;
+    // Photo is already saved on disk — just confirm with a flash
+    const btn = elements.phoneSnapSaveBtn;
+    btn.textContent = "Saved!";
+    btn.style.color = "rgba(120,220,120,0.9)";
+    setTimeout(() => {
+      btn.textContent = "Save";
+      btn.style.color = "";
+    }, 1600);
   });
 
   elements.phoneGalleryLightboxClose?.addEventListener("click", () => {
@@ -960,11 +1301,64 @@ function bindEvents() {
     }
   });
 
-  elements.phoneThreadBackBtn?.addEventListener("click", () => {
+  elements.phoneGalleryLightboxDelete?.addEventListener("click", async () => {
+    const src = elements.phoneGalleryLightboxImg?.src || "";
+    const filename = src.split("/").pop();
+    if (!filename) return;
+
+    const confirmed = confirm("Delete this photo?");
+    if (!confirmed) return;
+
+    try {
+      await fetch(`/api/camera/${encodeURIComponent(filename)}`, { method: "DELETE" });
+    } catch {
+      // ignore — file may already be gone
+    }
+
+    elements.phoneGalleryLightbox?.classList.add("hidden");
+    if (elements.phoneGalleryLightboxImg) elements.phoneGalleryLightboxImg.src = "";
+    renderPhoneGallery();
+  });
+
+  elements.phoneGalleryCaptureBtn?.addEventListener("click", async () => {
+    const btn = elements.phoneGalleryCaptureBtn;
+    const overlay = elements.phoneGalleryGenerating;
+    if (!btn || btn.classList.contains("is-loading")) return;
+
+    btn.classList.add("is-loading");
+    overlay?.classList.remove("hidden");
+
+    try {
+      const res = await fetch("/api/camera/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+
+      if (data.ok && data.shot?.path) {
+        await renderPhoneGallery();
+        // Flash the newest item briefly
+        const firstItem = elements.phoneGalleryGrid?.querySelector(".phone-gallery__item");
+        if (firstItem) {
+          firstItem.classList.add("phone-gallery__item--new");
+          setTimeout(() => firstItem.classList.remove("phone-gallery__item--new"), 1400);
+        }
+      }
+    } catch {
+      // silently fail — user can try again
+    } finally {
+      btn.classList.remove("is-loading");
+      overlay?.classList.add("hidden");
+    }
+  });
+
+  const handlePhoneThreadBack = () => {
     withTransitionLock(() => {
       closePhoneThread();
     }, 180);
-  });
+  };
+  bindTap(elements.phoneThreadBackBtn, handlePhoneThreadBack);
 
   elements.phoneMessagesForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -986,24 +1380,26 @@ function bindEvents() {
     }
   });
 
+  const closePhoneFromInside = (event) => {
+    if (event) event.preventDefault();
+    if (!state.phone.open) return;
+    withTransitionLock(() => {
+      closePhone();
+    }, 220);
+  };
+
+  elements.phoneGrabber?.addEventListener("click", closePhoneFromInside);
+  elements.phoneGrabber?.addEventListener(
+    "touchend",
+    closePhoneFromInside,
+    { passive: false }
+  );
+
   elements.phoneScrim?.addEventListener("click", closePhone);
 
-  const dragStartTargets = [elements.phoneHandle, elements.phoneGrabber].filter(Boolean);
-
-  dragStartTargets.forEach((target) => {
-    target.addEventListener("mousedown", beginPhoneDrag);
-    target.addEventListener("touchstart", beginPhoneDrag, { passive: true });
-  });
-
-  window.addEventListener("mousemove", updatePhoneDrag);
-  window.addEventListener("touchmove", updatePhoneDrag, { passive: true });
-
-  window.addEventListener("mouseup", endPhoneDrag);
-  window.addEventListener("touchend", endPhoneDrag);
-  window.addEventListener("touchcancel", endPhoneDrag);
-
-  elements.backToHomeBtn?.addEventListener("click", showHome);
+  bindTap(elements.backToHomeBtn, showHome);
   elements.chatInput?.addEventListener("input", autoResizeTextarea);
+  window.addEventListener("resize", syncComposerClearance, { passive: true });
 
   // 5 quick taps on send button opens dev panel (mobile shortcut)
   let _sendTapCount = 0;
@@ -1071,27 +1467,33 @@ async function init() {
   document.body.classList.add("is-booting");
   window.addEventListener("resize", handleBootResizeStability);
 
+  if (!document.getElementById("homeView") && elements.backToHomeBtn) {
+    elements.backToHomeBtn.hidden = true;
+    elements.backToHomeBtn.setAttribute("aria-hidden", "true");
+  }
+
   await clearLegacyClientCaches();
   syncBodyMode();
+  exposeAiraConsoleApi();
   bindEvents();
-  if (elements.chatInput) {
-    elements.chatInput.style.height = "52px";
-  }
+  startServerHeartbeatChecks();
+  autoResizeTextarea();
+  syncComposerClearance();
   restoreLocalState();
   renderMessages();
   renderPhoneThreads();
+  renderWorldRoomBar();
   await fetchState();
 
   const devDrawer = new AiraDevDrawer({
     getState: () => state.latestState,
+    onStateUpdate: (freshState) => { state.latestState = freshState; },
     onReset: resetChat,
   });
 
   devDrawer.mount();
   window.__airaDevDrawer = devDrawer;
 
-  updatePhoneClock();
-  window.setInterval(updatePhoneClock, 60_000);
   startAutoTalk();
   lockBootScroll();
 
@@ -1151,6 +1553,193 @@ function startAutoTalk() {
       // silent fail
     }
   }, 15_000); // check every 15s, fires only after 45s idle
+}
+
+function summarizeMessageForConsole(message) {
+  if (!message || typeof message !== "object") return null;
+  return {
+    type: message.type || "unknown",
+    agent: message.agent || null,
+    text: message.text || "",
+    time: message.time || null,
+    anomalous: Boolean(message.anomalous),
+  };
+}
+
+function getAiraConsoleStatus() {
+  const manifestation = state.latestState?.aira?.manifestation || "none";
+  const availability = state.latestState?.continuity?.availability || null;
+  const availabilityEntries = availability ? Object.values(availability) : [];
+  const onlineCount = availabilityEntries.length
+    ? availabilityEntries.filter((slot) => slot?.online !== false).length
+    : null;
+
+  return {
+    ok: true,
+    build: BUILD_ID,
+    booting: state.booting,
+    serverOnline: state.serverOnline,
+    isSending: state.isSending,
+    worldMessages: state.messages.length,
+    manifestation,
+    isInvisible: manifestation === "none",
+    tension: Number(state.latestState?.tension || 0),
+    onlineCount,
+    activePhoneThread: state.messagesApp.activeThread,
+    lastWorldMessage: summarizeMessageForConsole(state.messages[state.messages.length - 1] || null),
+  };
+}
+
+function exposeAiraConsoleApi() {
+  let watchTimer = null;
+  let watchCursor = state.messages.length;
+
+  function stopWatching() {
+    if (watchTimer) {
+      window.clearInterval(watchTimer);
+      watchTimer = null;
+    }
+  }
+
+  function selectAiraReply(items) {
+    const characterItems = items.filter((item) => item.type === "character");
+    if (!characterItems.length) return null;
+    return characterItems.find((item) => /aira/i.test(item.agent || "")) || characterItems[0];
+  }
+
+  const api = {
+    help() {
+      return {
+        ok: true,
+        methods: [
+          "AiraConsole.status()",
+          "AiraConsole.history(limit = 12)",
+          "AiraConsole.chat(text)",
+          "AiraConsole.chatAira(text)",
+          "AiraConsole.watch({ intervalMs, replayLast, onUpdate })",
+          "AiraConsole.watchAiraOnly({ intervalMs, replayLast, onUpdate })",
+          "AiraConsole.unwatch()",
+          "AiraConsole.setInput(text)",
+          "AiraConsole.reset()",
+        ],
+        tip: "Use await AiraConsole.chatAira('Hey Aira') then AiraConsole.watch().",
+      };
+    },
+    status() {
+      return getAiraConsoleStatus();
+    },
+    history(limit = 12) {
+      const safeLimit = Math.max(1, Math.min(Number(limit) || 12, 200));
+      return state.messages.slice(-safeLimit).map(summarizeMessageForConsole).filter(Boolean);
+    },
+    setInput(text = "") {
+      if (!elements.chatInput) {
+        return { ok: false, error: "Chat input not found." };
+      }
+      elements.chatInput.value = String(text);
+      autoResizeTextarea();
+      return { ok: true, value: elements.chatInput.value };
+    },
+    async chat(text) {
+      const prompt = String(text || "").trim();
+      if (!prompt) {
+        return { ok: false, error: "Provide text. Example: await AiraConsole.chat('Hey Aira')" };
+      }
+
+      const before = state.messages.length;
+      await sendMessage(prompt);
+      const delta = state.messages.slice(before).map(summarizeMessageForConsole).filter(Boolean);
+
+      return {
+        ok: true,
+        sent: prompt,
+        added: delta.length,
+        messages: delta,
+      };
+    },
+    async chatAira(text) {
+      const prompt = String(text || "").trim();
+      if (!prompt) {
+        return { ok: false, error: "Provide text. Example: await AiraConsole.chatAira('Hey Aira')" };
+      }
+
+      const result = await api.chat(prompt);
+      if (!result.ok) return result;
+
+      const bestReply = selectAiraReply(result.messages || []);
+      return {
+        ok: true,
+        sent: prompt,
+        reply: bestReply,
+        messages: result.messages || [],
+        note: bestReply
+          ? null
+          : "No character reply found yet. Try AiraConsole.watch() to catch delayed messages.",
+      };
+    },
+    watch(options = {}) {
+      const intervalMs = Math.max(350, Math.min(Number(options?.intervalMs) || 900, 30_000));
+      const replayLast = Math.max(0, Math.min(Number(options?.replayLast) || 0, 100));
+      const onUpdate = typeof options?.onUpdate === "function" ? options.onUpdate : null;
+
+      stopWatching();
+      watchCursor = Math.max(0, state.messages.length - replayLast);
+
+      watchTimer = window.setInterval(() => {
+        if (watchCursor >= state.messages.length) return;
+        const next = state.messages.slice(watchCursor).map(summarizeMessageForConsole).filter(Boolean);
+        watchCursor = state.messages.length;
+
+        if (onUpdate) {
+          onUpdate(next);
+          return;
+        }
+
+        for (const item of next) {
+          const who = item.agent ? `${item.agent}: ` : "";
+          console.log(`[AIRA] ${who}${item.text}`);
+        }
+      }, intervalMs);
+
+      return {
+        ok: true,
+        watching: true,
+        intervalMs,
+        replayed: replayLast,
+      };
+    },
+    watchAiraOnly(options = {}) {
+      const userOnUpdate = typeof options?.onUpdate === "function" ? options.onUpdate : null;
+      return api.watch({
+        ...options,
+        onUpdate(items) {
+          const filtered = (items || []).filter((item) => /aira/i.test(item?.agent || ""));
+          if (!filtered.length) return;
+
+          if (userOnUpdate) {
+            userOnUpdate(filtered);
+            return;
+          }
+
+          for (const item of filtered) {
+            console.log(`[AIRA:ONLY] ${item.agent || "Aira"}: ${item.text}`);
+          }
+        },
+      });
+    },
+    unwatch() {
+      const wasWatching = Boolean(watchTimer);
+      stopWatching();
+      return { ok: true, watching: false, wasWatching };
+    },
+    async reset() {
+      await resetChat();
+      return { ok: true, status: getAiraConsoleStatus() };
+    },
+  };
+
+  window.AiraConsole = api;
+  window.aira = api;
 }
 
 init();

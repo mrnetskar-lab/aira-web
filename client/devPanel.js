@@ -1,15 +1,43 @@
 export class AiraDevDrawer {
-  constructor({ getState, onReset }) {
+  constructor({ getState, onStateUpdate, onReset }) {
     this.getState = getState;
+    this.onStateUpdate = onStateUpdate;
     this.onReset = onReset;
     this.isOpen = false;
     this.pollTimer = null;
     this.root = null;
     this.tuning = null;
+    this._activeSliders = new Set();
+    this._pendingPatch = {};
+    this._patchDebounce = null;
+    this._relRendered = false;
 
     window.__AIRA_DEV_MODE__ = false;
   }
 
+  // ─── Character color map ──────────────────────────────────────────────────
+  _charColor(name) {
+    return { Lucy: "#c9a7ff", Sam: "#8eaef9", Angie: "#d7a65f" }[name] || "var(--subtext)";
+  }
+
+  // ─── Relationship stat definitions ────────────────────────────────────────
+  _REL_PARAMS = [
+    { key: "trust",               label: "trust"              },
+    { key: "attraction",          label: "attraction"         },
+    { key: "comfort",             label: "comfort"            },
+    { key: "attachment",          label: "attachment"         },
+    { key: "interest",            label: "interest"           },
+    { key: "romanticTension",     label: "romantic tension"   },
+    { key: "longing",             label: "longing"            },
+    { key: "jealousy",            label: "jealousy"           },
+    { key: "hurt",                label: "hurt"               },
+    { key: "avoidance",           label: "avoidance"          },
+    { key: "intimacyReadiness",   label: "intimacy ready"     },
+    { key: "exclusivityPressure", label: "exclusivity"        },
+    { key: "betrayalSensitivity", label: "betrayal sensitiv." },
+  ];
+
+  // ─── Mount ────────────────────────────────────────────────────────────────
   mount() {
     this.root = document.createElement("aside");
     this.root.className = "dev-drawer";
@@ -18,19 +46,22 @@ export class AiraDevDrawer {
     this.root.innerHTML = `
       <div class="dev-drawer__header">
         <div class="dev-drawer__title">AIRA Dev</div>
-        <button class="dev-drawer__close" type="button" aria-label="Close">&#x2715;</button>
+        <div class="dev-drawer__header-actions">
+          <button id="devTickBtn"  class="dev-btn dev-btn--sm" type="button">tick</button>
+          <button class="dev-drawer__close" type="button" aria-label="Close">&#x2715;</button>
+        </div>
       </div>
       <div class="dev-drawer__content">
+
+        <div class="dev-section-title">Engine Stats</div>
+        <div id="devStats" class="dev-stat-row"></div>
+
+        <div class="dev-section-title">State</div>
+        <div id="devStateSliders" class="dev-tuning"></div>
+
         <div class="dev-section-title">Tuning</div>
-        <div class="dev-tuning" id="devTuning">Loading&#x2026;</div>
-        <div class="dev-section-title">Engine State</div>
-        <div class="dev-grid" id="devGrid">
-          <div class="dev-card"><div class="dev-card__label">Status</div><div class="dev-card__value">Waiting&#x2026;</div></div>
-        </div>
-        <div class="dev-section-title">Aira</div>
-        <div class="dev-aira" id="devAira"></div>
-        <div class="dev-section-title">Relationships</div>
-        <div class="dev-grid" id="devRelGrid"></div>
+        <div id="devTuning" class="dev-tuning">Loading&#x2026;</div>
+
         <div class="dev-section-title">Emotion Override</div>
         <div class="dev-emotions" id="devEmotions">
           <button class="dev-emotion-btn" data-preset="neutral">neutral</button>
@@ -41,16 +72,26 @@ export class AiraDevDrawer {
           <button class="dev-emotion-btn" data-preset="angry">angry</button>
           <button class="dev-emotion-btn" data-preset="jealous">jealous</button>
         </div>
+
+        <div class="dev-section-title">Relationships</div>
+        <div id="devRelSection" class="dev-rel-section"></div>
+
+        <div class="dev-section-title">Aira GM</div>
+        <div id="devAiraSliders" class="dev-tuning"></div>
+        <div id="devAiraInfo" class="dev-aira"></div>
+
         <div class="dev-section-title">Camera</div>
         <div class="dev-camera" id="devCamera">
           <button id="devCaptureBtn" class="dev-btn" type="button">Capture scene</button>
           <div class="dev-camera__preview" id="devCameraPreview"></div>
         </div>
+
         <div class="dev-section-title">Actions</div>
         <div class="dev-actions" id="devActions">
-          <button id="devResetBtn" class="dev-btn" type="button">Reset chat</button>
+          <button id="devResetBtn"    class="dev-btn" type="button">Reset chat</button>
           <button id="devAiraPushBtn" class="dev-btn" type="button">+Presence</button>
         </div>
+
       </div>
     `;
 
@@ -60,6 +101,7 @@ export class AiraDevDrawer {
     this.root.querySelector("#devResetBtn").addEventListener("click", () => this.onReset?.());
     this.root.querySelector("#devAiraPushBtn").addEventListener("click", () => this._pushAiraPresence());
     this.root.querySelector("#devCaptureBtn").addEventListener("click", () => this._captureScene());
+    this.root.querySelector("#devTickBtn").addEventListener("click", () => this._tick());
 
     this.root.querySelectorAll(".dev-emotion-btn").forEach((btn) => {
       btn.addEventListener("click", () => this._setEmotion(btn.dataset.preset));
@@ -69,7 +111,234 @@ export class AiraDevDrawer {
       if (e.key === "§") { e.preventDefault(); this.toggle(); }
     });
 
+    this._renderStateSliders();
+    this._renderAiraSliders();
     this._loadTuning();
+  }
+
+  // ─── State sliders (tension, randomness) ─────────────────────────────────
+  _renderStateSliders() {
+    const container = this.root.querySelector("#devStateSliders");
+    if (!container) return;
+
+    const params = [
+      { key: "tension",    label: "Tension",    hint: "0=calm  1=max"      },
+      { key: "randomness", label: "Randomness", hint: "0=stable  1=chaotic" },
+    ];
+
+    container.innerHTML = params.map(({ key, label, hint }) => `
+      <div class="dev-tuning-row">
+        <div class="dev-tuning-label">
+          <span>${label}</span>
+          <span class="dev-tuning-hint">${hint}</span>
+        </div>
+        <div class="dev-tuning-control">
+          <input class="dev-slider dev-slider--state" type="range"
+            min="0" max="1" step="0.01" value="0"
+            data-state-key="${key}" />
+          <span class="dev-slider-val" id="stateVal_${key}">0.00</span>
+        </div>
+      </div>
+    `).join("");
+
+    container.querySelectorAll(".dev-slider--state").forEach((slider) => {
+      const k = slider.dataset.stateKey;
+      slider.addEventListener("pointerdown", () => this._activeSliders.add("state:" + k));
+      slider.addEventListener("pointerup",   () => setTimeout(() => this._activeSliders.delete("state:" + k), 2000));
+      slider.addEventListener("input", (e) => {
+        const val = Number(e.target.value);
+        const lbl = this.root.querySelector(`#stateVal_${k}`);
+        if (lbl) lbl.textContent = val.toFixed(2);
+        this._queueStatePatch({ [k]: val });
+      });
+    });
+  }
+
+  // ─── Aira sliders ─────────────────────────────────────────────────────────
+  _renderAiraSliders() {
+    const container = this.root.querySelector("#devAiraSliders");
+    if (!container) return;
+
+    const params = [
+      { ns: "aira",          key: "presenceLevel",  label: "Presence Level"  },
+      { ns: "aira",          key: "anomalyLevel",   label: "Anomaly Level"   },
+      { ns: "investigation", key: "awarenessLevel", label: "Awareness Level" },
+      { ns: "investigation", key: "suspicion",      label: "Suspicion"       },
+    ];
+
+    container.innerHTML = params.map(({ ns, key, label }) => `
+      <div class="dev-tuning-row">
+        <div class="dev-tuning-label">
+          <span>${label}</span>
+          <span class="dev-slider-val" id="airaVal_${ns}_${key}">—</span>
+        </div>
+        <div class="dev-tuning-control">
+          <input class="dev-slider dev-slider--aira" type="range"
+            min="0" max="1" step="0.01" value="0"
+            data-aira-ns="${ns}" data-aira-key="${key}" />
+        </div>
+      </div>
+    `).join("");
+
+    container.querySelectorAll(".dev-slider--aira").forEach((slider) => {
+      const id = `aira:${slider.dataset.airaNs}:${slider.dataset.airaKey}`;
+      slider.addEventListener("pointerdown", () => this._activeSliders.add(id));
+      slider.addEventListener("pointerup",   () => setTimeout(() => this._activeSliders.delete(id), 2000));
+      slider.addEventListener("input", (e) => {
+        const { airaNs: ns, airaKey: key } = e.target.dataset;
+        const val = Number(e.target.value);
+        const lbl = this.root.querySelector(`#airaVal_${ns}_${key}`);
+        if (lbl) lbl.textContent = val.toFixed(2);
+        this._queueStatePatch({ [ns]: { [key]: val } });
+      });
+    });
+  }
+
+  // ─── Relationship sliders (initial render) ────────────────────────────────
+  _renderRelSliders(state) {
+    const container = this.root.querySelector("#devRelSection");
+    if (!container) return;
+
+    const relationships = state?.relationships || {};
+    const muted = state?.mutedAgents || [];
+
+    container.innerHTML = Object.entries(relationships).map(([name, rel]) => {
+      const isMuted = muted.includes(name);
+      const color = this._charColor(name);
+
+      return `
+        <div class="dev-rel-card" data-char="${escapeHtml(name)}">
+          <div class="dev-rel-name">
+            <span style="color:${color}">${escapeHtml(name)}</span>
+            <button class="dev-mute-btn ${isMuted ? "is-muted" : ""}" data-agent="${escapeHtml(name)}">${isMuted ? "unmute" : "mute"}</button>
+          </div>
+          ${this._REL_PARAMS.map(({ key, label }) => {
+            const val = typeof rel[key] === "number" ? rel[key] : 0;
+            return `
+              <div class="dev-rel-slider-row">
+                <span class="dev-rel-row__label">${label}</span>
+                <input class="dev-slider dev-slider--rel" type="range"
+                  min="0" max="1" step="0.01" value="${val.toFixed(2)}"
+                  data-char="${escapeHtml(name)}" data-key="${key}"
+                  style="--slider-color:${color}" />
+                <span class="dev-slider-val" id="relVal_${name}_${key}">${val.toFixed(2)}</span>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      `;
+    }).join("");
+
+    container.querySelectorAll(".dev-slider--rel").forEach((slider) => {
+      const id = `rel:${slider.dataset.char}:${slider.dataset.key}`;
+      slider.addEventListener("pointerdown", () => this._activeSliders.add(id));
+      slider.addEventListener("pointerup",   () => setTimeout(() => this._activeSliders.delete(id), 2000));
+      slider.addEventListener("input", (e) => {
+        const { char, key } = e.target.dataset;
+        const val = Number(e.target.value);
+        const lbl = this.root.querySelector(`#relVal_${char}_${key}`);
+        if (lbl) lbl.textContent = val.toFixed(2);
+        this._queueStatePatch({ relationships: { [char]: { [key]: val } } });
+      });
+    });
+
+    container.querySelectorAll(".dev-mute-btn").forEach((btn) => {
+      btn.addEventListener("click", () =>
+        this._toggleMute(btn.dataset.agent, !btn.classList.contains("is-muted"))
+      );
+    });
+  }
+
+  // Update rel slider values from polled state (skip active sliders)
+  _updateRelSliders(state) {
+    const relationships = state?.relationships || {};
+    const muted = state?.mutedAgents || [];
+
+    for (const [name, rel] of Object.entries(relationships)) {
+      for (const { key } of this._REL_PARAMS) {
+        if (this._activeSliders.has(`rel:${name}:${key}`)) continue;
+        const slider = this.root.querySelector(`.dev-slider--rel[data-char="${name}"][data-key="${key}"]`);
+        const lbl    = this.root.querySelector(`#relVal_${name}_${key}`);
+        const val    = typeof rel[key] === "number" ? rel[key] : 0;
+        if (slider) slider.value = val.toFixed(2);
+        if (lbl)    lbl.textContent = val.toFixed(2);
+      }
+
+      // Sync mute button
+      const muteBtn = this.root.querySelector(`.dev-mute-btn[data-agent="${name}"]`);
+      if (muteBtn) {
+        const isMuted = muted.includes(name);
+        muteBtn.classList.toggle("is-muted", isMuted);
+        muteBtn.textContent = isMuted ? "unmute" : "mute";
+      }
+    }
+  }
+
+  // Update state sliders from polled state
+  _updateStateSliders(state) {
+    const fields = ["tension", "randomness"];
+    for (const k of fields) {
+      if (this._activeSliders.has("state:" + k)) continue;
+      const slider = this.root.querySelector(`.dev-slider--state[data-state-key="${k}"]`);
+      const lbl    = this.root.querySelector(`#stateVal_${k}`);
+      const val    = typeof state?.[k] === "number" ? state[k] : 0;
+      if (slider) slider.value = val.toFixed(2);
+      if (lbl)    lbl.textContent = val.toFixed(2);
+    }
+  }
+
+  // Update aira sliders from polled state
+  _updateAiraSliders(state) {
+    const params = [
+      { ns: "aira",          key: "presenceLevel"  },
+      { ns: "aira",          key: "anomalyLevel"   },
+      { ns: "investigation", key: "awarenessLevel" },
+      { ns: "investigation", key: "suspicion"      },
+    ];
+    for (const { ns, key } of params) {
+      const id  = `aira:${ns}:${key}`;
+      if (this._activeSliders.has(id)) continue;
+      const src = state?.[ns];
+      const val = typeof src?.[key] === "number" ? src[key] : 0;
+      const slider = this.root.querySelector(`.dev-slider--aira[data-aira-ns="${ns}"][data-aira-key="${key}"]`);
+      const lbl    = this.root.querySelector(`#airaVal_${ns}_${key}`);
+      if (slider) slider.value = val.toFixed(2);
+      if (lbl)    lbl.textContent = val.toFixed(2);
+    }
+  }
+
+  // ─── Patch queue (debounced, deep-merged) ─────────────────────────────────
+  _queueStatePatch(partial) {
+    this._pendingPatch = deepMerge(this._pendingPatch, partial);
+    if (this._patchDebounce) clearTimeout(this._patchDebounce);
+    this._patchDebounce = setTimeout(() => this._flushStatePatch(), 80);
+  }
+
+  async _flushStatePatch() {
+    const patch = this._pendingPatch;
+    this._pendingPatch = {};
+    try {
+      const res = await fetch("/api/ai/state/patch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      const data = await res.json();
+      if (data.ok && data.state && this.onStateUpdate) {
+        this.onStateUpdate(data.state);
+      }
+    } catch { /* silent */ }
+  }
+
+  // ─── API helpers ──────────────────────────────────────────────────────────
+  async _tick() {
+    try {
+      const res  = await fetch("/api/ai/tick", { method: "POST" });
+      const data = await res.json();
+      if (data.ok && data.response) {
+        window.dispatchEvent(new CustomEvent("aira:tick-response", { detail: data.response }));
+      }
+    } catch { /* silent */ }
   }
 
   async _pushAiraPresence() {
@@ -79,7 +348,7 @@ export class AiraDevDrawer {
   }
 
   async _captureScene() {
-    const btn = this.root.querySelector("#devCaptureBtn");
+    const btn     = this.root.querySelector("#devCaptureBtn");
     const preview = this.root.querySelector("#devCameraPreview");
     if (!btn || !preview) return;
 
@@ -88,7 +357,11 @@ export class AiraDevDrawer {
     preview.innerHTML = `<div class="dev-camera__status">Talking to DALL-E…</div>`;
 
     try {
-      const res = await fetch("/api/camera/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const res  = await fetch("/api/camera/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}"
+      });
       const data = await res.json();
       if (data.ok && data.shot?.path) {
         preview.innerHTML = `
@@ -121,7 +394,7 @@ export class AiraDevDrawer {
 
   async _loadTuning() {
     try {
-      const res = await fetch("/api/ai/tune");
+      const res  = await fetch("/api/ai/tune");
       const data = await res.json();
       if (data.ok) {
         this.tuning = data.tuning;
@@ -132,11 +405,8 @@ export class AiraDevDrawer {
 
   async _saveTuning(key, value) {
     this.tuning[key] = value;
-
-    // Expose client-side params to app.js
     if (!window.__AIRA_TUNING__) window.__AIRA_TUNING__ = {};
     window.__AIRA_TUNING__[key] = value;
-
     try {
       await fetch("/api/ai/tune", {
         method: "POST",
@@ -151,29 +421,33 @@ export class AiraDevDrawer {
     if (!container || !this.tuning) return;
 
     const params = [
-      { key: "responseLength",    label: "Response Length",    hint: "1=very short  5=cinematic" },
-      { key: "subtextFrequency",  label: "Subtext Frequency",  hint: "1=rare  5=always" },
-      { key: "secondaryChance",   label: "Secondary Speaker",  hint: "1=rare  5=often" },
-      { key: "temperature",       label: "AI Temperature",     hint: "1=predictable  5=chaotic" },
-      { key: "autoTalkFrequency", label: "Auto-Talk",          hint: "1=rare (120s)  5=often (25s)" },
-      { key: "typingSpeed",       label: "Typing Delay",       hint: "1=instant  5=slow" },
+      { key: "responseLength",    label: "Response Length",   hint: "1=very short  5=cinematic",    min: 1, max: 5,  step: 1 },
+      { key: "subtextFrequency",  label: "Subtext Frequency", hint: "1=rare  5=always",              min: 1, max: 5,  step: 1 },
+      { key: "secondaryChance",   label: "Secondary Speaker", hint: "1=rare  5=often",               min: 1, max: 5,  step: 1 },
+      { key: "temperature",       label: "AI Temperature",    hint: "1=predictable  5=chaotic",      min: 1, max: 5,  step: 1 },
+      { key: "autoTalkFrequency", label: "Auto-Talk",         hint: "1=rare (120s)  5=often (25s)",  min: 1, max: 5,  step: 1 },
+      { key: "typingSpeed",       label: "Typing Delay",      hint: "1=instant  5=slow",             min: 1, max: 5,  step: 1 },
+      { key: "languageIntensity", label: "Language Global",   hint: "0=clean  20=raw edge",          min: 0, max: 20, step: 1 },
+      { key: "languageLucy",      label: "Lucy Edge",         hint: "0=soft  20=sharp",              min: 0, max: 20, step: 1 },
+      { key: "languageSam",       label: "Sam Edge",          hint: "0=restrained  20=aggressive",   min: 0, max: 20, step: 1 },
+      { key: "languageAngie",     label: "Angie Edge",        hint: "0=light  20=volatile",          min: 0, max: 20, step: 1 },
     ];
 
-    container.innerHTML = params.map(({ key, label, hint }) => `
+    container.innerHTML = params.map(({ key, label, hint, min, max, step }) => `
       <div class="dev-tuning-row">
         <div class="dev-tuning-label">
           <span>${label}</span>
           <span class="dev-tuning-hint">${hint}</span>
         </div>
         <div class="dev-tuning-control">
-          <input
-            class="dev-slider"
-            type="range"
-            min="1" max="5" step="1"
+          <input class="dev-slider" type="range"
+            min="${min}" max="${max}" step="${step}"
             value="${this.tuning[key] ?? 3}"
-            data-key="${key}"
-          />
-          <span class="dev-slider-val" id="sliderVal_${key}">${this.tuning[key] ?? 3}</span>
+            data-key="${key}" />
+          <input class="dev-slider-num" type="number"
+            min="${min}" max="${max}" step="${step}"
+            value="${this.tuning[key] ?? 3}"
+            data-key="${key}" id="sliderNum_${key}" />
         </div>
       </div>
     `).join("");
@@ -182,16 +456,36 @@ export class AiraDevDrawer {
       slider.addEventListener("input", (e) => {
         const key = e.target.dataset.key;
         const val = Number(e.target.value);
-        const display = this.root.querySelector(`#sliderVal_${key}`);
-        if (display) display.textContent = val;
+        const num = this.root.querySelector(`#sliderNum_${key}`);
+        if (num) num.value = String(val);
+        this._saveTuning(key, val);
+      });
+    });
+
+    container.querySelectorAll(".dev-slider-num").forEach((numInput) => {
+      numInput.addEventListener("change", (e) => {
+        const key = e.target.dataset.key;
+        const val = Number(e.target.value);
+        if (!Number.isFinite(val)) return;
+        const slider = this.root.querySelector(`.dev-slider[data-key="${key}"]`);
+        if (slider) slider.value = String(val);
         this._saveTuning(key, val);
       });
     });
   }
 
-  toggle() {
-    this.isOpen ? this.close() : this.open();
+  async _toggleMute(name, mute) {
+    try {
+      await fetch("/api/ai/mute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, muted: mute }),
+      });
+    } catch { /* silent */ }
   }
+
+  // ─── Lifecycle ────────────────────────────────────────────────────────────
+  toggle() { this.isOpen ? this.close() : this.open(); }
 
   open() {
     this.isOpen = true;
@@ -220,139 +514,91 @@ export class AiraDevDrawer {
     if (this.pollTimer) { window.clearInterval(this.pollTimer); this.pollTimer = null; }
   }
 
+  // ─── Refresh (polls getState) ─────────────────────────────────────────────
   refresh() {
     const state = this.getState?.() || null;
-    const grid = this.root.querySelector("#devGrid");
-    const relGrid = this.root.querySelector("#devRelGrid");
 
-    if (!state) {
-      grid.innerHTML = `<div class="dev-card"><div class="dev-card__label">State</div><div class="dev-card__value">No state yet.</div></div>`;
-      return;
-    }
-
-    const aira = state.aira || {};
-    const investigation = state.investigation || {};
-    const tuning = state.tuning || {};
-
-    grid.innerHTML = `
-      <div class="dev-card">
-        <div class="dev-card__label">Turns</div>
-        <div class="dev-card__value">${safe(state.turnCount)}</div>
-      </div>
-      <div class="dev-card">
-        <div class="dev-card__label">Tension</div>
-        <div class="dev-card__value">${safeNum(state.tension)}</div>
-      </div>
-      <div class="dev-card">
-        <div class="dev-card__label">Avg Score</div>
-        <div class="dev-card__value">${safeNum(tuning.avgScore)}</div>
-      </div>
-    `;
-
-    // Aira GM section
-    const airaPanel = this.root.querySelector("#devAira");
-    if (airaPanel) {
-      const lp = state.airaLastPlay;
-      const lastPlay = lp ? `[${lp.type}] ${lp.instruction}` : "idle";
-      const profile = aira.interferenceProfile || {};
-      const clues = (investigation.cluesFound || []).length;
-      airaPanel.innerHTML = `
-        ${airaRelRow("presence",    aira.presenceLevel)}
-        ${airaRelRow("anomaly",     aira.anomalyLevel)}
-        ${airaRelRow("awareness",   investigation.awarenessLevel)}
-        ${airaRelRow("suspicion",   investigation.suspicion)}
-        <div class="dev-aira-row">
-          <span class="dev-rel-row__label">stage</span>
-          <span class="dev-rel-row__val">${safe(aira.manifestation)}</span>
-        </div>
-        <div class="dev-aira-row">
-          <span class="dev-rel-row__label">voice</span>
-          <span class="dev-rel-row__val">${aira.voiceUnlocked ? "unlocked" : "locked"}</span>
-        </div>
-        <div class="dev-aira-row">
-          <span class="dev-rel-row__label">clues</span>
-          <span class="dev-rel-row__val">${clues}</span>
-        </div>
-        <div class="dev-aira-row">
-          <span class="dev-rel-row__label">interference</span>
-          <span class="dev-rel-row__val">${[
-            profile.subtleRewriteUnlocked ? "rewrite" : null,
-            profile.contradictionUnlocked ? "contradict" : null,
-            profile.ghostMessageUnlocked  ? "ghost" : null,
-            profile.directInsertionUnlocked ? "direct" : null,
-          ].filter(Boolean).join(" · ") || "none"}</span>
-        </div>
-        <div class="dev-aira-play" id="devAiraPlay">last play: ${escapeHtml(lastPlay)}</div>
+    // ── Stats row
+    const statsEl = this.root.querySelector("#devStats");
+    if (statsEl && state) {
+      const tuning = state.tuning || {};
+      statsEl.innerHTML = `
+        <div class="dev-stat-card"><div class="dev-stat-card__label">turns</div><div class="dev-stat-card__val">${safe(state.turnCount)}</div></div>
+        <div class="dev-stat-card"><div class="dev-stat-card__label">avg score</div><div class="dev-stat-card__val">${safeNum(tuning.avgScore)}</div></div>
+        <div class="dev-stat-card"><div class="dev-stat-card__label">last event</div><div class="dev-stat-card__val">${escapeHtml(state.lastEvent || "—")}</div></div>
       `;
     }
 
-    const relationships = state.relationships || {};
-    const muted = state.mutedAgents || [];
-    relGrid.innerHTML = Object.entries(relationships).map(([name, rel]) => {
-      const isMuted = muted.includes(name);
-      return `
-      <div class="dev-rel-card">
-        <div class="dev-rel-name">
-          ${name}
-          <button class="dev-mute-btn ${isMuted ? 'is-muted' : ''}" data-agent="${escapeHtml(name)}">${isMuted ? 'unmute' : 'mute'}</button>
-        </div>
-        ${relRow("trust",           rel.trust)}
-        ${relRow("attraction",      rel.attraction)}
-        ${relRow("comfort",         rel.comfort)}
-        ${relRow("attachment",      rel.attachment)}
-        ${relRow("romanticTension", rel.romanticTension)}
-        ${relRow("longing",         rel.longing)}
-        ${relRow("jealousy",        rel.jealousy)}
-        ${relRow("hurt",            rel.hurt)}
-        ${relRow("avoidance",       rel.avoidance)}
-      </div>
-    `;
-    }).join("");
+    // ── State sliders (tension, randomness)
+    if (state) this._updateStateSliders(state);
 
-    relGrid.querySelectorAll(".dev-mute-btn").forEach((btn) => {
-      btn.addEventListener("click", () => this._toggleMute(btn.dataset.agent, !btn.classList.contains("is-muted")));
-    });
-  }
+    // ── Aira sliders
+    if (state) this._updateAiraSliders(state);
 
-  async _toggleMute(name, mute) {
-    try {
-      await fetch("/api/ai/mute", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, muted: mute }),
-      });
-    } catch { /* silent */ }
+    // ── Relationships
+    if (!this._relRendered && state?.relationships) {
+      this._renderRelSliders(state);
+      this._relRendered = true;
+    } else if (state?.relationships) {
+      this._updateRelSliders(state);
+    }
+
+    // ── Aira GM info
+    const airaInfo = this.root.querySelector("#devAiraInfo");
+    if (airaInfo && state) {
+      const aira = state.aira || {};
+      const inv  = state.investigation || {};
+      const lp   = state.airaLastPlay;
+      const lastPlay = lp ? `[${lp.type}] ${lp.instruction}` : "idle";
+      const profile  = aira.interferenceProfile || {};
+      const clues    = (inv.cluesFound || []).length;
+
+      airaInfo.innerHTML = `
+        ${airaInfoRow("stage",     aira.manifestation  || "—")}
+        ${airaInfoRow("voice",     aira.voiceUnlocked ? "unlocked" : "locked")}
+        ${airaInfoRow("clues",     clues)}
+        ${airaInfoRow("interference", [
+          profile.subtleRewriteUnlocked  ? "rewrite"   : null,
+          profile.contradictionUnlocked  ? "contradict" : null,
+          profile.ghostMessageUnlocked   ? "ghost"     : null,
+          profile.directInsertionUnlocked ? "direct"   : null,
+        ].filter(Boolean).join(" · ") || "none")}
+        <div class="dev-aira-play">last play: ${escapeHtml(lastPlay)}</div>
+      `;
+    }
   }
 }
 
-function safe(v) { return v ?? "—"; }
+// ─── Utilities ───────────────────────────────────────────────────────────────
+
+function safe(v)    { return v ?? "—"; }
 function safeNum(v) { return typeof v === "number" ? v.toFixed(3) : "—"; }
+
 function escapeHtml(v) {
-  return String(v ?? "—").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  return String(v ?? "—")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
-function airaRelRow(label, value) {
-  const num = typeof value === "number" ? value : null;
-  const pct = num !== null ? Math.round(num * 100) : null;
-  const fill = pct !== null ? `<div class="dev-rel-bar__fill" style="width:${pct}%"></div>` : "";
+function airaInfoRow(label, value) {
   return `
     <div class="dev-aira-row">
       <span class="dev-rel-row__label">${label}</span>
-      <div class="dev-rel-bar">${fill}</div>
-      <span class="dev-rel-row__val">${num !== null ? num.toFixed(2) : "—"}</span>
+      <span class="dev-rel-row__val">${escapeHtml(String(value))}</span>
     </div>
   `;
 }
 
-function relRow(label, value) {
-  const num = typeof value === "number" ? value : null;
-  const pct = num !== null ? Math.round(num * 100) : null;
-  const fill = pct !== null ? `<div class="dev-rel-bar__fill" style="width:${pct}%"></div>` : "";
-  return `
-    <div class="dev-rel-row">
-      <span class="dev-rel-row__label">${label}</span>
-      <div class="dev-rel-bar">${fill}</div>
-      <span class="dev-rel-row__val">${num !== null ? num.toFixed(2) : "—"}</span>
-    </div>
-  `;
+/** Shallow-then-deep merge for nested patch objects */
+function deepMerge(target, source) {
+  const out = { ...target };
+  for (const [k, v] of Object.entries(source)) {
+    if (v !== null && typeof v === "object" && !Array.isArray(v)) {
+      out[k] = deepMerge(typeof out[k] === "object" ? out[k] : {}, v);
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
 }

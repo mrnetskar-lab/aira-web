@@ -3,3 +3,8 @@ node_modules
 AIRA_.env
 AIRA_.gitignore
 Aira_web_V3
+images/*.png
+images/*.jpg
+images/*.jpeg
+images/*.webp
+images/*.safetensors

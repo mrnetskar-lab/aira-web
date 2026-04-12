@@ -1,7 +1,7 @@
 import path from 'path';
 
 const ALLOWED_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif']);
-const SAFE_FILENAME_RE = /^[A-Za-z0-9._ -]+$/;
+const MAX_FILENAME_LENGTH = 255;
 
 export function resolveSafeImagePath(imagesDir, rawFilename) {
   if (typeof rawFilename !== 'string' || rawFilename.length === 0) {
@@ -20,7 +20,12 @@ export function resolveSafeImagePath(imagesDir, rawFilename) {
     return null;
   }
 
-  if (!SAFE_FILENAME_RE.test(decoded)) {
+  if (decoded.length > MAX_FILENAME_LENGTH) {
+    return null;
+  }
+
+  // Reject control characters/newlines while allowing common filename punctuation.
+  if (/[^\x20-\x7E]/.test(decoded) || /[\r\n]/.test(decoded)) {
     return null;
   }
 

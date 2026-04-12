@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import http from 'http';
 import https from 'https';
 import { fileURLToPath } from 'url';
 import { ensureOpenAI } from './openaiClient.js';
@@ -11,15 +12,36 @@ if (!fs.existsSync(IMAGES_DIR)) {
   fs.mkdirSync(IMAGES_DIR, { recursive: true });
 }
 
-// ─── Prompt builder ───────────────────────────────────────────────────────────
+// ─── ComfyUI config ───────────────────────────────────────────────────────────
 
-const CHARACTER_LOOKS = {
+const COMFYUI_HOST = '127.0.0.1';
+const COMFYUI_PORT = 8188;
+// Update this to match the exact filename in ComfyUI/models/checkpoints/
+const SD_MODEL = 'realisticVisionV60B1_v51HyperVAE.safetensors';
+
+// ─── Character & Style Tables ─────────────────────────────────────────────────
+
+const CHARACTER_LOOKS_SD = {
+  Lucy:  'young woman, dark hair, quiet watchful eyes, simple clothing, calm expression',
+  Sam:   'young woman, sharp features, guarded look, brown hair, practical clothing',
+  Angie: 'young woman, expressive face, lighter hair, warm energy',
+};
+
+const CHARACTER_LOOKS_DALLE = {
   Lucy:  'a young woman with dark hair and quiet, watchful eyes, dressed simply, calm expression',
   Sam:   'a young woman with sharp features and a guarded look, brown hair, dressed practically',
   Angie: 'a young woman with an expressive face, lighter hair, warm but slightly chaotic energy',
 };
 
-const MANIFESTATION_HINTS = {
+const MANIFESTATION_HINTS_SD = {
+  none:    '',
+  hint:    'faint reflection in glass barely perceptible at edge of frame',
+  shadow:  'dark shape in background not quite a person',
+  figure:  'partially visible figure out of focus watching from distance',
+  watcher: 'distinct still figure in background clearly watching',
+};
+
+const MANIFESTATION_HINTS_DALLE = {
   none:    '',
   hint:    'A faint reflection in glass. Something barely perceptible at the edge of frame.',
   shadow:  'A dark shape visible in the background. Not quite a person. Present but undefined.',
@@ -31,12 +53,21 @@ const ATMOSPHERE_STYLES = {
   calm:    'soft natural lighting, muted palette, quiet domestic interior, cinematic still',
   warm:    'warm golden hour light, intimate framing, slightly soft focus',
   tense:   'harsh shadows, cool blue tones, high contrast, unsettling stillness',
-  charged: 'dramatic side lighting, low lamplight, intense charged atmosphere, close framing, barely-contained tension between two people',
-  heavy:   'overcast grey light, low contrast, emotional weight, slow-cinema look',
+  charged: 'dramatic side lighting, low lamplight, intense charged atmosphere, close framing',
+  heavy:   'overcast grey light, low contrast, emotional weight, slow cinema',
   hostile: 'cold harsh light, sharp shadows, confrontational framing',
 };
 
-const BEAT_HINTS = {
+const BEAT_HINTS_SD = {
+  intimacy: 'two women close together, faces almost touching, electricity between them, one hand barely grazing the other',
+  warmth:   'two women side by side, soft golden light, quiet moment of closeness',
+  jealousy: 'one woman watching the other from across the room, jaw tight, dark unspoken emotion',
+  rupture:  'distance between the figures, something just been said, gulf between them',
+  repair:   'one figure reaching toward the other tentatively, quiet forgiveness',
+  rising:   'charged silence, two women facing each other in low light, on the edge of something',
+};
+
+const BEAT_HINTS_DALLE = {
   intimacy: [
     'Two figures close together, faces almost touching. Electricity in the space between them. One hand barely grazing the other.',
     'A woman leaning in, lips parted, eyes half-closed. The other figure very still. The moment before something happens.',
@@ -65,78 +96,333 @@ const BEAT_HINTS = {
   ],
 };
 
-export function buildCameraPrompt(state) {
-  const aira      = state?.aira || {};
-  const emotion   = state?.emotionOverride;
-  const tension   = state?.tension || 0;
-  const relationships = state?.relationships || {};
+const SD_NEGATIVE_PROMPT = [
+  '(man:2.0), (men:2.0), (male:2.0), (boy:2.0), (guy:2.0), (gentleman:2.0), masculine, stubble, beard, mustache',
+  '(children:1.8), (child:1.8), (kid:1.8)',
+  '(old:1.3), (elderly:1.3), vintage clothing, period costume, historical setting, 1950s, 1960s, 1970s, 1980s',
+  'anime, cartoon, illustration, painting, drawing, sketch, 3d render, cgi, computer graphics',
+  'watermark, text, caption, subtitle, logo, ui overlay, phone screen, hud, interface',
+  'nsfw, explicit, nude, nudity',
+  'ugly, deformed, bad anatomy, extra limbs, missing limbs, extra fingers, missing fingers, mutated hands',
+  'blurry, out of focus, low quality, jpeg artifacts, overexposed, underexposed',
+].join(', ');
 
+// ─── Shared helpers ───────────────────────────────────────────────────────────
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function normalizeTension(rawTension) {
+  const t = Number.isFinite(rawTension) ? rawTension : 0;
+  return t > 1 ? clamp(t / 10, 0, 1) : clamp(t, 0, 1);
+}
+
+function pickDominantAttention(attention) {
+  if (!attention || typeof attention !== 'object') return null;
+  const entries = Object.entries(attention).filter(([, v]) => typeof v === 'number');
+  if (!entries.length) return null;
+  entries.sort((a, b) => b[1] - a[1]);
+  return entries[0][0] || null;
+}
+
+function resolveCast(state) {
+  const relationships = state?.relationships || {};
   const present = Object.keys(relationships).filter(
     (name) => (relationships[name]?.trust ?? 0) > 0
   );
+  return present.length > 0 ? present : ['Lucy'];
+}
+
+// ─── SD Prompt Builder ────────────────────────────────────────────────────────
+
+function buildSDPrompt(state) {
+  const aira             = state?.aira || {};
+  const emotion          = state?.emotionOverride;
+  const tension          = normalizeTension(state?.tension);
+  const dominantAttention = pickDominantAttention(state?.attention);
+  const castNames        = resolveCast(state);
 
   const atmosphere = emotion?.atmosphere ||
     (tension > 0.6 ? 'tense' : tension > 0.3 ? 'charged' : 'calm');
-
   const atmoStyle = ATMOSPHERE_STYLES[atmosphere] || ATMOSPHERE_STYLES.calm;
 
-  const characterDescs = present.length > 0
-    ? present.map((name) => CHARACTER_LOOKS[name] || `a young woman named ${name}`).join(' and ')
-    : 'a young woman, alone';
+  const characterDescs = castNames
+    .map((name) => CHARACTER_LOOKS_SD[name] || `young woman mid-twenties named ${name}`)
+    .join(', ');
 
-  const manifestation = aira.manifestation || 'none';
-  const airaHint = MANIFESTATION_HINTS[manifestation] || '';
+  const airaHint = MANIFESTATION_HINTS_SD[aira.manifestation || 'none'] || '';
 
-  const beat     = emotion?.beat || (tension > 0.6 ? 'tension' : 'calm');
-  const beatPool = BEAT_HINTS[beat];
+  const beat = emotion?.beat || (tension > 0.7 ? 'rising' : tension > 0.45 ? 'jealousy' : 'warmth');
+  const beatHint = BEAT_HINTS_SD[beat] || '';
+
+  const attentionHint = dominantAttention ? `focus on ${dominantAttention}` : '';
+
+  const chargedBeat = ['intimacy', 'warmth', 'jealousy', 'rising'].includes(beat);
+  const filmTags = chargedBeat
+    ? '35mm film, f/1.8, shallow depth of field, film grain, analog photography, sensual, tasteful'
+    : '35mm film, f/2.0, shallow depth of field, film grain, analog photography';
+
+  return [
+    'cinematic still photograph, contemporary setting, present day',
+    'medium shot, full upper body visible, environment visible in background',
+    '(woman only:1.5), (female only:1.5), no men, no males',
+    characterDescs,
+    atmoStyle,
+    'bright natural light, well-lit scene, airy lighting',
+    beatHint,
+    airaHint,
+    attentionHint,
+    filmTags,
+    'HAZEL, BIG ROUND BOOBS',
+    'photorealistic, masterpiece, best quality, detailed skin texture',
+    'sofia coppola aesthetic, wong kar-wai inspired, quiet realism',
+  ].filter(Boolean).join(', ');
+}
+
+// ─── DALL-E Prompt Builder ────────────────────────────────────────────────────
+
+export function buildCameraPrompt(state) {
+  const aira             = state?.aira || {};
+  const emotion          = state?.emotionOverride;
+  const tension          = normalizeTension(state?.tension);
+  const dominantAttention = pickDominantAttention(state?.attention);
+  const castNames        = resolveCast(state);
+
+  const atmosphere = emotion?.atmosphere ||
+    (tension > 0.6 ? 'tense' : tension > 0.3 ? 'charged' : 'calm');
+  const atmoStyle = ATMOSPHERE_STYLES[atmosphere] || ATMOSPHERE_STYLES.calm;
+
+  const characterDescs = castNames
+    .map((name) => CHARACTER_LOOKS_DALLE[name] || `a young woman in her mid-twenties named ${name}`)
+    .join(' and ');
+
+  const airaHint = MANIFESTATION_HINTS_DALLE[aira.manifestation || 'none'] || '';
+
+  const beat = emotion?.beat || (tension > 0.7 ? 'rising' : tension > 0.45 ? 'jealousy' : 'warmth');
+  const beatPool = BEAT_HINTS_DALLE[beat];
   const beatHint = beatPool ? beatPool[Math.floor(Math.random() * beatPool.length)] : '';
 
   const chargedBeat = ['intimacy', 'warmth', 'jealousy', 'rising'].includes(beat);
 
+  const castLock = castNames.length === 1
+    ? `The only subject is one young woman in her mid-twenties. No men. No children. No other people.`
+    : `All subjects are young women in their mid-twenties. No men. No children. No other people.`;
+
+  const attentionHint = dominantAttention ? `Visual focus on ${dominantAttention}.` : '';
+
   return [
-    `Cinematic still photograph.`,
+    `Cinematic still photograph. Contemporary setting, present day.`,
+    castLock,
     `${characterDescs}.`,
     atmoStyle + '.',
+    attentionHint,
     beatHint,
     airaHint,
+    `No text, captions, logos, watermarks, UI overlays, or phone screens.`,
     chargedBeat
-      ? `Sensual but tasteful. Implied intimacy. No explicit nudity. Shot on 35mm film. Film grain. Shallow depth of field.`
-      : `No text. No UI. No phone screens. Shot on 35mm film. Film grain. Shallow depth of field.`,
-    `Style: quiet, realistic, cinematic. Not anime. Not illustrated.`,
+      ? `Sensual but tasteful. Implied intimacy only. No explicit nudity. Shot on 35mm film, f/1.8, shallow depth of field, natural film grain.`
+      : `Shot on 35mm film, f/2.0, shallow depth of field, natural film grain.`,
+    `Photographic style inspired by Sofia Coppola and Wong Kar-wai. Quiet, realistic, grounded. Not illustrated. Not anime. Not CGI.`,
   ].filter(Boolean).join(' ');
 }
 
-// ─── Core generator ───────────────────────────────────────────────────────────
+// ─── ComfyUI Workflow ─────────────────────────────────────────────────────────
 
-export async function generateCameraShot({ state, customPrompt } = {}) {
-  const openai = ensureOpenAI();
-  const prompt = customPrompt || buildCameraPrompt(state);
+function buildComfyWorkflow(positivePrompt) {
+  const seed = Math.floor(Math.random() * 2147483647);
+  return {
+    "3": {
+      "inputs": {
+        "seed": seed,
+        "steps": 35,
+        "cfg": 7,
+        "sampler_name": "dpm_2m",
+        "scheduler": "karras",
+        "denoise": 1,
+        "model":         ["10", 0],
+        "positive":      ["6", 0],
+        "negative":      ["7", 0],
+        "latent_image":  ["5", 0],
+      },
+      "class_type": "KSampler",
+    },
+    "4": {
+      "inputs": { "ckpt_name": SD_MODEL },
+      "class_type": "CheckpointLoaderSimple",
+    },
+    "5": {
+      "inputs": { "width": 768, "height": 512, "batch_size": 1 },
+      "class_type": "EmptyLatentImage",
+    },
+    "6": {
+      "inputs": { "text": positivePrompt, "clip": ["10", 1] },
+      "class_type": "CLIPTextEncode",
+    },
+    "7": {
+      "inputs": { "text": SD_NEGATIVE_PROMPT, "clip": ["10", 1] },
+      "class_type": "CLIPTextEncode",
+    },
+    "8": {
+      "inputs": { "samples": ["3", 0], "vae": ["4", 2] },
+      "class_type": "VAEDecode",
+    },
+    "9": {
+      "inputs": { "filename_prefix": "aira", "images": ["8", 0] },
+      "class_type": "SaveImage",
+    },
+    "10": {
+      "inputs": {
+        "lora_name": "Hazel V13.safetensors",
+        "strength_model": 0.8,
+        "strength_clip": 0.8,
+        "model": ["4", 0],
+        "clip":  ["4", 1],
+      },
+      "class_type": "LoraLoader",
+    },
+  };
+}
 
-  const response = await openai.images.generate({
-    model: 'dall-e-3',
-    prompt,
-    n: 1,
-    size: '1024x1024',
-    quality: 'standard',
-    response_format: 'url',
+// ─── ComfyUI HTTP helpers ─────────────────────────────────────────────────────
+
+function comfyRequest(method, urlPath, body) {
+  return new Promise((resolve, reject) => {
+    const bodyStr = body ? JSON.stringify(body) : null;
+    const req = http.request(
+      {
+        hostname: COMFYUI_HOST,
+        port: COMFYUI_PORT,
+        path: urlPath,
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(bodyStr ? { 'Content-Length': Buffer.byteLength(bodyStr) } : {}),
+        },
+      },
+      (res) => {
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          try { resolve(JSON.parse(data)); } catch { resolve(data); }
+        });
+      }
+    );
+    req.on('error', reject);
+    if (bodyStr) req.write(bodyStr);
+    req.end();
   });
+}
+
+async function isComfyUIAvailable() {
+  try {
+    await comfyRequest('GET', '/system_stats');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function pollUntilDone(promptId, maxWaitMs = 120000) {
+  const start = Date.now();
+  while (Date.now() - start < maxWaitMs) {
+    await new Promise((r) => setTimeout(r, 1200));
+    const history = await comfyRequest('GET', `/history/${promptId}`);
+    if (history[promptId]?.outputs) return history[promptId].outputs;
+  }
+  throw new Error('ComfyUI generation timed out');
+}
+
+function downloadComfyImage(filename, subfolder, type, destPath) {
+  const query = new URLSearchParams({ filename, subfolder: subfolder || '', type: type || 'output' });
+  return new Promise((resolve, reject) => {
+    const file = fs.createWriteStream(destPath);
+    http.get(`http://${COMFYUI_HOST}:${COMFYUI_PORT}/view?${query}`, (res) => {
+      res.pipe(file);
+      file.on('finish', () => file.close(resolve));
+    }).on('error', (err) => {
+      fs.unlink(destPath, () => {});
+      reject(err);
+    });
+  });
+}
+
+// ─── Core generators ──────────────────────────────────────────────────────────
+
+async function generateViaComfyUI(state) {
+  const positivePrompt = buildSDPrompt(state);
+  const workflow       = buildComfyWorkflow(positivePrompt);
+
+  const { prompt_id } = await comfyRequest('POST', '/prompt', {
+    prompt: workflow,
+    client_id: 'aira',
+  });
+  if (!prompt_id) throw new Error('ComfyUI did not return a prompt_id');
+
+  const outputs = await pollUntilDone(prompt_id);
+
+  const imageData = Object.values(outputs)
+    .flatMap((node) => node.images || [])
+    .find((img) => img.type === 'output');
+
+  if (!imageData) throw new Error('No image in ComfyUI output');
+
+  const filename = `shot_${Date.now()}.png`;
+  const filepath  = path.join(IMAGES_DIR, filename);
+  await downloadComfyImage(imageData.filename, imageData.subfolder, imageData.type, filepath);
+
+  return {
+    filename,
+    path: `/images/${filename}`,
+    prompt: positivePrompt,
+    revisedPrompt: positivePrompt,
+    usedFallback: false,
+    generatedAt: new Date().toISOString(),
+    backend: 'comfyui',
+  };
+}
+
+async function generateViaDallE(state, customPrompt) {
+  const openai    = ensureOpenAI();
+  const prompt    = customPrompt || buildCameraPrompt(state);
+  let usedPrompt  = prompt;
+  let usedFallback = false;
+  let response;
+
+  try {
+    response = await requestDallEImage(openai, prompt);
+  } catch (error) {
+    if (!isLikelySafetyBlock(error)) throw error;
+    const fallbackPrompt = buildSafeFallbackPrompt(state);
+    response = await requestDallEImage(openai, fallbackPrompt);
+    usedPrompt   = fallbackPrompt;
+    usedFallback = true;
+  }
 
   const tempUrl = response.data?.[0]?.url;
   if (!tempUrl) throw new Error('No image URL returned from OpenAI');
 
-  const revisedPrompt = response.data?.[0]?.revised_prompt || prompt;
-
-  const filename = `shot_${Date.now()}.png`;
-  const filepath = path.join(IMAGES_DIR, filename);
+  const revisedPrompt = response.data?.[0]?.revised_prompt || usedPrompt;
+  const filename      = `shot_${Date.now()}.png`;
+  const filepath      = path.join(IMAGES_DIR, filename);
   await downloadFile(tempUrl, filepath);
 
   return {
     filename,
     path: `/images/${filename}`,
-    prompt,
+    prompt: usedPrompt,
     revisedPrompt,
+    usedFallback,
     generatedAt: new Date().toISOString(),
+    backend: 'dalle3',
   };
+}
+
+export async function generateCameraShot({ state, customPrompt } = {}) {
+  if (!customPrompt && await isComfyUIAvailable()) {
+    return generateViaComfyUI(state);
+  }
+  return generateViaDallE(state, customPrompt);
 }
 
 // ─── List shots from disk ─────────────────────────────────────────────────────
@@ -147,10 +433,7 @@ export function listShots() {
     .filter((f) => /\.(png|jpg|jpeg|webp)$/i.test(f))
     .sort()
     .reverse()
-    .map((filename) => ({
-      filename,
-      path: `/images/${filename}`,
-    }));
+    .map((filename) => ({ filename, path: `/images/${filename}` }));
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -166,4 +449,50 @@ function downloadFile(url, destPath) {
       reject(err);
     });
   });
+}
+
+function requestDallEImage(openai, prompt) {
+  return openai.images.generate({
+    model: 'dall-e-3',
+    prompt,
+    n: 1,
+    size: '1792x1024',
+    quality: 'hd',
+    response_format: 'url',
+  });
+}
+
+function isLikelySafetyBlock(error) {
+  const message = String(error?.message || '').toLowerCase();
+  const code    = String(error?.code || '').toLowerCase();
+  const type    = String(error?.type || '').toLowerCase();
+  return (
+    message.includes('safety') ||
+    message.includes('content policy') ||
+    message.includes('policy') ||
+    message.includes('moderation') ||
+    message.includes('rejected') ||
+    code.includes('content') ||
+    type.includes('content')
+  );
+}
+
+function buildSafeFallbackPrompt(state) {
+  const castNames = resolveCast(state);
+  const characterDescs = castNames
+    .map((name) => CHARACTER_LOOKS_DALLE[name] || `a young woman in her mid-twenties named ${name}`)
+    .join(' and ');
+  const castLock = castNames.length === 1
+    ? `The only subject is one young woman in her mid-twenties. No men. No children. No other people.`
+    : `All subjects are young women in their mid-twenties. No men. No children. No other people.`;
+  return [
+    'Cinematic still photograph. Contemporary setting, present day.',
+    castLock,
+    `${characterDescs}.`,
+    'Soft natural lighting, muted palette, quiet domestic interior.',
+    'Calm scene, subtle emotion, no physical intimacy.',
+    'No text, captions, logos, UI overlays, or phone screens.',
+    'Shot on 35mm film, f/2.0, shallow depth of field, natural film grain.',
+    'Photographic style: quiet, realistic, grounded. Not anime. Not illustrated. Not CGI.',
+  ].join(' ');
 }

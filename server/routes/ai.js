@@ -103,4 +103,39 @@ router.post('/reset', (_req, res) => {
   res.json({ ok: true });
 });
 
+router.post('/state/patch', (req, res) => {
+  const patch = req.body || {};
+  const state = engine.orchestrator.state;
+
+  const clamp01 = (v) => Math.max(0, Math.min(1, Number(v)));
+
+  if (typeof patch.tension    === 'number') state.tension    = clamp01(patch.tension);
+  if (typeof patch.randomness === 'number') state.randomness = clamp01(patch.randomness);
+
+  if (patch.relationships) {
+    for (const [name, fields] of Object.entries(patch.relationships)) {
+      if (!state.relationships[name]) continue;
+      for (const [key, val] of Object.entries(fields)) {
+        if (typeof val === 'number') state.relationships[name][key] = clamp01(val);
+      }
+    }
+  }
+
+  if (patch.aira) {
+    if (!state.aira) state.aira = {};
+    for (const [key, val] of Object.entries(patch.aira)) {
+      if (typeof val === 'number') state.aira[key] = clamp01(val);
+    }
+  }
+
+  if (patch.investigation) {
+    if (!state.investigation) state.investigation = {};
+    for (const [key, val] of Object.entries(patch.investigation)) {
+      if (typeof val === 'number') state.investigation[key] = clamp01(val);
+    }
+  }
+
+  res.json({ ok: true, state: engine.orchestrator.getState() });
+});
+
 export default router;
