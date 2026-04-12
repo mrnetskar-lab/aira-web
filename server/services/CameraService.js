@@ -156,16 +156,18 @@ export async function generateCameraShot({ state, customPrompt } = {}) {
 export async function listShots() {
   try {
     const cld = ensureCloudinary();
-    const result = await cld.search
-      .expression('folder:aira')
-      .sort_by('created_at', 'desc')
-      .max_results(50)
-      .execute();
+    const result = await cld.api.resources({
+      type:        'upload',
+      prefix:      'aira/',
+      max_results: 200,
+    });
 
-    return (result.resources || []).map((r) => ({
-      filename: r.public_id,
-      path:     r.secure_url,
-    }));
+    return (result.resources || [])
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      .map((r) => ({
+        filename: r.public_id,
+        path:     r.secure_url,
+      }));
   } catch {
     return [];
   }
