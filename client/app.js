@@ -89,6 +89,12 @@ const elements = {
   phoneGrabber: document.getElementById("phoneGrabber"),
   phoneHome: document.getElementById("phoneHome"),
   phoneAppLayer: document.getElementById("phoneAppLayer"),
+  phoneGalleryApp: document.getElementById("phoneGalleryApp"),
+  phoneGalleryGrid: document.getElementById("phoneGalleryGrid"),
+  phoneGalleryBackBtn: document.getElementById("phoneGalleryBackBtn"),
+  phoneGalleryLightbox: document.getElementById("phoneGalleryLightbox"),
+  phoneGalleryLightboxImg: document.getElementById("phoneGalleryLightboxImg"),
+  phoneGalleryLightboxClose: document.getElementById("phoneGalleryLightboxClose"),
   phoneMessagesApp: document.getElementById("phoneMessagesApp"),
   phoneMessagesList: document.getElementById("phoneMessagesList"),
   phoneMessagesThread: document.getElementById("phoneMessagesThread"),
@@ -300,6 +306,12 @@ function openPhoneApp(appName) {
     }
     renderPhoneThreads();
   }
+
+  if (appName === "gallery") {
+    elements.phoneGalleryApp?.removeAttribute("hidden");
+    renderPhoneGallery();
+  }
+
   syncPresenceModes();
 }
 
@@ -308,8 +320,42 @@ function closePhoneApp() {
 
   elements.phoneAppLayer?.setAttribute("hidden", "");
   elements.phoneMessagesApp?.setAttribute("hidden", "");
+  elements.phoneGalleryApp?.setAttribute("hidden", "");
   elements.phoneHome?.removeAttribute("hidden");
   syncPresenceModes();
+}
+
+async function renderPhoneGallery() {
+  const grid = elements.phoneGalleryGrid;
+  if (!grid) return;
+
+  grid.innerHTML = `<div class="phone-gallery__loading">Loading…</div>`;
+
+  try {
+    const res = await fetch("/api/camera/list");
+    const data = await res.json();
+    const shots = data.shots || [];
+
+    if (!shots.length) {
+      grid.innerHTML = `<div class="phone-gallery__empty">No photos yet.<br>Use the dev panel to capture a scene.</div>`;
+      return;
+    }
+
+    grid.innerHTML = shots.map((s) => `
+      <div class="phone-gallery__item" data-src="${escapeHtml(s.path)}">
+        <img src="${escapeHtml(s.path)}" alt="" loading="lazy" />
+      </div>
+    `).join("");
+
+    grid.querySelectorAll(".phone-gallery__item").forEach((item) => {
+      item.addEventListener("click", () => {
+        if (elements.phoneGalleryLightboxImg) elements.phoneGalleryLightboxImg.src = item.dataset.src;
+        elements.phoneGalleryLightbox?.classList.remove("hidden");
+      });
+    });
+  } catch {
+    grid.innerHTML = `<div class="phone-gallery__empty">Could not load photos.</div>`;
+  }
 }
 
 function closePhoneThread() {
@@ -894,6 +940,24 @@ function bindEvents() {
     withTransitionLock(() => {
       closePhoneApp();
     }, 220);
+  });
+
+  elements.phoneGalleryBackBtn?.addEventListener("click", () => {
+    withTransitionLock(() => {
+      closePhoneApp();
+    }, 220);
+  });
+
+  elements.phoneGalleryLightboxClose?.addEventListener("click", () => {
+    elements.phoneGalleryLightbox?.classList.add("hidden");
+    if (elements.phoneGalleryLightboxImg) elements.phoneGalleryLightboxImg.src = "";
+  });
+
+  elements.phoneGalleryLightbox?.addEventListener("click", (e) => {
+    if (e.target === e.currentTarget) {
+      elements.phoneGalleryLightbox.classList.add("hidden");
+      if (elements.phoneGalleryLightboxImg) elements.phoneGalleryLightboxImg.src = "";
+    }
   });
 
   elements.phoneThreadBackBtn?.addEventListener("click", () => {

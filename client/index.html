@@ -161,6 +161,16 @@
                     <span class="phone-app-icon__glyph phone-app-icon__glyph--soft" aria-hidden="true"></span>
                     <span class="phone-app-icon__label">Void</span>
                   </button>
+
+                  <button
+                    class="phone-app-icon"
+                    type="button"
+                    data-phone-app="gallery"
+                    aria-label="Photos"
+                  >
+                    <span class="phone-app-icon__glyph phone-app-icon__glyph--gallery" aria-hidden="true"></span>
+                    <span class="phone-app-icon__label">Photos</span>
+                  </button>
                 </div>
 
                 <div class="phone-dock" aria-label="Phone dock">
@@ -193,6 +203,31 @@
               aria-label="Phone app"
               hidden
             >
+              <section
+                id="phoneGalleryApp"
+                class="phone-app-screen phone-app-screen--gallery"
+                aria-label="Photos"
+                hidden
+              >
+                <header class="phone-app-topbar">
+                  <button
+                    id="phoneGalleryBackBtn"
+                    class="phone-app-back"
+                    type="button"
+                    aria-label="Back"
+                  >
+                    <span aria-hidden="true">&#8592;</span>
+                  </button>
+                  <div class="phone-app-topbar__title">Photos</div>
+                  <div class="phone-app-topbar__spacer" aria-hidden="true"></div>
+                </header>
+                <div id="phoneGalleryGrid" class="phone-gallery-grid"></div>
+                <div id="phoneGalleryLightbox" class="phone-gallery-lightbox hidden">
+                  <button id="phoneGalleryLightboxClose" class="phone-gallery-lightbox__close">&#x2715;</button>
+                  <img id="phoneGalleryLightboxImg" src="" alt="" />
+                </div>
+              </section>
+
               <section
                 id="phoneMessagesApp"
                 class="phone-app-screen phone-app-screen--messages"

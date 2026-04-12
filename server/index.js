@@ -66,6 +66,11 @@ const imagesDir = path.resolve(__dirname, '../images');
 if (!fs.existsSync(imagesDir)) fs.mkdirSync(imagesDir, { recursive: true });
 app.use('/images', express.static(imagesDir));
 
+// Serve gallery page
+const galleryDir = path.resolve(__dirname, '../gallery');
+if (!fs.existsSync(galleryDir)) fs.mkdirSync(galleryDir, { recursive: true });
+app.use('/gallery', express.static(galleryDir));
+
 app.use(express.static(clientDir));
 
 app.get('/health', (_req, res) => {

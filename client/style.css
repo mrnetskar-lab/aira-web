@@ -1008,6 +1008,16 @@ body.is-phone-open .phone-handle {
   opacity: 0.9;
 }
 
+.phone-app-icon__glyph--gallery::before {
+  content: "";
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  display: block;
+  background: linear-gradient(135deg, #b48ef7 0%, #7c6af0 50%, #4a90d9 100%);
+  opacity: 0.9;
+}
+
 .phone-app-icon__label {
   font-size: 0.74rem;
   line-height: 1.2;
@@ -1184,6 +1194,83 @@ body.is-phone-app-open .phone-home {
   background: rgba(200, 168, 106, 0.08);
   outline: none;
 }
+
+/* ─── Phone Gallery ─────────────────────────────────────────────────── */
+
+.phone-gallery-grid {
+  position: absolute;
+  inset: 0;
+  top: 56px; /* below topbar */
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  background: #000;
+  align-content: start;
+}
+
+.phone-gallery__item {
+  aspect-ratio: 1;
+  overflow: hidden;
+  cursor: pointer;
+  background: #111;
+}
+
+.phone-gallery__item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.25s ease;
+}
+
+.phone-gallery__item:active img {
+  transform: scale(0.95);
+}
+
+.phone-gallery__loading,
+.phone-gallery__empty {
+  grid-column: 1 / -1;
+  padding: 48px 20px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: rgba(255,255,255,0.25);
+  line-height: 1.6;
+}
+
+.phone-gallery-lightbox {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  padding: 16px;
+}
+
+.phone-gallery-lightbox.hidden { display: none; }
+
+.phone-gallery-lightbox img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 6px;
+  object-fit: contain;
+}
+
+.phone-gallery-lightbox__close {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  font-size: 1.2rem;
+  color: rgba(255,255,255,0.5);
+  background: none;
+  border: none;
+  cursor: pointer;
+  z-index: 11;
+}
+
+/* ─────────────────────────────────────────────────────────────────────── */
 
 .phone-messages-list {
   position: absolute;
