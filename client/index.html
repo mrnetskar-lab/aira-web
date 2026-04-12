@@ -9,97 +9,45 @@
     <title>AIRA</title>
     <meta
       name="description"
-      content="AIRA Web — a living AI room in a minimal AIRA OS shell."
+      content="AIRA Web — Messenger and World Chat."
     />
     <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <link rel="stylesheet" href="./style.css?v=20260412c" />
+    <meta name="build" content="20260412-b" />
+    <link rel="stylesheet" href="./style.css?v=20260412-b" />
   </head>
   <body>
     <div class="app-shell">
       <main class="screen-stack">
-        <section id="homeView" class="view view--active" aria-label="AIRA home">
-          <div class="home-view">
-<div class="home-mark" aria-hidden="true"></div>
-
-            <div
-              id="homeRing"
-              class="home-ring"
-              aria-label="AIRA home"
-            >
-              <div class="home-ring__content">
-                <span class="home-ring__eyebrow">AIRA</span>
-
-                <nav class="home-ring__nav" aria-label="AIRA apps">
-                  <button
-                    class="ring-link ring-link--primary"
-                    type="button"
-                    data-open-app="chat"
-                  >
-                    Chat
-                  </button>
-                  <button
-                    class="ring-link"
-                    type="button"
-                    data-open-app="messages"
-                  >
-                    Messages
-                  </button>
-                  <button
-                    class="ring-link"
-                    type="button"
-                    data-open-app="gallery"
-                  >
-                    Gallery
-                  </button>
-                  <button
-                    class="ring-link"
-                    type="button"
-                    data-open-app="clues"
-                  >
-                    Clues
-                  </button>
-                  <button
-                    class="ring-link"
-                    type="button"
-                    data-open-app="settings"
-                  >
-                    Settings
-                  </button>
-                </nav>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section id="chatView" class="view" aria-label="AIRA chat">
-          <div class="chat-view">
-            <header class="topbar">
+        <section id="chatView" class="view view--active" aria-label="World Chat Main Stage">
+          <div class="chat-view chat-view--world">
+            <header class="topbar topbar--minimal">
               <button
                 id="backToHomeBtn"
-                class="icon-button"
+                class="arrow-button"
                 type="button"
-                aria-label="Back to home"
+                aria-label="Back"
               >
                 <span aria-hidden="true">&#8592;</span>
               </button>
 
-              <div class="topbar-brand" aria-label="AIRA">
+              <div class="topbar-brand" aria-label="World Chat">
                 <span class="topbar-brand__ring" aria-hidden="true"></span>
-                <span class="topbar-brand__text">AIRA</span>
+                <span class="topbar-brand__text">World Chat</span>
               </div>
 
-              <button
-                id="resetChatBtn"
-                class="icon-button icon-button--ghost"
-                type="button"
-                aria-label="Reset chat"
-                title="Reset chat"
-              >
-                <span aria-hidden="true">&#x27F3;</span>
-              </button>
+              <div class="topbar-spacer" aria-hidden="true"></div>
             </header>
+
+            <div
+              id="worldPresenceState"
+              class="world-presence-state"
+              aria-live="polite"
+              hidden
+            >
+              You stepped out of the room.
+            </div>
 
             <div id="chatMessages" class="chat-messages" aria-live="polite">
               <div class="message-row message-row--system">
@@ -122,80 +70,192 @@
                 Send
               </button>
             </form>
+
+            <div
+              id="phoneHandle"
+              class="phone-handle"
+              role="button"
+              aria-label="Open phone"
+              aria-expanded="false"
+              tabindex="0"
+            >
+              <span class="phone-handle__bar" aria-hidden="true"></span>
+            </div>
           </div>
         </section>
 
-        <section id="appView" class="view" aria-label="App">
-          <div class="placeholder-view">
-            <header id="appTopbar" class="topbar">
-              <button
-                id="backFromAppBtn"
-                class="icon-button"
-                type="button"
-                aria-label="Back to home"
-              >
-                <span aria-hidden="true">&#8592;</span>
-              </button>
+        <section
+          id="phoneView"
+          class="phone-view"
+          aria-label="Phone"
+          aria-hidden="true"
+        >
+          <div id="phoneScrim" class="phone-view__scrim"></div>
 
-              <div class="topbar-brand" aria-label="AIRA">
-                <span class="topbar-brand__ring" aria-hidden="true"></span>
-                <span id="placeholderTitle" class="topbar-brand__text">
-                  Messages
-                </span>
-              </div>
+          <div id="phoneSheet" class="phone-sheet">
+            <div
+              id="phoneGrabber"
+              class="phone-sheet__grabber"
+              aria-hidden="true"
+            >
+              <span class="phone-sheet__grabber-bar"></span>
+            </div>
 
-              <div class="topbar-spacer" aria-hidden="true"></div>
-            </header>
+            <div id="phoneHome" class="phone-home" aria-label="Phone home">
+              <div class="phone-home__wallpaper"></div>
+              <div class="phone-home__veil"></div>
 
-            <div id="appPlaceholderBody" class="placeholder-body">
-              <div class="placeholder-card">
-                <div class="placeholder-card__ring" aria-hidden="true"></div>
-                <h2 id="placeholderHeading">Messages</h2>
-                <p id="placeholderText">
-                  This space is waiting quietly.
-                </p>
+              <div class="phone-home__content">
+                <div class="phone-home__top">
+                  <div class="phone-home__time">21:47</div>
+                  <div class="phone-home__status-pill">Private</div>
+                </div>
+
+                <div class="phone-home__hero">
+                  <div class="phone-home__hero-card">
+                    <div class="phone-home__hero-label">AIRA</div>
+                    <div class="phone-home__hero-title">Phone</div>
+                    <div class="phone-home__hero-text">
+                      You stepped out of the room.
+                    </div>
+                  </div>
+                </div>
+
+                <div class="phone-home__apps">
+                  <button
+                    class="phone-app-icon"
+                    type="button"
+                    data-phone-app="messages"
+                    aria-label="Open Messenger"
+                  >
+                    <span class="phone-app-icon__glyph phone-app-icon__glyph--ring" aria-hidden="true"></span>
+                    <span class="phone-app-icon__label">Messenger</span>
+                  </button>
+
+                  <button
+                    class="phone-app-icon"
+                    type="button"
+                    data-phone-app="notes"
+                    aria-label="Notes"
+                  >
+                    <span class="phone-app-icon__glyph phone-app-icon__glyph--soft" aria-hidden="true"></span>
+                    <span class="phone-app-icon__label">Notes</span>
+                  </button>
+
+                  <button
+                    class="phone-app-icon"
+                    type="button"
+                    data-phone-app="calls"
+                    aria-label="Calls"
+                  >
+                    <span class="phone-app-icon__glyph phone-app-icon__glyph--soft" aria-hidden="true"></span>
+                    <span class="phone-app-icon__label">Calls</span>
+                  </button>
+
+                  <button
+                    class="phone-app-icon"
+                    type="button"
+                    data-phone-app="void"
+                    aria-label="Void"
+                  >
+                    <span class="phone-app-icon__glyph phone-app-icon__glyph--soft" aria-hidden="true"></span>
+                    <span class="phone-app-icon__label">Void</span>
+                  </button>
+                </div>
+
+                <div class="phone-dock" aria-label="Phone dock">
+                  <button
+                    class="phone-dock__app"
+                    type="button"
+                    data-phone-app="messages"
+                    aria-label="Open Messenger"
+                  >
+                    <span class="phone-dock__icon" aria-hidden="true">
+                      <span class="phone-dock__ring"></span>
+                    </span>
+                  </button>
+
+                  <button
+                    class="phone-dock__app"
+                    type="button"
+                    data-phone-app="notes"
+                    aria-label="Notes"
+                  >
+                    <span class="phone-dock__icon phone-dock__icon--soft" aria-hidden="true"></span>
+                  </button>
+                </div>
               </div>
             </div>
 
-            <div id="messagesApp" class="messages-app" hidden>
-              <div id="messagesList" class="messages-list"></div>
-
-              <div id="messagesThread" class="messages-thread hidden">
-                <header class="messages-topbar">
+            <div
+              id="phoneAppLayer"
+              class="phone-app-layer"
+              aria-label="Phone app"
+              hidden
+            >
+              <section
+                id="phoneMessagesApp"
+                class="phone-app-screen phone-app-screen--messages"
+                aria-label="Messenger"
+                hidden
+              >
+                <header class="phone-app-topbar">
                   <button
-                    id="messagesBackBtn"
-                    class="messages-back"
+                    id="phoneMessagesBackBtn"
+                    class="phone-app-back"
                     type="button"
-                    aria-label="Back to messages"
+                    aria-label="Back"
                   >
                     <span aria-hidden="true">&#8592;</span>
                   </button>
 
-                  <span id="messagesTitle" class="messages-title"></span>
+                  <div class="phone-app-topbar__title">Messenger</div>
 
-                  <div class="messages-topbar-spacer" aria-hidden="true"></div>
+                  <div class="phone-app-topbar__spacer" aria-hidden="true"></div>
                 </header>
 
-                <div id="messagesLog" class="messages-log" aria-live="polite"></div>
+                <div id="phoneMessagesList" class="phone-messages-list"></div>
 
-                <form id="messagesForm" class="messages-composer" autocomplete="off">
-                  <input
-                    id="messagesInput"
-                    class="messages-input"
-                    type="text"
-                    placeholder="Message..."
-                    maxlength="600"
-                    autocomplete="off"
-                  />
-                  <button class="messages-send" type="submit">Send</button>
-                </form>
-              </div>
+                <div id="phoneMessagesThread" class="phone-messages-thread hidden">
+                  <header class="phone-thread-topbar">
+                    <button
+                      id="phoneThreadBackBtn"
+                      class="phone-app-back"
+                      type="button"
+                      aria-label="Back to inbox"
+                    >
+                      <span aria-hidden="true">&#8592;</span>
+                    </button>
+
+                    <div class="phone-thread-title-wrap">
+                      <div id="phoneMessagesTitle" class="phone-thread-title"></div>
+                      <div class="phone-thread-subtitle">Private thread</div>
+                    </div>
+
+                    <div class="phone-app-topbar__spacer" aria-hidden="true"></div>
+                  </header>
+
+                  <div id="phoneMessagesLog" class="phone-messages-log" aria-live="polite"></div>
+
+                  <form id="phoneMessagesForm" class="phone-messages-composer" autocomplete="off">
+                    <input
+                      id="phoneMessagesInput"
+                      class="phone-messages-input"
+                      type="text"
+                      placeholder="Message..."
+                      maxlength="600"
+                      autocomplete="off"
+                    />
+                    <button class="phone-messages-send" type="submit">Send</button>
+                  </form>
+                </div>
+              </section>
             </div>
           </div>
         </section>
       </main>
     </div>
 
-    <script type="module" src="./app.js?v=20260412c"></script>
+    <script type="module" src="./app.js?v=20260412-b"></script>
   </body>
 </html>

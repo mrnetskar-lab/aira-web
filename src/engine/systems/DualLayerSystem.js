@@ -1,14 +1,24 @@
+const SUBTEXT_CHANCE = [0, 0.1, 0.3, 0.6, 0.82, 1.0]; // index 1–5
+
 export class DualLayerSystem {
-  constructor() {
-    this.thoughtChance = 0.5;
+  constructor(tuning) {
+    this.tuning = tuning || { subtextFrequency: 3 };
     this.thoughtDelay = 400;
   }
 
+  get thoughtChance() {
+    return SUBTEXT_CHANCE[this.tuning.subtextFrequency] ?? 0.6;
+  }
+
+  syncTuning(tuning) {
+    this.tuning = tuning;
+  }
+
   apply(responses, state) {
-    const chance =
-      state.tension > 0.5
-        ? Math.min(0.9, this.thoughtChance + state.tension * 0.3)
-        : this.thoughtChance;
+    const base = this.thoughtChance;
+    const chance = state.tension > 0.5
+      ? Math.min(1.0, base + state.tension * 0.2)
+      : base;
 
     return responses.map((response) => ({
       ...response,
@@ -18,6 +28,6 @@ export class DualLayerSystem {
   }
 
   setThoughtChance(value) {
-    this.thoughtChance = Math.max(0, Math.min(1, value));
+    this.tuning.subtextFrequency = Math.round(value * 5);
   }
 }

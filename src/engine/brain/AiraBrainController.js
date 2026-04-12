@@ -1,8 +1,13 @@
-import { CHARACTER_PROFILES } from './characterProfiles.js';
+import { CHARACTER_NAME_BY_ID, CHARACTER_PROFILES } from './characterProfiles.js';
 import { CharacterAIService } from '../services/CharacterAIService.js';
 
+const SECONDARY_BASE = [0, 0.05, 0.12, 0.22, 0.35, 0.5];  // index 1–5
+const TEMPERATURE    = [0,  0.5,  0.7,  0.9,  1.1, 1.3];  // index 1–5
+const RESPONSE_MODE  = [null, 'brief', 'brief', 'normal', 'normal', 'cinematic']; // index 1–5
+
 export class AiraBrainController {
-  constructor() {
+  constructor(tuning) {
+    this.tuning = tuning || { secondaryChance: 3, temperature: 3, responseLength: 3 };
     this.brains = new Map();
     this.aiService = new CharacterAIService();
 
@@ -12,10 +17,11 @@ export class AiraBrainController {
   }
 
   register(name, profile) {
-    this.brains.set(name, {
-      name,
-      personality: profile
-    });
+    this.brains.set(name, { name, personality: profile });
+  }
+
+  syncTuning(tuning) {
+    this.tuning = tuning;
   }
 
   async process(input, context) {
@@ -24,16 +30,20 @@ export class AiraBrainController {
 
     const responses = [];
 
+    const temperature = TEMPERATURE[this.tuning.temperature] ?? 0.9;
+    const forcedMode = RESPONSE_MODE[this.tuning.responseLength] || null;
+
     if (plan.primary) {
       const primary = await this.aiService.generate({
         characterName: plan.primary.name,
         personality: plan.primary.personality,
         input,
+        temperature,
         context: {
           ...context,
           conversation: {
             ...context.conversation,
-            responseMode: plan.primaryMode || context.conversation?.responseMode || 'brief'
+            responseMode: forcedMode || plan.primaryMode || context.conversation?.responseMode || 'brief'
           },
           sceneFlow: {
             role: 'primary',
@@ -61,6 +71,7 @@ export class AiraBrainController {
         characterName: plan.secondary.name,
         personality: plan.secondary.personality,
         input,
+        temperature,
         context: {
           ...context,
           conversation: {
@@ -115,20 +126,25 @@ export class AiraBrainController {
     // DM thread — always use the thread's character as the speaker
     const threadId = context?.active_app?.threadId;
     if (context?.active_app?.type === 'messages' && threadId) {
-      const threadName = threadId.charAt(0).toUpperCase() + threadId.slice(1);
-      const match = candidates.find((brain) => brain.name === threadName);
-      if (match) return match;
+      const mappedName = CHARACTER_NAME_BY_ID[threadId] || null;
+      if (mappedName) {
+        const matchById = candidates.find((brain) => brain.name === mappedName);
+        if (matchById) return matchById;
+      }
+
+      const matchByName = candidates.find((brain) => brain.name.toLowerCase() === String(threadId).toLowerCase());
+      if (matchByName) return matchByName;
     }
 
-    if (/\b(lucy)\b/.test(lowerInput)) {
+    if (/\b(lucy|north|c1)\b/.test(lowerInput)) {
       return candidates.find((brain) => brain.name === 'Lucy') || candidates[0];
     }
 
-    if (/\b(sam)\b/.test(lowerInput)) {
+    if (/\b(sam|vale|c2)\b/.test(lowerInput)) {
       return candidates.find((brain) => brain.name === 'Sam') || candidates[0];
     }
 
-    if (/\b(angie)\b/.test(lowerInput)) {
+    if (/\b(angie|mira|c3)\b/.test(lowerInput)) {
       return candidates.find((brain) => brain.name === 'Angie') || candidates[0];
     }
 
@@ -147,14 +163,15 @@ export class AiraBrainController {
     const others = candidates.filter((brain) => brain.name !== primary.name);
     if (!others.length) return null;
 
-    let chance = 0.18;
+    const baseChance = SECONDARY_BASE[this.tuning.secondaryChance] ?? 0.22;
+    let chance = baseChance;
 
     if (emotionalBeat === 'intimacy' || emotionalBeat === 'rupture') {
-      chance = 0.42;
+      chance = Math.min(0.7, baseChance * 2.2);
     } else if (tension > 0.65) {
-      chance = 0.36;
+      chance = Math.min(0.6, baseChance * 1.8);
     } else if (/\b(lucy|sam|angie)\b/.test(lowerInput)) {
-      chance = 0.28;
+      chance = Math.min(0.5, baseChance * 1.4);
     }
 
     if (Math.random() > chance) {

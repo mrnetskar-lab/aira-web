@@ -12,15 +12,26 @@ import { NullAvatarBridge } from './bridges/NullAvatarBridge.js';
 import { AiraInterferenceSystem } from './systems/AiraInterferenceSystem.js';
 import { RelationshipContinuitySystem } from './systems/RelationshipContinuitySystem.js';
 
+export const DEFAULT_TUNING = {
+  responseLength:      3,  // 1–5 → word cap per mode
+  subtextFrequency:    3,  // 1–5 → thoughtChance
+  secondaryChance:     3,  // 1–5 → base secondary speaker probability
+  temperature:         3,  // 1–5 → AI model temperature
+  autoTalkFrequency:   3,  // 1–5 → idle timeout (client reads via /tune GET)
+  typingSpeed:         3,  // 1–5 → typing delay multiplier (client reads)
+};
+
 export function createEngine() {
-  const brain = new AiraBrainController();
+  const tuning = { ...DEFAULT_TUNING };
+
+  const brain = new AiraBrainController(tuning);
   const gm = new SimpleGM();
   const observer = new AiraObserver();
   const memory = new MemorySystem();
   const emotion = new EmotionSystem();
   const focus = new FocusSystem();
   const avatarManager = new NullAvatarBridge();
-  const dualLayer = new DualLayerSystem();
+  const dualLayer = new DualLayerSystem(tuning);
   const explicitMode = new ExplicitMode();
   const interference = new AiraInterferenceSystem();
   const continuity = new RelationshipContinuitySystem();
@@ -38,14 +49,27 @@ export function createEngine() {
     dualLayer,
     explicitMode,
     interference,
-    continuity
+    continuity,
+    tuning
   });
+
+  function tune(patch) {
+    for (const [key, val] of Object.entries(patch)) {
+      if (key in tuning && typeof val === 'number') {
+        tuning[key] = Math.min(5, Math.max(1, val));
+      }
+    }
+    dualLayer.syncTuning(tuning);
+    brain.syncTuning(tuning);
+  }
 
   return {
     orchestrator,
     observer,
     patchWriter,
     memory,
-    focus
+    focus,
+    tuning,
+    tune
   };
 }

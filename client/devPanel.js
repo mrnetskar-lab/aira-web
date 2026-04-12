@@ -5,6 +5,7 @@ export class AiraDevDrawer {
     this.isOpen = false;
     this.pollTimer = null;
     this.root = null;
+    this.tuning = null;
 
     window.__AIRA_DEV_MODE__ = false;
   }
@@ -17,38 +18,135 @@ export class AiraDevDrawer {
     this.root.innerHTML = `
       <div class="dev-drawer__header">
         <div class="dev-drawer__title">AIRA Dev</div>
-        <button class="dev-drawer__close" type="button" aria-label="Close dev drawer">&#x2715;</button>
+        <button class="dev-drawer__close" type="button" aria-label="Close">&#x2715;</button>
       </div>
       <div class="dev-drawer__content">
+        <div class="dev-section-title">Tuning</div>
+        <div class="dev-tuning" id="devTuning">Loading&#x2026;</div>
+        <div class="dev-section-title">Engine State</div>
         <div class="dev-grid" id="devGrid">
-          <div class="dev-card">
-            <div class="dev-card__label">Status</div>
-            <div class="dev-card__value">Waiting&#x2026;</div>
-          </div>
+          <div class="dev-card"><div class="dev-card__label">Status</div><div class="dev-card__value">Waiting&#x2026;</div></div>
+        </div>
+        <div class="dev-section-title">Relationships</div>
+        <div class="dev-grid" id="devRelGrid"></div>
+        <div class="dev-section-title">Emotion Override</div>
+        <div class="dev-emotions" id="devEmotions">
+          <button class="dev-emotion-btn" data-preset="neutral">neutral</button>
+          <button class="dev-emotion-btn" data-preset="happy">happy</button>
+          <button class="dev-emotion-btn" data-preset="charged">charged</button>
+          <button class="dev-emotion-btn" data-preset="tension">tension</button>
+          <button class="dev-emotion-btn" data-preset="sad">sad</button>
+          <button class="dev-emotion-btn" data-preset="angry">angry</button>
+          <button class="dev-emotion-btn" data-preset="jealous">jealous</button>
+        </div>
+        <div class="dev-section-title">Actions</div>
+        <div class="dev-actions" id="devActions">
+          <button id="devResetBtn" class="dev-btn" type="button">Reset chat</button>
         </div>
       </div>
     `;
 
     document.body.appendChild(this.root);
 
-    this.root
-      .querySelector(".dev-drawer__close")
-      .addEventListener("click", () => this.close());
+    this.root.querySelector(".dev-drawer__close").addEventListener("click", () => this.close());
+    this.root.querySelector("#devResetBtn").addEventListener("click", () => this.onReset?.());
 
-    window.addEventListener("keydown", (event) => {
-      if (event.key === "§") {
-        event.preventDefault();
-        this.toggle();
+    this.root.querySelectorAll(".dev-emotion-btn").forEach((btn) => {
+      btn.addEventListener("click", () => this._setEmotion(btn.dataset.preset));
+    });
+
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "§") { e.preventDefault(); this.toggle(); }
+    });
+
+    this._loadTuning();
+  }
+
+  async _setEmotion(preset) {
+    this.root.querySelectorAll(".dev-emotion-btn").forEach((b) => {
+      b.classList.toggle("is-active", b.dataset.preset === preset);
+    });
+    try {
+      await fetch("/api/ai/emotion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ preset }),
+      });
+    } catch { /* silent */ }
+  }
+
+  async _loadTuning() {
+    try {
+      const res = await fetch("/api/ai/tune");
+      const data = await res.json();
+      if (data.ok) {
+        this.tuning = data.tuning;
+        this._renderTuning();
       }
+    } catch { /* silent */ }
+  }
+
+  async _saveTuning(key, value) {
+    this.tuning[key] = value;
+
+    // Expose client-side params to app.js
+    if (!window.__AIRA_TUNING__) window.__AIRA_TUNING__ = {};
+    window.__AIRA_TUNING__[key] = value;
+
+    try {
+      await fetch("/api/ai/tune", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [key]: value }),
+      });
+    } catch { /* silent */ }
+  }
+
+  _renderTuning() {
+    const container = this.root.querySelector("#devTuning");
+    if (!container || !this.tuning) return;
+
+    const params = [
+      { key: "responseLength",    label: "Response Length",    hint: "1=very short  5=cinematic" },
+      { key: "subtextFrequency",  label: "Subtext Frequency",  hint: "1=rare  5=always" },
+      { key: "secondaryChance",   label: "Secondary Speaker",  hint: "1=rare  5=often" },
+      { key: "temperature",       label: "AI Temperature",     hint: "1=predictable  5=chaotic" },
+      { key: "autoTalkFrequency", label: "Auto-Talk",          hint: "1=rare (120s)  5=often (25s)" },
+      { key: "typingSpeed",       label: "Typing Delay",       hint: "1=instant  5=slow" },
+    ];
+
+    container.innerHTML = params.map(({ key, label, hint }) => `
+      <div class="dev-tuning-row">
+        <div class="dev-tuning-label">
+          <span>${label}</span>
+          <span class="dev-tuning-hint">${hint}</span>
+        </div>
+        <div class="dev-tuning-control">
+          <input
+            class="dev-slider"
+            type="range"
+            min="1" max="5" step="1"
+            value="${this.tuning[key] ?? 3}"
+            data-key="${key}"
+          />
+          <span class="dev-slider-val" id="sliderVal_${key}">${this.tuning[key] ?? 3}</span>
+        </div>
+      </div>
+    `).join("");
+
+    container.querySelectorAll(".dev-slider").forEach((slider) => {
+      slider.addEventListener("input", (e) => {
+        const key = e.target.dataset.key;
+        const val = Number(e.target.value);
+        const display = this.root.querySelector(`#sliderVal_${key}`);
+        if (display) display.textContent = val;
+        this._saveTuning(key, val);
+      });
     });
   }
 
   toggle() {
-    if (this.isOpen) {
-      this.close();
-      return;
-    }
-    this.open();
+    this.isOpen ? this.close() : this.open();
   }
 
   open() {
@@ -56,6 +154,7 @@ export class AiraDevDrawer {
     window.__AIRA_DEV_MODE__ = true;
     this.root.classList.add("is-open");
     this.root.setAttribute("aria-hidden", "false");
+    this._loadTuning();
     this.refresh();
     this.startPolling();
   }
@@ -70,32 +169,25 @@ export class AiraDevDrawer {
 
   startPolling() {
     this.stopPolling();
-    this.pollTimer = window.setInterval(() => this.refresh(), 1000);
+    this.pollTimer = window.setInterval(() => this.refresh(), 1500);
   }
 
   stopPolling() {
-    if (this.pollTimer) {
-      window.clearInterval(this.pollTimer);
-      this.pollTimer = null;
-    }
+    if (this.pollTimer) { window.clearInterval(this.pollTimer); this.pollTimer = null; }
   }
 
   refresh() {
     const state = this.getState?.() || null;
     const grid = this.root.querySelector("#devGrid");
+    const relGrid = this.root.querySelector("#devRelGrid");
 
     if (!state) {
-      grid.innerHTML = `
-        <div class="dev-card">
-          <div class="dev-card__label">State</div>
-          <div class="dev-card__value">No state loaded yet.</div>
-        </div>
-      `;
+      grid.innerHTML = `<div class="dev-card"><div class="dev-card__label">State</div><div class="dev-card__value">No state yet.</div></div>`;
       return;
     }
 
-    const relationships = state.relationships || {};
     const aira = state.aira || {};
+    const tuning = state.tuning || {};
 
     grid.innerHTML = `
       <div class="dev-card">
@@ -104,58 +196,64 @@ export class AiraDevDrawer {
       </div>
       <div class="dev-card">
         <div class="dev-card__label">Tension</div>
-        <div class="dev-card__value">${safeNumber(state.tension)}</div>
+        <div class="dev-card__value">${safeNum(state.tension)}</div>
+      </div>
+      <div class="dev-card">
+        <div class="dev-card__label">Avg Score</div>
+        <div class="dev-card__value">${safeNum(tuning.avgScore)}</div>
+      </div>
+      <div class="dev-card">
+        <div class="dev-card__label">Presence</div>
+        <div class="dev-card__value">${safeNum(aira.presenceLevel)}</div>
       </div>
       <div class="dev-card">
         <div class="dev-card__label">Manifestation</div>
         <div class="dev-card__value">${safe(aira.manifestation)}</div>
       </div>
       <div class="dev-card">
-        <div class="dev-card__label">Presence</div>
-        <div class="dev-card__value">${safeNumber(aira.presenceLevel)}</div>
+        <div class="dev-card__label">Interference</div>
+        <div class="dev-card__value">${safeNum(aira.interferenceChance)}</div>
       </div>
       <div class="dev-card">
-        <div class="dev-card__label">Voice Unlocked</div>
-        <div class="dev-card__value">${aira.voiceUnlocked ? "true" : "false"}</div>
+        <div class="dev-card__label">Voice</div>
+        <div class="dev-card__value">${aira.voiceUnlocked ? "unlocked" : "locked"}</div>
       </div>
       <div class="dev-card">
-        <div class="dev-card__label">Lucy</div>
-        <div class="dev-card__value">${relationshipText(relationships.Lucy)}</div>
-      </div>
-      <div class="dev-card">
-        <div class="dev-card__label">Sam</div>
-        <div class="dev-card__value">${relationshipText(relationships.Sam)}</div>
-      </div>
-      <div class="dev-card">
-        <div class="dev-card__label">Angie</div>
-        <div class="dev-card__value">${relationshipText(relationships.Angie)}</div>
-      </div>
-      <div class="dev-card">
-        <div class="dev-card__label">Reset</div>
-        <div class="dev-card__value">
-          <button id="devResetBtn" class="icon-button" type="button">Reset chat</button>
-        </div>
+        <div class="dev-card__label">Anomaly</div>
+        <div class="dev-card__value">${safeNum(aira.anomalyLevel)}</div>
       </div>
     `;
 
-    const resetBtn = this.root.querySelector("#devResetBtn");
-    if (resetBtn) {
-      resetBtn.addEventListener("click", () => this.onReset?.(), { once: true });
-    }
+    const relationships = state.relationships || {};
+    relGrid.innerHTML = Object.entries(relationships).map(([name, rel]) => `
+      <div class="dev-rel-card">
+        <div class="dev-rel-name">${name}</div>
+        ${relRow("trust",           rel.trust)}
+        ${relRow("attraction",      rel.attraction)}
+        ${relRow("comfort",         rel.comfort)}
+        ${relRow("attachment",      rel.attachment)}
+        ${relRow("romanticTension", rel.romanticTension)}
+        ${relRow("longing",         rel.longing)}
+        ${relRow("jealousy",        rel.jealousy)}
+        ${relRow("hurt",            rel.hurt)}
+        ${relRow("avoidance",       rel.avoidance)}
+      </div>
+    `).join("");
   }
 }
 
-function safe(value) {
-  return value ?? "&#x2014;";
-}
+function safe(v) { return v ?? "—"; }
+function safeNum(v) { return typeof v === "number" ? v.toFixed(3) : "—"; }
 
-function safeNumber(value) {
-  return typeof value === "number" ? value.toFixed(3) : "&#x2014;";
-}
-
-function relationshipText(entry) {
-  if (!entry) return "&#x2014;";
-  const trust = typeof entry.trust === "number" ? entry.trust.toFixed(2) : "&#x2014;";
-  const attraction = typeof entry.attraction === "number" ? entry.attraction.toFixed(2) : "&#x2014;";
-  return `trust ${trust} &middot; attraction ${attraction}`;
+function relRow(label, value) {
+  const num = typeof value === "number" ? value : null;
+  const pct = num !== null ? Math.round(num * 100) : null;
+  const fill = pct !== null ? `<div class="dev-rel-bar__fill" style="width:${pct}%"></div>` : "";
+  return `
+    <div class="dev-rel-row">
+      <span class="dev-rel-row__label">${label}</span>
+      <div class="dev-rel-bar">${fill}</div>
+      <span class="dev-rel-row__val">${num !== null ? num.toFixed(2) : "—"}</span>
+    </div>
+  `;
 }

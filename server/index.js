@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import aiRouter from './routes/ai.js';
+import { engine } from './services/engineInstance.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -40,6 +41,24 @@ app.use((req, res, next) => {
 });
 
 app.use('/api/ai', aiRouter);
+
+// Hard guard: always serve JSON from this route even if router wiring changes.
+app.get('/api/ai/patches', (_req, res) => {
+  res.json({
+    ok: true,
+    patches: engine.patchWriter.getPending(),
+    issues: engine.observer.getIssues()
+  });
+});
+
+// Helpful response when reset is queried with GET instead of POST.
+app.get('/api/ai/reset', (_req, res) => {
+  res.status(405).json({
+    ok: false,
+    error: 'Use POST /api/ai/reset'
+  });
+});
+
 app.use(express.static(clientDir));
 
 app.get('/health', (_req, res) => {

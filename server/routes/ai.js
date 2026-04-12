@@ -34,6 +34,40 @@ router.post('/run', async (req, res) => {
   }
 });
 
+router.post('/emotion', (req, res) => {
+  const preset = req.body?.preset || 'neutral';
+  engine.orchestrator.setEmotion(preset);
+  res.json({ ok: true, preset, tension: engine.orchestrator.getState().tension });
+});
+
+router.get('/tune', (_req, res) => {
+  res.json({ ok: true, tuning: engine.tuning });
+});
+
+router.post('/tune', (req, res) => {
+  const patch = req.body || {};
+  engine.tune(patch);
+  res.json({ ok: true, tuning: engine.tuning });
+});
+
+router.post('/tick', async (_req, res) => {
+  try {
+    const response = await engine.orchestrator.tick();
+    return res.json({ ok: true, response: response || null });
+  } catch (error) {
+    console.error('Tick error:', error);
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+router.get('/patches', (_req, res) => {
+  res.json({
+    ok: true,
+    patches: engine.patchWriter.getPending(),
+    issues: engine.observer.getIssues()
+  });
+});
+
 router.get('/state', (_req, res) => {
   res.json({
     ok: true,

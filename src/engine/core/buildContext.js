@@ -17,14 +17,14 @@ export function buildContext({ input, state, memory, focus, brain }) {
       topic: detectTopic(input),
       intensity: state.tension,
       recentMessages: recent,
-      emotionalBeat: getEmotionalBeat(state.tension, input),
-      responseMode: getResponseMode(state, input)
+      emotionalBeat: state.emotionOverride?.beat || getEmotionalBeat(state.tension, input),
+      responseMode: state.emotionOverride?.responseMode || getResponseMode(state, input)
     },
 
     world: {
       location: 'living_room',
       time: getTimeOfDay(),
-      atmosphere: state.tension > 0.6 ? 'tense' : 'calm',
+      atmosphere: state.emotionOverride?.atmosphere || (state.tension > 0.6 ? 'tense' : 'calm'),
       activity: 'free_chat',
       tension: state.tension
     },

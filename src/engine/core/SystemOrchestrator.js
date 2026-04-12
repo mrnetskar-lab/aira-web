@@ -55,6 +55,7 @@ export class SystemOrchestrator {
       protectedChoice: false,
       aira: null,
       investigation: null,
+      emotionOverride: null,
       relationships: Object.fromEntries(
         agents.map((name) => [name, {
           trust: 0.5,
@@ -243,6 +244,103 @@ export class SystemOrchestrator {
     } else if (this.tuning.avgScore > 2.5) {
       this.state.tension = Math.max(0, this.state.tension - 0.05);
     }
+  }
+
+  async tick() {
+    const speaker = this._pickSpontaneousSpeaker();
+    if (!speaker) return null;
+
+    const brain = this.brain.getBrain(speaker);
+    if (!brain) return null;
+
+    const context = buildContext({
+      input: '',
+      state: this.state,
+      memory: this.memory,
+      focus: this.focus,
+      brain: this.brain
+    });
+
+    context.sceneFlow = {
+      role: 'primary',
+      mainSpeaker: speaker,
+      followUpSpeaker: null,
+      instruction: 'The player has been quiet. You are breaking the silence naturally. Keep it very short — one line at most. Do not ask multiple questions. Do not explain that you are checking in. Just say something real and brief that fits the moment.'
+    };
+
+    const result = await this.brain.aiService.generate({
+      characterName: speaker,
+      personality: brain.personality,
+      input: '',
+      context
+    });
+
+    if (!result?.spoken) return null;
+
+    const response = {
+      agent: speaker,
+      spoken: result.spoken,
+      thought: result.thought || null,
+      meta: result.meta || null
+    };
+
+    const [withLayer] = this.dualLayer.apply([response], this.state);
+
+    this.memory.store({
+      role: speaker,
+      text: response.spoken,
+      thought: response.thought,
+      time: Date.now()
+    });
+
+    this.focus.setFocus(speaker);
+
+    return withLayer;
+  }
+
+  _pickSpontaneousSpeaker() {
+    const agents = [...this.brain.brains.keys()];
+    const scores = agents.map((name) => {
+      const rel = this.state.relationships?.[name] || {};
+      const score =
+        (rel.longing || 0) * 2 +
+        (rel.attachment || 0) +
+        (rel.interest || 0) * 0.5 +
+        Math.random() * 0.15;
+      return { name, score };
+    });
+
+    scores.sort((a, b) => b.score - a.score);
+    const top = scores[0];
+
+    // Only speak if there's enough emotional weight
+    if (top.score < 0.4) return null;
+
+    return top.name;
+  }
+
+  setEmotion(preset) {
+    const presets = {
+      neutral:  { beat: 'neutral',  atmosphere: 'calm',    tension: 0.0,  responseMode: 'brief'   },
+      happy:    { beat: 'warmth',   atmosphere: 'warm',    tension: 0.0,  responseMode: 'brief'   },
+      charged:  { beat: 'intimacy', atmosphere: 'charged', tension: 0.35, responseMode: 'normal'  },
+      tension:  { beat: 'rising',   atmosphere: 'tense',   tension: 0.55, responseMode: 'normal'  },
+      sad:      { beat: 'hurt',     atmosphere: 'heavy',   tension: 0.3,  responseMode: 'normal'  },
+      angry:    { beat: 'rupture',  atmosphere: 'hostile', tension: 0.8,  responseMode: 'normal'  },
+      jealous:  { beat: 'jealousy', atmosphere: 'tense',   tension: 0.45, responseMode: 'normal'  },
+    };
+
+    if (!preset || preset === 'neutral') {
+      this.state.emotionOverride = null;
+      this.state.tension = 0;
+      return;
+    }
+
+    const p = presets[preset];
+    if (!p) return;
+
+    this.state.emotionOverride = { beat: p.beat, atmosphere: p.atmosphere, responseMode: p.responseMode };
+    this.state.tension = p.tension;
   }
 
   getState() {
