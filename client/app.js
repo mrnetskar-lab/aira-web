@@ -941,6 +941,20 @@ function bindEvents() {
   elements.backToHomeBtn?.addEventListener("click", showHome);
   elements.chatInput?.addEventListener("input", autoResizeTextarea);
 
+  // 5 quick taps on send button opens dev panel (mobile shortcut)
+  let _sendTapCount = 0;
+  let _sendTapTimer = null;
+  elements.sendBtn?.addEventListener("click", () => {
+    _sendTapCount += 1;
+    clearTimeout(_sendTapTimer);
+    _sendTapTimer = setTimeout(() => { _sendTapCount = 0; }, 2000);
+    if (_sendTapCount >= 5) {
+      _sendTapCount = 0;
+      clearTimeout(_sendTapTimer);
+      window.__airaDevDrawer?.toggle();
+    }
+  });
+
   elements.chatForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const text = elements.chatInput.value.trim();
@@ -1010,6 +1024,7 @@ async function init() {
   });
 
   devDrawer.mount();
+  window.__airaDevDrawer = devDrawer;
 
   updatePhoneClock();
   window.setInterval(updatePhoneClock, 60_000);
