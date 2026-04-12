@@ -42,7 +42,7 @@ router.post('/:id/chat', async (req, res) => {
   history.slice(-20).forEach(h => messages.push({ role: h.role, content: h.content }));
   messages.push({ role: 'user', content: text });
 
-  const model = getModelForCharacter(char.name);
+  const model = 'anthropic/claude-3.5-haiku';
 
   const resp = await openai.chat.completions.create({
     model,
