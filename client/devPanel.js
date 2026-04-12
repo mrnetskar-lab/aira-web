@@ -253,9 +253,15 @@ export class AiraDevDrawer {
     }
 
     const relationships = state.relationships || {};
-    relGrid.innerHTML = Object.entries(relationships).map(([name, rel]) => `
+    const muted = state.mutedAgents || [];
+    relGrid.innerHTML = Object.entries(relationships).map(([name, rel]) => {
+      const isMuted = muted.includes(name);
+      return `
       <div class="dev-rel-card">
-        <div class="dev-rel-name">${name}</div>
+        <div class="dev-rel-name">
+          ${name}
+          <button class="dev-mute-btn ${isMuted ? 'is-muted' : ''}" data-agent="${escapeHtml(name)}">${isMuted ? 'unmute' : 'mute'}</button>
+        </div>
         ${relRow("trust",           rel.trust)}
         ${relRow("attraction",      rel.attraction)}
         ${relRow("comfort",         rel.comfort)}
@@ -266,7 +272,22 @@ export class AiraDevDrawer {
         ${relRow("hurt",            rel.hurt)}
         ${relRow("avoidance",       rel.avoidance)}
       </div>
-    `).join("");
+    `};
+    }).join("");
+
+    relGrid.querySelectorAll(".dev-mute-btn").forEach((btn) => {
+      btn.addEventListener("click", () => this._toggleMute(btn.dataset.agent, !btn.classList.contains("is-muted")));
+    });
+  }
+
+  async _toggleMute(name, mute) {
+    try {
+      await fetch("/api/ai/mute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, muted: mute }),
+      });
+    } catch { /* silent */ }
   }
 }
 

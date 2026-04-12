@@ -353,7 +353,8 @@ export class SystemOrchestrator {
     return {
       ...this.state,
       tuning: { ...this.tuning },
-      airaLastPlay: this.gm.lastPlay || null
+      airaLastPlay: this.gm.lastPlay || null,
+      mutedAgents: this.brain.getMuted ? this.brain.getMuted() : []
     };
   }
 

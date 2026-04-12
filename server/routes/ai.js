@@ -78,6 +78,17 @@ router.get('/state', (_req, res) => {
   });
 });
 
+router.post('/mute', (req, res) => {
+  const { name, muted } = req.body || {};
+  if (!name) return res.status(400).json({ ok: false, error: 'name required' });
+  if (muted) {
+    engine.orchestrator.brain.mute(name);
+  } else {
+    engine.orchestrator.brain.unmute(name);
+  }
+  res.json({ ok: true, muted: engine.orchestrator.brain.getMuted() });
+});
+
 router.post('/aira/push', (_req, res) => {
   if (engine.orchestrator.gm?.forcePresence) {
     engine.orchestrator.gm.forcePresence(engine.orchestrator.state);

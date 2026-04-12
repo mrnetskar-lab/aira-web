@@ -9,12 +9,17 @@ export class AiraBrainController {
   constructor(tuning) {
     this.tuning = tuning || { secondaryChance: 3, temperature: 3, responseLength: 3 };
     this.brains = new Map();
+    this.muted = new Set();
     this.aiService = new CharacterAIService();
 
     for (const [name, profile] of Object.entries(CHARACTER_PROFILES)) {
       this.register(name, profile);
     }
   }
+
+  mute(name)   { this.muted.add(name); }
+  unmute(name) { this.muted.delete(name); }
+  getMuted()   { return [...this.muted]; }
 
   register(name, profile) {
     this.brains.set(name, { name, personality: profile });
@@ -25,7 +30,7 @@ export class AiraBrainController {
   }
 
   async process(input, context) {
-    const candidates = [...this.brains.values()];
+    const candidates = [...this.brains.values()].filter((b) => !this.muted.has(b.name));
     const plan = this._buildScenePlan(candidates, input, context);
 
     const responses = [];
