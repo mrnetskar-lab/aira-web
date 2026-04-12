@@ -78,6 +78,13 @@ router.get('/state', (_req, res) => {
   });
 });
 
+router.post('/aira/push', (_req, res) => {
+  if (engine.orchestrator.gm?.forcePresence) {
+    engine.orchestrator.gm.forcePresence(engine.orchestrator.state);
+  }
+  res.json({ ok: true, aira: engine.orchestrator.state.aira });
+});
+
 router.post('/reset', (_req, res) => {
   engine.memory.clear();
   engine.focus.clear();

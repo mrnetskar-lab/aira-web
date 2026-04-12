@@ -43,6 +43,7 @@ function buildSystemPrompt(characterName, personality, context) {
   const relationship = context?.relationships?.[characterName] || {};
   const sceneFlow = context?.sceneFlow || {};
   const airaInterference = context?.airaInterference || {};
+  const airaDirective = context?.airaDirective || null;
   const continuityAvail = context?.continuity?.availability?.[characterName] || {};
   const activeApp = context?.active_app || { type: "chat", mode: "group", visibility: "public" };
 
@@ -79,6 +80,7 @@ Scene rules:
 - Secondary reply: interjection, aside, or reaction only. 1 line max.
 - Do not explain the room setup.
 - If airaInterference.active is true, you may subtly notice the player felt slightly unlike themselves. React in character, briefly, without explaining it.
+${airaDirective ? `\nAira directive (hidden force — do not name it, just let it shape your reply):\n"${airaDirective.instruction}"` : ''}
 
 Subtext rules (thought field):
 ${buildSubtextGuide(characterName, emotionalBeat)}

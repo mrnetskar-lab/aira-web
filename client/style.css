@@ -2086,6 +2086,25 @@ body.is-chat-active .composer {
   text-align: right;
 }
 
+/* --- Aira GM panel --- */
+.dev-aira {
+  padding: 0 2px;
+  margin-bottom: 8px;
+}
+.dev-aira-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+.dev-aira-play {
+  margin-top: 8px;
+  font-size: 10px;
+  color: rgba(152, 141, 252, 0.75);
+  line-height: 1.4;
+  word-break: break-word;
+}
+
 /* --- Relationship grid --- */
 .dev-rel-card {
   background: rgba(255, 255, 255, 0.025);

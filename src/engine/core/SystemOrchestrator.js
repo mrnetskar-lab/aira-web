@@ -161,6 +161,12 @@ export class SystemOrchestrator {
       whisper: interference.whisper || null
     };
 
+    // Aira GM: plan this turn's directive before brain runs
+    const airaDirective = this.gm.plan ? this.gm.plan(this.state) : null;
+    if (airaDirective) {
+      context.airaDirective = airaDirective;
+    }
+
     let responses = await this.brain.process(processedInput, context);
 
     responses = this.dualLayer.apply(responses, this.state);
@@ -346,7 +352,8 @@ export class SystemOrchestrator {
   getState() {
     return {
       ...this.state,
-      tuning: { ...this.tuning }
+      tuning: { ...this.tuning },
+      airaLastPlay: this.gm.lastPlay || null
     };
   }
 

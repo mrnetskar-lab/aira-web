@@ -5,7 +5,7 @@ import { EmotionSystem } from './systems/EmotionSystem.js';
 import { FocusSystem } from './systems/FocusSystem.js';
 import { DualLayerSystem } from './systems/DualLayerSystem.js';
 import { ExplicitMode } from './systems/ExplicitMode.js';
-import { SimpleGM } from './systems/SimpleGM.js';
+import { AiraGM } from './systems/AiraGM.js';
 import { AiraObserver } from './dev/AiraObserver.js';
 import { AiraPatchWriter } from './dev/AiraPatchWriter.js';
 import { NullAvatarBridge } from './bridges/NullAvatarBridge.js';
@@ -25,7 +25,7 @@ export function createEngine() {
   const tuning = { ...DEFAULT_TUNING };
 
   const brain = new AiraBrainController(tuning);
-  const gm = new SimpleGM();
+  const gm = new AiraGM();
   const observer = new AiraObserver();
   const memory = new MemorySystem();
   const emotion = new EmotionSystem();

@@ -27,6 +27,8 @@ export class AiraDevDrawer {
         <div class="dev-grid" id="devGrid">
           <div class="dev-card"><div class="dev-card__label">Status</div><div class="dev-card__value">Waiting&#x2026;</div></div>
         </div>
+        <div class="dev-section-title">Aira</div>
+        <div class="dev-aira" id="devAira"></div>
         <div class="dev-section-title">Relationships</div>
         <div class="dev-grid" id="devRelGrid"></div>
         <div class="dev-section-title">Emotion Override</div>
@@ -42,6 +44,7 @@ export class AiraDevDrawer {
         <div class="dev-section-title">Actions</div>
         <div class="dev-actions" id="devActions">
           <button id="devResetBtn" class="dev-btn" type="button">Reset chat</button>
+          <button id="devAiraPushBtn" class="dev-btn" type="button">+Presence</button>
         </div>
       </div>
     `;
@@ -50,6 +53,7 @@ export class AiraDevDrawer {
 
     this.root.querySelector(".dev-drawer__close").addEventListener("click", () => this.close());
     this.root.querySelector("#devResetBtn").addEventListener("click", () => this.onReset?.());
+    this.root.querySelector("#devAiraPushBtn").addEventListener("click", () => this._pushAiraPresence());
 
     this.root.querySelectorAll(".dev-emotion-btn").forEach((btn) => {
       btn.addEventListener("click", () => this._setEmotion(btn.dataset.preset));
@@ -60,6 +64,12 @@ export class AiraDevDrawer {
     });
 
     this._loadTuning();
+  }
+
+  async _pushAiraPresence() {
+    try {
+      await fetch("/api/ai/aira/push", { method: "POST" });
+    } catch { /* silent */ }
   }
 
   async _setEmotion(preset) {
@@ -187,6 +197,7 @@ export class AiraDevDrawer {
     }
 
     const aira = state.aira || {};
+    const investigation = state.investigation || {};
     const tuning = state.tuning || {};
 
     grid.innerHTML = `
@@ -202,27 +213,44 @@ export class AiraDevDrawer {
         <div class="dev-card__label">Avg Score</div>
         <div class="dev-card__value">${safeNum(tuning.avgScore)}</div>
       </div>
-      <div class="dev-card">
-        <div class="dev-card__label">Presence</div>
-        <div class="dev-card__value">${safeNum(aira.presenceLevel)}</div>
-      </div>
-      <div class="dev-card">
-        <div class="dev-card__label">Manifestation</div>
-        <div class="dev-card__value">${safe(aira.manifestation)}</div>
-      </div>
-      <div class="dev-card">
-        <div class="dev-card__label">Interference</div>
-        <div class="dev-card__value">${safeNum(aira.interferenceChance)}</div>
-      </div>
-      <div class="dev-card">
-        <div class="dev-card__label">Voice</div>
-        <div class="dev-card__value">${aira.voiceUnlocked ? "unlocked" : "locked"}</div>
-      </div>
-      <div class="dev-card">
-        <div class="dev-card__label">Anomaly</div>
-        <div class="dev-card__value">${safeNum(aira.anomalyLevel)}</div>
-      </div>
     `;
+
+    // Aira GM section
+    const airaPanel = this.root.querySelector("#devAira");
+    if (airaPanel) {
+      const lp = state.airaLastPlay;
+      const lastPlay = lp ? `[${lp.type}] ${lp.instruction}` : "idle";
+      const profile = aira.interferenceProfile || {};
+      const clues = (investigation.cluesFound || []).length;
+      airaPanel.innerHTML = `
+        ${airaRelRow("presence",    aira.presenceLevel)}
+        ${airaRelRow("anomaly",     aira.anomalyLevel)}
+        ${airaRelRow("awareness",   investigation.awarenessLevel)}
+        ${airaRelRow("suspicion",   investigation.suspicion)}
+        <div class="dev-aira-row">
+          <span class="dev-rel-row__label">stage</span>
+          <span class="dev-rel-row__val">${safe(aira.manifestation)}</span>
+        </div>
+        <div class="dev-aira-row">
+          <span class="dev-rel-row__label">voice</span>
+          <span class="dev-rel-row__val">${aira.voiceUnlocked ? "unlocked" : "locked"}</span>
+        </div>
+        <div class="dev-aira-row">
+          <span class="dev-rel-row__label">clues</span>
+          <span class="dev-rel-row__val">${clues}</span>
+        </div>
+        <div class="dev-aira-row">
+          <span class="dev-rel-row__label">interference</span>
+          <span class="dev-rel-row__val">${[
+            profile.subtleRewriteUnlocked ? "rewrite" : null,
+            profile.contradictionUnlocked ? "contradict" : null,
+            profile.ghostMessageUnlocked  ? "ghost" : null,
+            profile.directInsertionUnlocked ? "direct" : null,
+          ].filter(Boolean).join(" · ") || "none"}</span>
+        </div>
+        <div class="dev-aira-play" id="devAiraPlay">last play: ${escapeHtml(lastPlay)}</div>
+      `;
+    }
 
     const relationships = state.relationships || {};
     relGrid.innerHTML = Object.entries(relationships).map(([name, rel]) => `
@@ -244,6 +272,22 @@ export class AiraDevDrawer {
 
 function safe(v) { return v ?? "—"; }
 function safeNum(v) { return typeof v === "number" ? v.toFixed(3) : "—"; }
+function escapeHtml(v) {
+  return String(v ?? "—").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+function airaRelRow(label, value) {
+  const num = typeof value === "number" ? value : null;
+  const pct = num !== null ? Math.round(num * 100) : null;
+  const fill = pct !== null ? `<div class="dev-rel-bar__fill" style="width:${pct}%"></div>` : "";
+  return `
+    <div class="dev-aira-row">
+      <span class="dev-rel-row__label">${label}</span>
+      <div class="dev-rel-bar">${fill}</div>
+      <span class="dev-rel-row__val">${num !== null ? num.toFixed(2) : "—"}</span>
+    </div>
+  `;
+}
 
 function relRow(label, value) {
   const num = typeof value === "number" ? value : null;
