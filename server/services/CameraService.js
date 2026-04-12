@@ -1,11 +1,14 @@
+import fs from 'fs';
+import path from 'path';
+import https from 'https';
+import { fileURLToPath } from 'url';
 import { ensureOpenAI } from './openaiClient.js';
-import cloudinary, { isConfigured } from './cloudinary.js';
 
-function ensureCloudinary() {
-  if (!isConfigured()) {
-    throw new Error('Cloudinary env vars missing: CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET');
-  }
-  return cloudinary;
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const IMAGES_DIR = path.resolve(__dirname, '../../images');
+
+if (!fs.existsSync(IMAGES_DIR)) {
+  fs.mkdirSync(IMAGES_DIR, { recursive: true });
 }
 
 // ─── Prompt builder ───────────────────────────────────────────────────────────
@@ -107,10 +110,8 @@ export function buildCameraPrompt(state) {
 
 export async function generateCameraShot({ state, customPrompt } = {}) {
   const openai = ensureOpenAI();
-
   const prompt = customPrompt || buildCameraPrompt(state);
 
-  // 1. Generate via DALL-E 3 (returns a temporary URL)
   const response = await openai.images.generate({
     model: 'dall-e-3',
     prompt,
@@ -125,40 +126,44 @@ export async function generateCameraShot({ state, customPrompt } = {}) {
 
   const revisedPrompt = response.data?.[0]?.revised_prompt || prompt;
 
-  // 2. Upload directly from URL to Cloudinary (no disk needed)
-  const filename = `shot_${Date.now()}`;
-  const result = await ensureCloudinary().uploader.upload(tempUrl, {
-    folder:    'aira',
-    public_id: filename,
-    overwrite: false,
-  });
+  const filename = `shot_${Date.now()}.png`;
+  const filepath = path.join(IMAGES_DIR, filename);
+  await downloadFile(tempUrl, filepath);
 
   return {
-    filename: result.public_id,
-    path:     result.secure_url,
+    filename,
+    path: `/images/${filename}`,
     prompt,
     revisedPrompt,
     generatedAt: new Date().toISOString(),
   };
 }
 
-// ─── List shots from Cloudinary ───────────────────────────────────────────────
+// ─── List shots from disk ─────────────────────────────────────────────────────
 
-export async function listShots() {
-  try {
-    const result = await ensureCloudinary().api.resources({
-      type:        'upload',
-      prefix:      'aira/',
-      max_results: 200,
+export function listShots() {
+  if (!fs.existsSync(IMAGES_DIR)) return [];
+  return fs.readdirSync(IMAGES_DIR)
+    .filter((f) => /\.(png|jpg|jpeg|webp)$/i.test(f))
+    .sort()
+    .reverse()
+    .map((filename) => ({
+      filename,
+      path: `/images/${filename}`,
+    }));
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function downloadFile(url, destPath) {
+  return new Promise((resolve, reject) => {
+    const file = fs.createWriteStream(destPath);
+    https.get(url, (res) => {
+      res.pipe(file);
+      file.on('finish', () => file.close(resolve));
+    }).on('error', (err) => {
+      fs.unlink(destPath, () => {});
+      reject(err);
     });
-
-    return (result.resources || [])
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-      .map((r) => ({
-        filename: r.public_id,
-        path:     r.secure_url,
-      }));
-  } catch {
-    return [];
-  }
+  });
 }

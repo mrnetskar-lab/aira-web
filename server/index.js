@@ -21,6 +21,15 @@ if (!clientDir) {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+const cloudinaryRequiredVars = [
+  'CLOUDINARY_CLOUD_NAME',
+  'CLOUDINARY_API_KEY',
+  'CLOUDINARY_API_SECRET'
+];
+
+const missingCloudinaryVars = cloudinaryRequiredVars.filter((name) => !process.env[name]);
+const cloudinaryConfigured = missingCloudinaryVars.length === 0;
+
 app.use(express.json({ limit: '1mb' }));
 
 app.use((req, res, next) => {
@@ -62,6 +71,11 @@ app.get('/api/ai/reset', (_req, res) => {
 });
 
 
+// Serve generated images (persisted via Render disk mounted at /images)
+const imagesDir = path.resolve(__dirname, '../images');
+if (!fs.existsSync(imagesDir)) fs.mkdirSync(imagesDir, { recursive: true });
+app.use('/images', express.static(imagesDir));
+
 // Serve gallery page
 const galleryDir = path.resolve(__dirname, '../gallery');
 if (!fs.existsSync(galleryDir)) fs.mkdirSync(galleryDir, { recursive: true });
@@ -70,7 +84,18 @@ app.use('/gallery', express.static(galleryDir));
 app.use(express.static(clientDir));
 
 app.get('/health', (_req, res) => {
-  res.json({ ok: true, service: 'aira-web', port: PORT });
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.json({
+    ok: true,
+    service: 'aira-web',
+    port: PORT,
+    cloudinary: {
+      configured: cloudinaryConfigured,
+      missing: missingCloudinaryVars
+    }
+  });
 });
 
 app.get('*', (_req, res) => {
@@ -82,4 +107,9 @@ app.get('*', (_req, res) => {
 
 app.listen(PORT, () => {
   console.log(`AIRA Web running at http://localhost:${PORT}`);
+  if (cloudinaryConfigured) {
+    console.log('Cloudinary status: configured');
+  } else {
+    console.warn(`Cloudinary status: missing env vars -> ${missingCloudinaryVars.join(', ')}`);
+  }
 });
