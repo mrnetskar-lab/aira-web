@@ -1,18 +1,10 @@
-import { v2 as cloudinary } from 'cloudinary';
 import { ensureOpenAI } from './openaiClient.js';
-
-// ─── Cloudinary config ────────────────────────────────────────────────────────
+import cloudinary, { isConfigured } from './cloudinary.js';
 
 function ensureCloudinary() {
-  const { CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET } = process.env;
-  if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
+  if (!isConfigured()) {
     throw new Error('Cloudinary env vars missing: CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET');
   }
-  cloudinary.config({
-    cloud_name: CLOUDINARY_CLOUD_NAME,
-    api_key:    CLOUDINARY_API_KEY,
-    api_secret: CLOUDINARY_API_SECRET,
-  });
   return cloudinary;
 }
 
@@ -115,7 +107,6 @@ export function buildCameraPrompt(state) {
 
 export async function generateCameraShot({ state, customPrompt } = {}) {
   const openai = ensureOpenAI();
-  const cld    = ensureCloudinary();
 
   const prompt = customPrompt || buildCameraPrompt(state);
 
@@ -136,7 +127,7 @@ export async function generateCameraShot({ state, customPrompt } = {}) {
 
   // 2. Upload directly from URL to Cloudinary (no disk needed)
   const filename = `shot_${Date.now()}`;
-  const result = await cld.uploader.upload(tempUrl, {
+  const result = await ensureCloudinary().uploader.upload(tempUrl, {
     folder:    'aira',
     public_id: filename,
     overwrite: false,
@@ -155,8 +146,7 @@ export async function generateCameraShot({ state, customPrompt } = {}) {
 
 export async function listShots() {
   try {
-    const cld = ensureCloudinary();
-    const result = await cld.api.resources({
+    const result = await ensureCloudinary().api.resources({
       type:        'upload',
       prefix:      'aira/',
       max_results: 200,
