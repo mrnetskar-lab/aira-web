@@ -946,11 +946,11 @@ body.is-phone-open .phone-handle {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at 50% 12%, rgba(200, 168, 106, 0.14), transparent 22%),
-    radial-gradient(circle at 78% 72%, rgba(255, 255, 255, 0.07), transparent 20%),
-    radial-gradient(circle at 18% 24%, rgba(82, 58, 24, 0.22), transparent 28%),
-    radial-gradient(circle at 50% 110%, rgba(255, 255, 255, 0.03), transparent 30%),
-    linear-gradient(180deg, #0a090b 0%, #060608 44%, #040406 100%);
+    radial-gradient(ellipse at 30% 0%, rgba(200, 168, 106, 0.28), transparent 45%),
+    radial-gradient(ellipse at 80% 30%, rgba(120, 80, 180, 0.22), transparent 40%),
+    radial-gradient(ellipse at 10% 60%, rgba(60, 40, 100, 0.30), transparent 45%),
+    radial-gradient(ellipse at 60% 90%, rgba(180, 100, 60, 0.18), transparent 40%),
+    linear-gradient(160deg, #16101e 0%, #0e0c18 35%, #0c0a10 65%, #12090e 100%);
   transform: scale(1.03);
 }
 

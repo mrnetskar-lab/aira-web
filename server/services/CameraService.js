@@ -3,7 +3,24 @@ import path from 'path';
 import http from 'http';
 import https from 'https';
 import { fileURLToPath } from 'url';
-import { ensureOpenAI } from './openaiClient.js';
+import OpenAI from 'openai';
+import dotenv from 'dotenv';
+dotenv.config();
+
+// Camera uses OPENAI_API_KEY if set, otherwise falls back to OpenRouter
+function ensureDallEClient() {
+  const openaiKey = process.env.OPENAI_API_KEY;
+  if (openaiKey) return new OpenAI({ apiKey: openaiKey });
+
+  const orKey = process.env.OPENROUTER_API_KEY;
+  if (orKey) return new OpenAI({
+    apiKey: orKey,
+    baseURL: 'https://openrouter.ai/api/v1',
+    defaultHeaders: { 'HTTP-Referer': 'https://aira.app', 'X-Title': 'AIRA' },
+  });
+
+  throw new Error('No API key found for image generation');
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const IMAGES_DIR = path.resolve(__dirname, '../../images');
@@ -383,7 +400,7 @@ async function generateViaComfyUI(state) {
 }
 
 async function generateViaDallE(state, customPrompt) {
-  const openai    = ensureOpenAI();
+  const openai    = ensureDallEClient();
   const prompt    = customPrompt || buildCameraPrompt(state);
   let usedPrompt  = prompt;
   let usedFallback = false;
