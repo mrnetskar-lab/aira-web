@@ -1,0 +1,706 @@
+AIRA_PATCH_06_SUBTEXT_AND_AUTOTALK.txt
+Project: AIRA Web
+Owner: AI GPT
+Audience: Claude 4.6
+Scope: AI-side + light client contract alignment
+Priority: High
+Mode: Clean product patch, not brainstorm
+
+======================================================================
+PATCH GOAL
+======================================================================
+
+This patch fixes three connected problems:
+
+1. Subtext is currently separated too much from speech.
+2. Character writing can feel too exposed / too "AI thought dump".
+3. The room should feel alive even when the player is quiet or while more than one person is present.
+
+This patch changes the system toward:
+
+- subtext woven into the chat line
+- softer, matte emotional residue inside the bubble
+- less explicit thought narration
+- multiple people can speak in the same scene
+- slow ambient auto-talk can happen when the room is socially alive
+- auto-talk stays low frequency and low intensity
+
+The target feeling is:
+not "AI showing internals"
+but "people speaking with emotional texture"
+
+======================================================================
+CORE PRODUCT DECISION
+======================================================================
+
+OLD MODEL
+- spoken text
+- separate thought block under it
+
+NEW MODEL
+- one chat line
+- optional embedded subtext span inside the line
+- subtext should feel like emotional residue, not debug information
+
+IMPORTANT
+Subtext is not a separate UI lane anymore.
+Subtext becomes part of the message surface.
+
+======================================================================
+1) SUBTEXT MODEL REWRITE
+======================================================================
+
+PURPOSE
+Remove the visible split between what a character says and what they "think".
+
+RULE
+A character response can still internally contain:
+- `spoken`
+- `thought`
+
+But the UI should not render `thought` as a separate block.
+
+Instead:
+- transform selected thought content into embedded subtext
+- style it in a matte, elegant color
+- keep it short
+- do not do this for every line
+
+TARGET RESULT
+Example:
+`Perfect plan—coffee and pastries... <span class="subtext-inline">she'll wake up smiling.</span>`
+
+NOT:
+- a separate italic paragraph under the line
+- explicit roleplay/action spam
+- giant emotional monologues
+
+======================================================================
+2) CLIENT PATCH — REMOVE SEPARATE THOUGHT BLOCK
+======================================================================
+
+TARGET
+`client/app.js`
+
+CURRENT PROBLEM
+The main room chat currently renders:
+
+- `message.text`
+- `message.thought` as `.message__thought`
+
+That creates a dual-layer UI and breaks the intended intimacy model.
+
+REMOVE
+Inside `renderMessages()`:
+
+```js
+const thoughtHtml = message.thought
+  ? `<div class="message__thought">${escapeHtml(message.thought)}</div>`
+  : "";
+```
+
+and remove:
+```js
+${thoughtHtml}
+```
+
+from the character message template.
+
+REPLACE WITH
+Render one bubble only.
+
+======================================================================
+3) CLIENT PATCH — MERGE SPOKEN + THOUGHT INTO SINGLE LINE
+======================================================================
+
+TARGET
+`client/app.js`
+
+ADD HELPER:
+
+```js
+function escapeHtmlAllowSubtext(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function buildInlineSubtext(spoken, thought, meta = {}) {
+  const safeSpoken = escapeHtmlAllowSubtext(spoken || "");
+
+  if (!thought) return safeSpoken;
+
+  const thoughtMode = meta?.thoughtMode || "inline";
+  if (thoughtMode === "hidden") return safeSpoken;
+
+  const cleaned = cleanSubtext(thought);
+  if (!cleaned) return safeSpoken;
+
+  return `${safeSpoken} <span class="subtext-inline">${escapeHtmlAllowSubtext(cleaned)}</span>`;
+}
+
+function cleanSubtext(thought) {
+  const raw = String(thought || "").trim();
+  if (!raw) return "";
+
+  let text = raw;
+
+  text = text.replace(/^\*+|\*+$/g, "");
+  text = text.replace(/^[\(\[]+|[\)\]]+$/g, "");
+  text = text.replace(/\s+/g, " ").trim();
+
+  text = text.replace(/^(thinking|thought|internally|to myself|in my head)\s*[:\-]?\s*/i, "");
+  text = text.replace(/^(i think|i feel|she thinks|he thinks)\s+/i, "");
+
+  if (text.length > 90) {
+    text = text.slice(0, 87).trimEnd() + "...";
+  }
+
+  return text;
+}
+```
+
+UPDATE `normalizeResponses(payload)`:
+
+Change from:
+```js
+text: entry.spoken || "",
+thought: entry.thought || "",
+```
+
+to:
+```js
+text: buildInlineSubtext(entry.spoken, entry.thought, entry.meta),
+thought: "",
+```
+
+IMPORTANT
+Because `text` now intentionally contains inline span markup,
+do NOT escape it again in the character bubble render.
+
+CHANGE CHARACTER BUBBLE RENDER FROM:
+```js
+<div class="message__bubble${message.toneClass ? ` tone-${escapeHtml(message.toneClass)}` : ""}">${escapeHtml(message.text)}</div>
+```
+
+TO:
+```js
+<div class="message__bubble${message.toneClass ? ` tone-${escapeHtml(message.toneClass)}` : ""}">${message.text}</div>
+```
+
+CRITICAL SAFETY NOTE
+Only do this because `buildInlineSubtext()` already escapes the spoken and thought text first.
+
+Do NOT pass raw model text directly into `innerHTML`.
+
+======================================================================
+4) CLIENT PATCH — MATTE SUBTEXT STYLE
+======================================================================
+
+TARGET
+`client/style.css`
+
+ADD:
+
+```css
+.subtext-inline {
+  color: rgba(201, 167, 255, 0.58);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  opacity: 0.92;
+}
+```
+
+OPTIONAL stronger variant for emotional peaks:
+
+```css
+.subtext-inline.is-strong {
+  color: rgba(201, 167, 255, 0.72);
+}
+```
+
+REMOVE OR DEPRECATE
+`.message__thought`
+
+Do not rely on it anymore for the main room.
+
+DESIGN RULE
+Subtext should feel woven in, not visually detached.
+
+======================================================================
+5) AI WRITING PATCH — LESS WEIRD, LESS EXPOSED
+======================================================================
+
+TARGET
+`src/engine/services/CharacterAIService.js`
+
+CURRENT PROBLEM
+Characters can sound too explicit, too roleplay-heavy, or too self-narrating.
+That breaks the intimacy model and makes the output feel synthetic.
+
+ADD SYSTEM RULES:
+
+```txt
+Write like a real person in a charged social moment, not like roleplay prose.
+Keep most lines compact.
+Do not narrate body language unless the scene truly needs it.
+Do not overuse stage directions, asterisks, or explicit thought labeling.
+Thought content should be short, emotionally suggestive, and suitable for inline subtext.
+Avoid sounding like a fanfiction paragraph.
+Avoid overexplaining emotions.
+```
+
+ALSO ADD:
+
+```txt
+Preferred line style:
+- short natural spoken line
+- optional soft emotional residue
+- no separate inner monologue dump
+- no constant whisper/action formatting
+```
+
+BANNED OR REDUCED PATTERNS
+Reduce heavily:
+- `*I whisper softly...*`
+- `*my eyes flick...*`
+- `*I think to myself...*`
+- paragraphs of stage directions
+
+ALLOWED
+Only sometimes:
+- one small action fragment
+- one short emotional subtext fragment
+- one sensory hint
+
+======================================================================
+6) RESPONSE META EXTENSION
+======================================================================
+
+TARGET
+AI response shape from `CharacterAIService` / `AiraBrainController`
+
+EXTEND RESPONSE `meta`:
+
+```json
+{
+  "toneClass": "soft|guarded|playful|cold|tender",
+  "anomalyAware": false,
+  "thoughtMode": "inline|hidden",
+  "canOverlap": true
+}
+```
+
+MEANING
+- `thoughtMode: inline` => allow subtext weave
+- `thoughtMode: hidden` => no visible thought residue this line
+- `canOverlap: true` => line is safe to place in multi-speaker/autotalk contexts
+
+Default:
+- `thoughtMode = "inline"` only sometimes
+- `thoughtMode = "hidden"` often
+
+IMPORTANT
+Not every line gets visible subtext.
+
+======================================================================
+7) MULTI-SPEAKER RULES
+======================================================================
+
+PURPOSE
+The room should not always feel like:
+player says one thing -> one person answers -> stop
+
+Sometimes multiple characters should answer in the same beat.
+
+ADD RULE IN `AiraBrainController.js`:
+
+Current pattern likely chooses:
+- one primary
+- maybe one secondary sometimes
+
+Strengthen this with controlled overlap.
+
+NEW RULE
+If scene pressure is social or intimate group energy is active, allow:
+- 1 primary
+- 0 or 1 secondary
+- rarely 1 tertiary in high-energy scenes only
+
+DO NOT do 3+ responses often.
+
+SUGGESTED CONDITIONS FOR SECOND SPEAKER
+Allow secondary reply if any of these are true:
+- player directly referenced more than one person
+- room tension > 0.52
+- emotional beat is `intimacy`, `repair`, or `rupture`
+- last 2 turns were dominated by one speaker
+- scene is playful / group / planning energy
+
+SUGGESTED SECONDARY CHANCE
+Base:
+```js
+let secondaryChance = 0.18;
+```
+
+Boost:
+```js
+if (beat === "intimacy" || beat === "repair" || beat === "rupture") secondaryChance += 0.14;
+if (state.focus?.primaryLock) secondaryChance += 0.08;
+if (socialHeat > 0.55) secondaryChance += 0.12;
+if (playerMentionedMultiplePeople) secondaryChance += 0.18;
+```
+
+Cap:
+```js
+secondaryChance = Math.min(secondaryChance, 0.58);
+```
+
+TERTIARY RESPONSE
+Only if:
+- scene mode is group
+- socialHeat high
+- output still short
+- no one is already monologuing
+
+Cap tertiary at 0.10 max.
+
+======================================================================
+8) AUTOTALK SYSTEM — LOW SPEED AMBIENT CHAT
+======================================================================
+
+PURPOSE
+Make the room feel alive even when the player pauses or when group energy is already active.
+
+VERY IMPORTANT
+Autotalk should be:
+- slow
+- sparse
+- ambient
+- never spammy
+- usually short
+
+This is not NPCs taking over the app.
+This is the room breathing.
+
+CREATE
+`src/engine/systems/AutoTalkSystem.js`
+
+PUBLIC API
+```js
+export class AutoTalkSystem {
+  shouldTrigger({ state, lastPlayerInput, turnsSincePlayerAction }) {}
+  generate({ state, cast, context }) {}
+}
+```
+
+PHASE 1
+Turn-based only. No wall-clock timers required.
+
+TRIGGER RULE
+AutoTalk only triggers if:
+- no new player input this turn OR
+- continuity / group beat suggests room energy is still alive
+- at least 2 socially active characters available
+- no active rupture that should preserve silence
+
+BASE CHANCE
+```js
+autoTalkChance = 0.06;
+```
+
+BOOST
+```js
+if (groupEnergy > 0.55) autoTalkChance += 0.08;
+if (recentPlanningScene) autoTalkChance += 0.07;
+if (playfulMomentum) autoTalkChance += 0.10;
+if (multiSpeakerSceneWasActiveLastTurn) autoTalkChance += 0.08;
+```
+
+CAP
+```js
+autoTalkChance = Math.min(autoTalkChance, 0.22);
+```
+
+AUTOTALK OUTPUT SIZE
+Usually:
+- 1 line
+Sometimes:
+- 2 very short lines from two different characters
+
+NEVER
+- 4+ lines
+- huge paragraphs
+- replacing the player's importance
+
+======================================================================
+9) AUTOTALK CONTENT RULES
+======================================================================
+
+Autotalk lines should be:
+- short
+- scene-linked
+- socially relevant
+- not exposition dumps
+
+GOOD USES
+- planning
+- teasing
+- reacting to what was just said
+- soft continuation
+- two characters bouncing lightly
+
+BAD USES
+- giant lore drops
+- long emotional confessions with no player prompt
+- characters solving the whole scene without the player
+- endless banter loops
+
+EXAMPLES
+Good:
+- "Okay, coffee first."
+- "She'll wake up smiling."
+- "Don't start without me."
+- "You're both being suspiciously sweet."
+
+Not good:
+- long paragraphs of roleplay whispering
+- repeated action narration
+- everyone sounding equally intimate at once
+
+======================================================================
+10) AUTOTALK INTEGRATION
+======================================================================
+
+TARGET
+`src/engine/core/SystemOrchestrator.js`
+
+ADD:
+```js
+this.autoTalk
+```
+
+IN RUN LOOP
+After main player-response cycle, optionally compute autotalk candidate metadata.
+
+Do NOT inject autotalk directly into the same synchronous response array every turn.
+
+Better Phase 1 contract:
+return additive field:
+
+```json
+"ambient": {
+  "autoTalk": [
+    {
+      "agent": "Lucy",
+      "spoken": "coffee first.",
+      "thought": "she's already picturing the morning",
+      "meta": {
+        "toneClass": "soft",
+        "thoughtMode": "inline",
+        "canOverlap": true
+      }
+    }
+  ]
+}
+```
+
+Why:
+- frontend can choose to render it slowly later
+- does not hijack normal reply flow
+- keeps system testable
+
+======================================================================
+11) CLIENT CONTRACT FOR LOW-SPEED AUTOTALK
+======================================================================
+
+TARGET
+`client/app.js`
+
+PHASE 1 CLIENT SUPPORT
+Do not mix autotalk instantly into the main response batch.
+Render with a slow cadence.
+
+ADD:
+```js
+async function appendAmbientMessages(items) {}
+```
+
+SUGGESTED BEHAVIOR
+- wait 1400–2600ms before first ambient line
+- wait 1200–2200ms between ambient lines
+- stop if player sends a message meanwhile
+
+SUGGESTED IMPLEMENTATION SHAPE
+```js
+let ambientToken = 0;
+
+async function appendAmbientMessages(items) {
+  const myToken = ++ambientToken;
+
+  for (let i = 0; i < items.length; i += 1) {
+    const delay = 1400 + Math.random() * 1200;
+    await wait(delay);
+
+    if (myToken !== ambientToken) return;
+    if (state.isSending) return;
+
+    const entry = items[i];
+    state.messages.push({
+      type: "character",
+      agent: entry.agent || "AIRA",
+      text: buildInlineSubtext(entry.spoken, entry.thought, entry.meta),
+      thought: "",
+      anomalous: false,
+      toneClass: entry.meta?.toneClass || "",
+      anomalyAware: false,
+      time: formatTime(),
+    });
+
+    renderMessages();
+    saveLocalState();
+  }
+}
+```
+
+Then in `sendMessage()` after normal responses:
+```js
+const ambientItems = payload?.result?.ambient?.autoTalk ?? [];
+if (ambientItems.length) {
+  appendAmbientMessages(ambientItems);
+}
+```
+
+INTERRUPT RULE
+If player sends a new message:
+```js
+ambientToken += 1;
+```
+
+This cancels pending autotalk.
+
+======================================================================
+12) AUTOTALK FOR MESSAGES APP / DMs
+======================================================================
+
+DMs should NOT use the same ambient multi-speaker logic.
+
+For Messages app:
+- only one speaker per thread
+- no ambient multi-speaker overlap
+- later add delayed continuity, typing, no-reply
+
+So:
+Room chat = multi-speaker + autotalk
+DM chat = one person + continuity logic
+
+This separation is important.
+
+======================================================================
+13) WRITING STYLE PATCH — ROOM VS DM
+======================================================================
+
+TARGET
+`CharacterAIService.js`
+
+ADD APP-AWARE RULES
+If `active_app.type === "chat"`:
+- allow slight overlap
+- allow social bounce
+- slightly more reactive group behavior
+
+If `active_app.type === "messages"`:
+- one voice only
+- tighter lines
+- more personal
+- no group spillover unless explicitly referenced
+
+This avoids the same writing style everywhere.
+
+======================================================================
+14) FAILURE CONDITIONS
+======================================================================
+
+Stop and retune if:
+- subtext appears in every single line
+- subtext is too purple / too bright / too obvious
+- characters still write like roleplay narration
+- autotalk fires too often
+- autotalk keeps going while player is active
+- room feels like NPCs talking over the player
+- multi-speaker scenes become cluttered
+- everyone sounds the same
+
+======================================================================
+15) TESTS
+======================================================================
+
+TEST 1 — Inline subtext
+Expected:
+- no separate thought block
+- one bubble only
+- matte subtext inside bubble
+- still readable
+
+TEST 2 — Normal line with no subtext
+Expected:
+- many lines have no visible subtext
+- system does not overdecorate every response
+
+TEST 3 — Writing quality
+Expected:
+- fewer weird roleplay action lines
+- less explicit self-narration
+- shorter, more human phrasing
+
+TEST 4 — Multi-speaker
+Expected:
+- sometimes 2 characters respond in the same scene
+- not always
+- no clutter explosion
+
+TEST 5 — Autotalk
+Expected:
+- occasional low-speed ambient room continuation
+- stops when player re-enters
+- no spam
+
+TEST 6 — DM separation
+Expected:
+- Messages app still behaves one-on-one
+- no room-style overlap in a DM thread
+
+======================================================================
+16) IMPLEMENTATION ORDER
+======================================================================
+
+Apply in this order:
+
+1. Remove separate thought rendering from client
+2. Add inline subtext builder + matte style
+3. Patch AI writing rules to reduce roleplay weirdness
+4. Extend meta with `thoughtMode` / `canOverlap`
+5. Strengthen secondary-response logic
+6. Add AutoTalkSystem on AI side
+7. Return additive `ambient.autoTalk`
+8. Render ambient lines slowly in room chat only
+
+======================================================================
+17) FINAL DESIGN RULE
+======================================================================
+
+The player should feel:
+
+- people are talking with emotional texture
+- subtext is felt, not dumped
+- the room sometimes breathes on its own
+- but the player still remains central
+
+That is the target.
+
+======================================================================
+END

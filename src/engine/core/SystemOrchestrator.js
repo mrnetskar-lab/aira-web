@@ -46,9 +46,57 @@ export class SystemOrchestrator {
   _createInitialState() {
     const agents = [...this.brain.brains.keys()];
 
+    const relByName = {
+      Lucy: {
+        trust: 0.91,
+        attraction: 0.9,
+        comfort: 0.9,
+        jealousy: 0.62,
+        hurt: 0.32,
+        attachment: 0.88,
+        interest: 0.93,
+        romanticTension: 0.89,
+        exclusivityPressure: 0.8,
+        betrayalSensitivity: 0.78,
+        intimacyReadiness: 0.9,
+        avoidance: 0.18,
+        longing: 0.85
+      },
+      Sam: {
+        trust: 0.86,
+        attraction: 0.88,
+        comfort: 0.84,
+        jealousy: 0.74,
+        hurt: 0.42,
+        attachment: 0.82,
+        interest: 0.9,
+        romanticTension: 0.91,
+        exclusivityPressure: 0.84,
+        betrayalSensitivity: 0.87,
+        intimacyReadiness: 0.85,
+        avoidance: 0.3,
+        longing: 0.81
+      },
+      Angie: {
+        trust: 0.93,
+        attraction: 0.9,
+        comfort: 0.91,
+        jealousy: 0.66,
+        hurt: 0.34,
+        attachment: 0.88,
+        interest: 0.92,
+        romanticTension: 0.87,
+        exclusivityPressure: 0.81,
+        betrayalSensitivity: 0.79,
+        intimacyReadiness: 0.9,
+        avoidance: 0.2,
+        longing: 0.84
+      }
+    };
+
     return {
-      tension: 0,
-      randomness: 0.5,
+      tension: 0.9,
+      randomness: 0.82,
       lastInput: null,
       turnCount: 0,
       lastEvent: null,
@@ -58,28 +106,30 @@ export class SystemOrchestrator {
       emotionOverride: null,
       relationships: Object.fromEntries(
         agents.map((name) => [name, {
-          trust: 0.5,
-          attraction: 0.3,
-          comfort: 0.5,
-          jealousy: 0.1,
-          hurt: 0,
-          attachment: 0.3,
-          interest: 0.35,
-          romanticTension: 0.15,
-          exclusivityPressure: 0.0,
-          betrayalSensitivity: 0.25,
-          intimacyReadiness: 0.0,
-          avoidance: 0.0,
-          longing: 0.0
+          ...(relByName[name] || {
+            trust: 0.88,
+            attraction: 0.86,
+            comfort: 0.85,
+            jealousy: 0.58,
+            hurt: 0.28,
+            attachment: 0.82,
+            interest: 0.88,
+            romanticTension: 0.84,
+            exclusivityPressure: 0.76,
+            betrayalSensitivity: 0.74,
+            intimacyReadiness: 0.83,
+            avoidance: 0.2,
+            longing: 0.78
+          })
         }])
       ),
       cast: Object.fromEntries(
         agents.map((name) => [name, {
           hidden: {
-            attraction: 0.3,
-            jealousy: 0.1,
-            hurt: 0,
-            trust: 0.5
+            attraction: 0.85,
+            jealousy: 0.6,
+            hurt: 0.3,
+            trust: 0.88
           }
         }])
       ),

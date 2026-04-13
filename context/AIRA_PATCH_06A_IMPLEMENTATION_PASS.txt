@@ -1,0 +1,470 @@
+AIRA_PATCH_06A_IMPLEMENTATION_PASS.txt
+Project: AIRA Web
+Owner: AI GPT
+Audience: Claude 4.6
+Scope: Client-first implementation pass for Patch 06
+Priority: Immediate
+Mode: Concrete execution pass
+
+======================================================================
+PURPOSE
+======================================================================
+
+This pass implements the safest, highest-value parts of Patch 06 first.
+
+Do this NOW:
+1. Remove separate thought rendering
+2. Merge spoken + thought into inline matte subtext
+3. Improve client rendering safety
+4. Support multi-speaker room output cleanly
+5. Add a small ambient auto-talk rendering lane on the client
+6. Keep Messages app untouched for now
+
+Do NOT build the full AI-side AutoTalkSystem in this pass if that slows things down.
+This pass should make the room feel better immediately even before the full backend patch is done.
+
+======================================================================
+WHAT THIS PASS DOES NOT DO
+======================================================================
+
+Do NOT change in this pass:
+- Messages app flow
+- DM continuity logic
+- full AI-side auto-talk generation engine
+- full CharacterAIService rewrite
+- deep orchestration changes unless needed for payload shape
+- server persistence
+
+This is a controlled room-chat implementation pass.
+
+======================================================================
+1) CLIENT — REMOVE SEPARATE THOUGHT BLOCK
+======================================================================
+
+TARGET
+`client/app.js`
+
+CURRENT PROBLEM
+Room chat still conceptually supports a separate `thought` block.
+That breaks the intended feel.
+
+ACTION
+Inside `renderMessages()`, remove the separate thought rendering block completely.
+
+REMOVE:
+```js
+const thoughtHtml = message.thought
+  ? `<div class="message__thought">${escapeHtml(message.thought)}</div>`
+  : "";
+```
+
+REMOVE:
+```js
+${thoughtHtml}
+```
+
+from the character message template.
+
+RESULT
+Each character message should render as:
+- name
+- one bubble
+- meta
+
+Only one visible line surface.
+
+======================================================================
+2) CLIENT — INLINE SUBTEXT HELPERS
+======================================================================
+
+TARGET
+`client/app.js`
+
+ADD THESE HELPERS near the existing escape helpers:
+
+```js
+function escapeHtmlAllowInline(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function cleanSubtext(thought) {
+  const raw = String(thought || "").trim();
+  if (!raw) return "";
+
+  let text = raw;
+
+  text = text.replace(/^\*+|\*+$/g, "");
+  text = text.replace(/^[\(\[]+|[\)\]]+$/g, "");
+  text = text.replace(/\s+/g, " ").trim();
+
+  text = text.replace(/^(thinking|thought|internally|to myself|in my head)\s*[:\-]?\s*/i, "");
+  text = text.replace(/^(i think|i feel|she thinks|he thinks)\s+/i, "");
+
+  if (text.length > 90) {
+    text = text.slice(0, 87).trimEnd() + "...";
+  }
+
+  return text;
+}
+
+function buildInlineSubtext(spoken, thought, meta = {}) {
+  const safeSpoken = escapeHtmlAllowInline(spoken || "");
+  if (!thought) return safeSpoken;
+
+  const thoughtMode = meta?.thoughtMode || "hidden";
+  if (thoughtMode === "hidden") return safeSpoken;
+
+  const cleaned = cleanSubtext(thought);
+  if (!cleaned) return safeSpoken;
+
+  const strongClass = meta?.subtextStrength === "strong" ? " is-strong" : "";
+  return `${safeSpoken} <span class="subtext-inline${strongClass}">${escapeHtmlAllowInline(cleaned)}</span>`;
+}
+```
+
+======================================================================
+3) CLIENT — NORMALIZE RESPONSES INTO ONE SURFACE
+======================================================================
+
+TARGET
+`client/app.js`
+
+UPDATE `normalizeResponses(payload)`.
+
+CHANGE from:
+```js
+const items = responses.map((entry) => ({
+  type: "character",
+  agent: entry.agent || "AIRA",
+  text: entry.spoken || "",
+  thought: entry.thought || "",
+  anomalous: Boolean(entry.anomalous),
+  toneClass: entry.meta?.toneClass || "",
+  anomalyAware: Boolean(entry.meta?.anomalyAware),
+  time,
+}));
+```
+
+TO:
+```js
+const items = responses.map((entry) => ({
+  type: "character",
+  agent: entry.agent || "AIRA",
+  text: buildInlineSubtext(entry.spoken, entry.thought, entry.meta),
+  thought: "",
+  anomalous: Boolean(entry.anomalous),
+  toneClass: entry.meta?.toneClass || "",
+  anomalyAware: Boolean(entry.meta?.anomalyAware),
+  time,
+}));
+```
+
+IMPORTANT
+The `text` field is now sanitized HTML, not plain text.
+
+======================================================================
+4) CLIENT — SAFE RENDERING CHANGE
+======================================================================
+
+TARGET
+`client/app.js`
+
+CURRENT PROBLEM
+Character bubbles currently escape the full text again.
+
+That would break inline span rendering.
+
+FIND character bubble render:
+```js
+<div class="message__bubble${message.toneClass ? ` tone-${escapeHtml(message.toneClass)}` : ""}">${escapeHtml(message.text)}</div>
+```
+
+CHANGE TO:
+```js
+<div class="message__bubble${message.toneClass ? ` tone-${escapeHtml(message.toneClass)}` : ""}">${message.text}</div>
+```
+
+IMPORTANT
+Only do this because `buildInlineSubtext()` escapes the content before adding allowed inline markup.
+
+Do NOT use raw unsanitized model output here.
+
+======================================================================
+5) CLIENT — ADD MATTE INLINE SUBTEXT STYLE
+======================================================================
+
+TARGET
+`client/style.css`
+
+ADD:
+
+```css
+.subtext-inline {
+  color: rgba(201, 167, 255, 0.58);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  opacity: 0.92;
+}
+
+.subtext-inline.is-strong {
+  color: rgba(201, 167, 255, 0.72);
+}
+```
+
+OPTIONAL
+Deprecate or ignore `.message__thought`.
+
+Do not rely on it in room chat anymore.
+
+======================================================================
+6) CLIENT — MULTI-SPEAKER SUPPORT (ALREADY MOSTLY THERE)
+======================================================================
+
+STATUS
+The current room renderer already supports multiple sequential message items.
+That means you do NOT need a structural UI rewrite.
+
+ACTION
+Do not force collapse or grouping right now.
+Keep rendering each character response as its own row.
+
+RULE
+In room chat:
+- 1 to 2 character replies in a turn = normal
+- 3 replies = rare
+- more than 3 = reject upstream
+
+This pass does NOT require DOM grouping.
+
+======================================================================
+7) CLIENT — ADD AMBIENT AUTOTALK RENDER LANE
+======================================================================
+
+TARGET
+`client/app.js`
+
+PURPOSE
+Allow the frontend to slowly render room continuation if backend later sends:
+```json
+result.ambient.autoTalk
+```
+
+ADD near `wait(ms)`:
+```js
+let ambientToken = 0;
+```
+
+ADD helper:
+```js
+async function appendAmbientMessages(items) {
+  const myToken = ++ambientToken;
+
+  for (let i = 0; i < items.length; i += 1) {
+    const delay = 1400 + Math.random() * 1200;
+    await wait(delay);
+
+    if (myToken !== ambientToken) return;
+    if (state.isSending) return;
+
+    const entry = items[i];
+    state.messages.push({
+      type: "character",
+      agent: entry.agent || "AIRA",
+      text: buildInlineSubtext(entry.spoken, entry.thought, entry.meta),
+      thought: "",
+      anomalous: false,
+      toneClass: entry.meta?.toneClass || "",
+      anomalyAware: Boolean(entry.meta?.anomalyAware),
+      time: formatTime(),
+    });
+
+    renderMessages();
+    saveLocalState();
+  }
+}
+```
+
+INTERRUPT RULE
+At the start of `sendMessage(text)`, add:
+```js
+ambientToken += 1;
+```
+
+This cancels pending ambient lines when the player speaks again.
+
+AFTER normal response rendering in `sendMessage(text)`, add:
+
+```js
+const ambientItems = payload?.result?.ambient?.autoTalk ?? [];
+if (ambientItems.length) {
+  appendAmbientMessages(ambientItems);
+}
+```
+
+FAKE MODE NOTE
+If the current room chat is still in local fake mode and not using `/api/ai/run`,
+you may stub this field later.
+The helper can still exist now safely.
+
+======================================================================
+8) BACKEND CONTRACT — MINIMUM SUPPORT FOR THIS PASS
+======================================================================
+
+If backend AI is active, extend response `meta` support.
+
+TARGET
+AI response shape
+
+RECOMMENDED META FIELDS:
+```json
+{
+  "toneClass": "soft|guarded|playful|cold|tender",
+  "anomalyAware": false,
+  "thoughtMode": "inline|hidden",
+  "subtextStrength": "normal|strong",
+  "canOverlap": true
+}
+```
+
+DEFAULTS
+If absent:
+- `thoughtMode = "hidden"`
+- `subtextStrength = "normal"`
+
+This lets the client pass ship safely before the backend is fully upgraded.
+
+======================================================================
+9) AI WRITING HOT RULES — IMMEDIATE QUALITY IMPROVEMENT
+======================================================================
+
+TARGET
+`src/engine/services/CharacterAIService.js`
+or equivalent prompt builder
+
+ADD THESE RULES NOW:
+
+```txt
+Write like a real person in a tense or intimate social moment.
+Keep most lines short.
+Do not dump inner monologue as a separate explanation.
+Avoid roleplay-heavy asterisk narration.
+Avoid fanfiction-style body narration.
+Thought residue should be short, emotionally suggestive, and usable as inline subtext.
+```
+
+ALSO ADD:
+```txt
+Prefer:
+- short spoken line
+- optional soft emotional residue
+- minimal stage direction
+```
+
+REDUCE:
+- `*whispering softly*`
+- `*giggling*`
+- `*my body warm against yours*`
+- long sensory narration
+
+This alone should improve output quality fast.
+
+======================================================================
+10) OPTIONAL BACKEND STOPGAP FOR AUTOTALK
+======================================================================
+
+If full AutoTalkSystem is not ready, add a temporary additive payload shape:
+
+```json
+"ambient": {
+  "autoTalk": []
+}
+```
+
+That allows the client pass to land now without breaking later integration.
+
+Do not block this pass on the full AI-side generator.
+
+======================================================================
+11) TEST PLAN
+======================================================================
+
+TEST 1 — Inline subtext only
+Expected:
+- no separate thought block visible
+- subtext appears inside the bubble
+- color is soft and matte
+- no HTML escaping bug
+
+TEST 2 — No subtext line
+Expected:
+- many lines render normally with no embedded subtext
+- system does not decorate everything
+
+TEST 3 — Multi-speaker room turn
+Expected:
+- 2 characters can appear in sequence cleanly
+- no layout overlap
+- still readable
+
+TEST 4 — Ambient lane idle
+Expected:
+- helper exists
+- no crash if payload has no `ambient.autoTalk`
+
+TEST 5 — Ambient lane active
+Expected:
+- ambient lines appear slowly
+- new player message cancels pending ambient items
+
+TEST 6 — Writing quality
+Expected:
+- less roleplay prose
+- less explicit thought dumping
+- more natural compact phrasing
+
+======================================================================
+12) FAILURE CONDITIONS
+======================================================================
+
+Stop and retune if:
+- the bubble shows raw `<span>` text
+- subtext appears in every line
+- subtext is too bright or loud
+- lines still read like fanfiction narration
+- ambient chat keeps speaking over the player
+- more than 3 replies happen often in one turn
+
+======================================================================
+13) IMPLEMENTATION ORDER
+======================================================================
+
+Do this in order:
+
+1. `app.js` remove separate thought render
+2. `app.js` add subtext helpers
+3. `app.js` normalize responses into inline subtext
+4. `app.js` safe character bubble render update
+5. `style.css` add `.subtext-inline`
+6. `app.js` add ambient lane helper + cancellation token
+7. backend add optional `meta.thoughtMode` and empty `ambient.autoTalk`
+8. prompt rules cleanup
+
+======================================================================
+14) SHIP CRITERIA
+======================================================================
+
+Ship this pass when:
+- room chat visually feels like one surface
+- subtext is woven, not detached
+- multiple characters can appear naturally
+- ambient lane is ready, even if backend generation is still minimal
+- output sounds less weird than before
+
+======================================================================
+END

@@ -119,7 +119,6 @@ const SD_NEGATIVE_PROMPT = [
   '(old:1.3), (elderly:1.3), vintage clothing, period costume, historical setting, 1950s, 1960s, 1970s, 1980s',
   'anime, cartoon, illustration, painting, drawing, sketch, 3d render, cgi, computer graphics',
   'watermark, text, caption, subtitle, logo, ui overlay, phone screen, hud, interface',
-  'nsfw, explicit, nude, nudity',
   'ugly, deformed, bad anatomy, extra limbs, missing limbs, extra fingers, missing fingers, mutated hands',
   'blurry, out of focus, low quality, jpeg artifacts, overexposed, underexposed',
 ].join(', ');
@@ -181,7 +180,7 @@ function buildSDPrompt(state) {
     : '35mm film, f/2.0, shallow depth of field, film grain, analog photography';
 
   return [
-    'cinematic still photograph, contemporary setting, present day',
+    'high realism, cinematic still photograph, contemporary setting, present day',
     'medium shot, full upper body visible, environment visible in background',
     '(woman only:1.5), (female only:1.5), no men, no males',
     characterDescs,
@@ -192,8 +191,8 @@ function buildSDPrompt(state) {
     attentionHint,
     filmTags,
     'HAZEL, BIG ROUND BOOBS',
-    'photorealistic, masterpiece, best quality, detailed skin texture',
-    'sofia coppola aesthetic, wong kar-wai inspired, quiet realism',
+    'photorealistic, masterpiece, best quality, detailed skin texture, sharp focus, ultra-detail',
+    'sofia coppola aesthetic, wong kar-wai inspired, quiet realism, emotionally grounded',
   ].filter(Boolean).join(', ');
 }
 
@@ -229,7 +228,7 @@ export function buildCameraPrompt(state) {
   const attentionHint = dominantAttention ? `Visual focus on ${dominantAttention}.` : '';
 
   return [
-    `Cinematic still photograph. Contemporary setting, present day.`,
+    `High realism photographic still. Cinematic quality. Contemporary setting, present day.`,
     castLock,
     `${characterDescs}.`,
     atmoStyle + '.',
@@ -238,9 +237,9 @@ export function buildCameraPrompt(state) {
     airaHint,
     `No text, captions, logos, watermarks, UI overlays, or phone screens.`,
     chargedBeat
-      ? `Sensual but tasteful. Implied intimacy only. No explicit nudity. Shot on 35mm film, f/1.8, shallow depth of field, natural film grain.`
+      ? `Sensual. Shot on 35mm film, f/1.8, shallow depth of field, natural film grain.`
       : `Shot on 35mm film, f/2.0, shallow depth of field, natural film grain.`,
-    `Photographic style inspired by Sofia Coppola and Wong Kar-wai. Quiet, realistic, grounded. Not illustrated. Not anime. Not CGI.`,
+    `Photorealistic. Masterpiece quality. Detailed texture and skin. Inspired by Sofia Coppola and Wong Kar-wai. Quiet, realistic, grounded. Not illustrated. Not anime. Not CGI. Not blurry. Ultra-sharp focus on faces.`,
   ].filter(Boolean).join(' ');
 }
 
@@ -435,62 +434,129 @@ async function generateViaDallE(state, customPrompt) {
   };
 }
 
-async function generateViaFalAI(state) {
-  const key = process.env.FAL_API_KEY;
-  if (!key) throw new Error('FAL_API_KEY not set');
+// ─── FAL.ai model definitions ─────────────────────────────────────────────────
+// Models tried in order — best quality first, fast fallbacks at the end.
 
-  const prompt = buildSDPrompt(state);
-
-  const responseData = await new Promise((resolve, reject) => {
-    const body = JSON.stringify({
+const FAL_MODELS = [
+  {
+    id: 'fal-ai/flux-pro/v1.1-ultra',
+    label: 'Flux Pro 1.1 Ultra',
+    body: (prompt) => ({
+      prompt,
+      aspect_ratio: '16:9',
+      output_format: 'jpeg',
+      safety_tolerance: '6',
+    }),
+  },
+  {
+    id: 'fal-ai/flux-pro/v1.1',
+    label: 'Flux Pro 1.1',
+    body: (prompt) => ({
       prompt,
       image_size: 'landscape_16_9',
       num_inference_steps: 28,
       guidance_scale: 3.5,
       num_images: 1,
       enable_safety_checker: false,
-    });
+    }),
+  },
+  {
+    id: 'fal-ai/flux-realism',
+    label: 'Flux Realism',
+    body: (prompt) => ({
+      prompt,
+      image_size: 'landscape_16_9',
+      num_inference_steps: 28,
+      guidance_scale: 3.5,
+      num_images: 1,
+      enable_safety_checker: false,
+    }),
+  },
+  {
+    id: 'fal-ai/flux/dev',
+    label: 'Flux Dev',
+    body: (prompt) => ({
+      prompt,
+      image_size: 'landscape_16_9',
+      num_inference_steps: 28,
+      guidance_scale: 3.5,
+      num_images: 1,
+      enable_safety_checker: false,
+    }),
+  },
+];
+
+function falRequest(modelId, body, key) {
+  return new Promise((resolve, reject) => {
+    const bodyStr = JSON.stringify(body);
     const req = https.request({
       hostname: 'fal.run',
-      path: '/fal-ai/flux/dev',
+      path: `/${modelId}`,
       method: 'POST',
       headers: {
         'Authorization': `Key ${key}`,
         'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(body),
+        'Content-Length': Buffer.byteLength(bodyStr),
       },
     }, (res) => {
       let data = '';
       res.on('data', chunk => { data += chunk; });
       res.on('end', () => {
+        if (res.statusCode >= 400) {
+          reject(new Error(`FAL ${modelId} HTTP ${res.statusCode}: ${data.slice(0, 200)}`));
+          return;
+        }
         try { resolve(JSON.parse(data)); }
-        catch { reject(new Error('Invalid JSON from fal.ai: ' + data.slice(0, 200))); }
+        catch { reject(new Error(`FAL ${modelId} invalid JSON: ${data.slice(0, 200)}`)); }
       });
     });
     req.on('error', reject);
-    req.write(body);
+    req.write(bodyStr);
     req.end();
   });
+}
 
-  const imageUrl = responseData.images?.[0]?.url;
-  if (!imageUrl) throw new Error('No image URL from fal.ai: ' + JSON.stringify(responseData).slice(0, 200));
+async function generateViaFalAI(state, modelOverride) {
+  const key = process.env.FAL_API_KEY;
+  if (!key) throw new Error('FAL_API_KEY not set');
 
-  const filename = `shot_${Date.now()}.png`;
-  const filepath  = path.join(IMAGES_DIR, filename);
-  await downloadFile(imageUrl, filepath);
+  const prompt = buildSDPrompt(state);
+  const models = modelOverride
+    ? FAL_MODELS.filter(m => m.id === modelOverride)
+    : FAL_MODELS;
 
-  return {
-    filename,
-    path: `/images/${filename}`,
-    prompt,
-    revisedPrompt: prompt,
-    usedFallback: false,
-    generatedAt: new Date().toISOString(),
-    backend: 'falai',
-  };
+  let lastError;
+  for (const model of models) {
+    try {
+      console.log(`[Camera] Trying FAL model: ${model.label}`);
+      const data = await falRequest(model.id, model.body(prompt), key);
+      const imageUrl = data.images?.[0]?.url;
+      if (!imageUrl) throw new Error(`No image URL from ${model.id}: ${JSON.stringify(data).slice(0, 200)}`);
+
+      const filename = `shot_${Date.now()}.png`;
+      const filepath  = path.join(IMAGES_DIR, filename);
+      await downloadFile(imageUrl, filepath);
+
+      return {
+        filename,
+        path: `/images/${filename}`,
+        prompt,
+        revisedPrompt: prompt,
+        usedFallback: false,
+        generatedAt: new Date().toISOString(),
+        backend: `falai/${model.id}`,
+        model: model.label,
+      };
+    } catch (err) {
+      console.warn(`[Camera] ${model.label} failed: ${err.message}`);
+      lastError = err;
+    }
+  }
+  throw lastError || new Error('All FAL.ai models failed');
 }
 
 export async function generateCameraShot({ state, customPrompt } = {}) {
+  // Priority 1: ComfyUI (local Stable Diffusion)
   if (!customPrompt && await isComfyUIAvailable()) {
     try {
       return await generateViaComfyUI(state);
@@ -498,9 +564,15 @@ export async function generateCameraShot({ state, customPrompt } = {}) {
       console.warn('ComfyUI generation failed, falling back:', comfyErr.message);
     }
   }
+  // Priority 2: FAL.ai (Flux — fast, high quality)
   if (process.env.FAL_API_KEY) {
-    return generateViaFalAI(state);
+    try {
+      return await generateViaFalAI(state);
+    } catch (falErr) {
+      console.warn('FAL.ai generation failed, falling back:', falErr.message);
+    }
   }
+  // Priority 3: DALL-E 3 via OpenAI
   return generateViaDallE(state, customPrompt);
 }
 

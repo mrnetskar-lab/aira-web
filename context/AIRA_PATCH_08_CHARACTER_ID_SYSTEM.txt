@@ -1,0 +1,572 @@
+AIRA_PATCH_08_CHARACTER_ID_SYSTEM.txt
+Project: AIRA Web
+Owner: AI GPT
+Audience: Claude 4.6
+Scope: Client + AI contract + future-safe data model
+Priority: High
+Mode: Foundation patch
+
+======================================================================
+PATCH GOAL
+======================================================================
+
+Introduce a stable character identity system now, before the project grows.
+
+This patch separates:
+- permanent internal identity
+- legacy compatibility keys
+- UI display names
+
+That allows the team to:
+- rename characters later
+- keep autosave stable
+- keep thread state stable
+- keep relationship state stable
+- keep future memory/logging stable
+- support nicknames or altered names later
+
+This patch should happen before:
+- deeper persistence
+- backend memory expansion
+- dating app
+- wider cast growth
+
+======================================================================
+CORE PRODUCT DECISION
+======================================================================
+
+Use three identity layers:
+
+1. `id`
+Permanent internal identity.
+Never changes.
+
+2. `key`
+Short compatibility alias.
+Can match old naming for now.
+Used only while refactoring.
+
+3. `displayName`
+What the user sees.
+Safe to rename later.
+
+Example:
+```json
+{
+  "id": "c001",
+  "key": "lucy",
+  "displayName": "Lucy"
+}
+```
+
+======================================================================
+1) NEW CHARACTER REGISTRY
+======================================================================
+
+CREATE:
+`src/shared/characters.js`
+
+ADD:
+
+```js
+export const CHARACTER_REGISTRY = {
+  c001: {
+    id: "c001",
+    key: "lucy",
+    displayName: "Lucy",
+    colorKey: "Lucy"
+  },
+  c002: {
+    id: "c002",
+    key: "sam",
+    displayName: "Sam",
+    colorKey: "Sam"
+  },
+  c003: {
+    id: "c003",
+    key: "angie",
+    displayName: "Angie",
+    colorKey: "Angie"
+  }
+};
+
+export function getCharacterById(id) {
+  return CHARACTER_REGISTRY[id] || null;
+}
+
+export function getCharacterByKey(key) {
+  const normalized = String(key || "").toLowerCase();
+  return Object.values(CHARACTER_REGISTRY).find(
+    (character) => character.key.toLowerCase() === normalized
+  ) || null;
+}
+
+export function getCharacterDisplayName(idOrKey) {
+  return (
+    getCharacterById(idOrKey)?.displayName ||
+    getCharacterByKey(idOrKey)?.displayName ||
+    idOrKey ||
+    "Unknown"
+  );
+}
+
+export function normalizeCharacterId(idOrKey) {
+  return (
+    getCharacterById(idOrKey)?.id ||
+    getCharacterByKey(idOrKey)?.id ||
+    null
+  );
+}
+```
+
+RULE
+New code should prefer `id`.
+Old code may still pass `key` temporarily.
+
+======================================================================
+2) THREAD MODEL MIGRATION
+======================================================================
+
+TARGET
+`client/app.js`
+
+CURRENT PROBLEM
+Messages threads and thread message maps still use:
+- `lucy`
+- `sam`
+- `angie`
+
+These should move to stable IDs.
+
+CHANGE THREADS FROM:
+```js
+threads: [
+  { id: "lucy", name: "Lucy", preview: "You disappeared.", unread: true },
+  { id: "sam", name: "Sam", preview: "You there?", unread: false },
+  { id: "angie", name: "Angie", preview: "Call me later", unread: true }
+]
+```
+
+TO:
+```js
+threads: [
+  { id: "c001", key: "lucy", displayName: "Lucy", preview: "You disappeared.", unread: true },
+  { id: "c002", key: "sam", displayName: "Sam", preview: "You there?", unread: false },
+  { id: "c003", key: "angie", displayName: "Angie", preview: "Call me later", unread: true }
+]
+```
+
+CHANGE THREAD MESSAGES FROM:
+```js
+messages: {
+  lucy: [...],
+  sam: [...],
+  angie: [...]
+}
+```
+
+TO:
+```js
+messages: {
+  c001: [...],
+  c002: [...],
+  c003: [...]
+}
+```
+
+RULE
+All thread lookups should use stable `id`.
+
+UI should display:
+```js
+thread.displayName
+```
+
+======================================================================
+3) ROOM CHAT RESPONSE CONTRACT
+======================================================================
+
+TARGET
+AI response shape
+
+CURRENT PROBLEM
+Room chat currently treats `agent` as a display name.
+
+NEW RULE
+Responses should move toward:
+
+```json
+{
+  "agentId": "c001",
+  "agentKey": "lucy",
+  "agentDisplayName": "Lucy",
+  "spoken": "You came back.",
+  "thought": "",
+  "meta": {}
+}
+```
+
+TRANSITION RULE
+During migration, frontend should support both:
+- old `agent`
+- new `agentId` / `agentDisplayName`
+
+FRONTEND NORMALIZATION RULE
+In `normalizeResponses(payload)`:
+
+```js
+const agentId = entry.agentId || normalizeCharacterId(entry.agent) || null;
+const agentDisplayName =
+  entry.agentDisplayName ||
+  getCharacterDisplayName(agentId || entry.agent) ||
+  entry.agent ||
+  "AIRA";
+```
+
+Then store:
+```js
+agentId,
+agent: agentDisplayName,
+```
+
+This lets the UI keep working while the backend migrates.
+
+======================================================================
+4) CHARACTER NAME DISPLAY IN UI
+======================================================================
+
+TARGET
+`client/app.js`
+
+ADD small client registry stopgap if shared import is not ready yet:
+
+```js
+const CHARACTER_REGISTRY = {
+  c001: { id: "c001", key: "lucy", displayName: "Lucy", colorKey: "Lucy" },
+  c002: { id: "c002", key: "sam", displayName: "Sam", colorKey: "Sam" },
+  c003: { id: "c003", key: "angie", displayName: "Angie", colorKey: "Angie" },
+};
+
+function getCharacterById(id) {
+  return CHARACTER_REGISTRY[id] || null;
+}
+
+function getCharacterByKey(key) {
+  const normalized = String(key || "").toLowerCase();
+  return Object.values(CHARACTER_REGISTRY).find(
+    (character) => character.key.toLowerCase() === normalized
+  ) || null;
+}
+
+function normalizeCharacterId(idOrKey) {
+  return (
+    getCharacterById(idOrKey)?.id ||
+    getCharacterByKey(idOrKey)?.id ||
+    null
+  );
+}
+
+function getCharacterDisplayName(idOrKey) {
+  return (
+    getCharacterById(idOrKey)?.displayName ||
+    getCharacterByKey(idOrKey)?.displayName ||
+    idOrKey ||
+    "Unknown"
+  );
+}
+
+function getCharacterColorKey(idOrKey) {
+  return (
+    getCharacterById(idOrKey)?.colorKey ||
+    getCharacterByKey(idOrKey)?.colorKey ||
+    idOrKey ||
+    ""
+  );
+}
+```
+
+Then change thread rendering from:
+```js
+${escapeHtml(thread.name)}
+```
+
+to:
+```js
+${escapeHtml(thread.displayName || getCharacterDisplayName(thread.id))}
+```
+
+And in `openThread(id)`:
+```js
+elements.messagesTitle.textContent =
+  thread.displayName || getCharacterDisplayName(thread.id);
+```
+
+======================================================================
+5) NAME COLOR / STYLE MAPPING
+======================================================================
+
+TARGET
+`client/app.js`
+
+CURRENT PROBLEM
+`characterNameClass(name)` currently expects display name strings:
+- Lucy
+- Sam
+- Angie
+
+CHANGE TO:
+
+```js
+function characterNameClass(idOrName) {
+  const colorKey = getCharacterColorKey(idOrName);
+
+  if (colorKey === "Lucy") return "message__name--Lucy";
+  if (colorKey === "Sam") return "message__name--Sam";
+  if (colorKey === "Angie") return "message__name--Angie";
+  return "";
+}
+```
+
+Then call with:
+```js
+characterNameClass(message.agentId || message.agent)
+```
+
+This allows renaming display names later without breaking color classes.
+
+======================================================================
+6) AUTOSAVE MIGRATION SAFETY
+======================================================================
+
+TARGET
+`client/app.js`
+
+CURRENT PROBLEM
+Autosave may already contain old thread keys:
+- lucy
+- sam
+- angie
+
+ADD MIGRATION HELPER:
+
+```js
+function migrateLegacyMessagesApp(messagesApp) {
+  if (!messagesApp) return messagesApp;
+
+  const keyToId = {
+    lucy: "c001",
+    sam: "c002",
+    angie: "c003"
+  };
+
+  const migratedThreads = Array.isArray(messagesApp.threads)
+    ? messagesApp.threads.map((thread) => ({
+        ...thread,
+        id: keyToId[thread.id] || thread.id,
+        key: thread.key || thread.id,
+        displayName: thread.displayName || thread.name || getCharacterDisplayName(keyToId[thread.id] || thread.id)
+      }))
+    : [];
+
+  const migratedMessages = {};
+  const sourceMessages = messagesApp.messages || {};
+
+  for (const [key, value] of Object.entries(sourceMessages)) {
+    const nextKey = keyToId[key] || key;
+    migratedMessages[nextKey] = value;
+  }
+
+  return {
+    ...messagesApp,
+    activeThread: keyToId[messagesApp.activeThread] || messagesApp.activeThread || null,
+    threads: migratedThreads,
+    messages: migratedMessages
+  };
+}
+```
+
+IN `restoreLocalState()`:
+```js
+if (data.messagesApp) {
+  state.messagesApp = migrateLegacyMessagesApp(data.messagesApp);
+}
+```
+
+This prevents old autosave data from breaking after the ID migration.
+
+======================================================================
+7) RESET MODEL UPDATE
+======================================================================
+
+TARGET
+`client/app.js`
+
+In `resetChat()`, update default Messages app state to stable IDs:
+
+```js
+state.messagesApp = {
+  threads: [
+    { id: "c001", key: "lucy", displayName: "Lucy", preview: "You disappeared.", unread: true },
+    { id: "c002", key: "sam", displayName: "Sam", preview: "You there?", unread: false },
+    { id: "c003", key: "angie", displayName: "Angie", preview: "Call me later", unread: true },
+  ],
+  activeThread: null,
+  typingThreadId: null,
+  messages: {
+    c001: [{ text: "You disappeared.", me: false }],
+    c002: [{ text: "You there?", me: false }],
+    c003: [{ text: "Call me later", me: false }],
+  }
+};
+```
+
+======================================================================
+8) SMS HELPER UPDATE
+======================================================================
+
+TARGET
+`client/app.js`
+
+`buildSmsReply(id, text)` should now work on stable IDs.
+
+Either:
+- rename switch keys to `c001`, `c002`, `c003`
+or
+- normalize through registry first
+
+Recommended:
+```js
+const character = getCharacterById(id);
+const key = character?.key || id;
+```
+
+Then use `key` for existing pools.
+
+This reduces rewrite pressure.
+
+======================================================================
+9) RELATIONSHIP / MEMORY / STATE RULE
+======================================================================
+
+TARGET
+Backend state model
+
+NEW RULE
+All new relationship and memory storage should prefer stable IDs.
+
+Preferred future shape:
+```json
+"relationships": {
+  "c001": { ... },
+  "c002": { ... },
+  "c003": { ... }
+}
+```
+
+TRANSITION
+If backend still stores:
+```json
+"Lucy": { ... }
+```
+or
+```json
+"lucy": { ... }
+```
+allow temporary normalization, but plan to migrate to IDs.
+
+Reason:
+display names should not be data keys.
+
+======================================================================
+10) FUTURE BENEFITS
+======================================================================
+
+This patch unlocks:
+- rename later without data migration pain
+- nicknames
+- secret names / true names
+- glitch naming effects
+- multiple characters with similar social style
+- future cast growth without fragile string references
+
+It also protects:
+- autosave
+- thread previews
+- room message identity
+- future memory graphs
+
+======================================================================
+11) TEST PLAN
+======================================================================
+
+TEST 1 — Fresh load
+Expected:
+- threads render with display names
+- thread IDs are c001/c002/c003 internally
+- thread open/close still works
+
+TEST 2 — Legacy autosave restore
+Expected:
+- old `lucy/sam/angie` autosave migrates cleanly
+- no blank threads
+- no lost messages
+
+TEST 3 — Reset
+Expected:
+- reset recreates threads using stable IDs
+- UI still shows names
+
+TEST 4 — Room response compatibility
+Expected:
+- old `agent: "Lucy"` still renders correctly
+- new `agentId: "c001"` also renders correctly
+
+TEST 5 — Rename simulation
+Change:
+```js
+displayName: "Lucy" -> "Luna"
+```
+Expected:
+- UI name changes
+- thread still works
+- old saved data still maps correctly
+- color styling still works
+
+======================================================================
+12) FAILURE CONDITIONS
+======================================================================
+
+Stop and retune if:
+- thread messages disappear after restore
+- autosave breaks after ID migration
+- colors break because display name changed
+- room chat starts showing raw IDs
+- reset recreates old key-based state accidentally
+
+======================================================================
+13) IMPLEMENTATION ORDER
+======================================================================
+
+Apply in this order:
+
+1. Add registry helpers
+2. Migrate Messages app state to stable IDs
+3. Add autosave migration helper
+4. Update reset state
+5. Update thread render/display usage
+6. Update room response normalization
+7. Update color/name class mapping
+8. Later migrate backend relationship keys
+
+======================================================================
+14) FINAL RULE
+======================================================================
+
+Permanent truth = `id`
+Temporary compatibility = `key`
+User-facing naming = `displayName`
+
+Keep those separate from now on.
+
+======================================================================
+END

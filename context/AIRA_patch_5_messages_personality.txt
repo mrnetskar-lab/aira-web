@@ -1,9 +1,9 @@
-AIRA PATCH 5 — MESSAGES PERSONALITY + TYPING + DELAY + INTERFERENCE HOOKS
+AIRA PATCH 05 — MESSAGES PERSONALITY + TYPING + DELAY + INTERFERENCE HOOKS
 ============================================================================
 
 IMPORTANT
 ---------
-This patch assumes PATCH 4 (Messages app MVP) has already been applied.
+This patch assumes PATCH 04B (Messages app polish baseline) has already been applied.
 
 This patch upgrades the Messages app with:
 1. personality per character

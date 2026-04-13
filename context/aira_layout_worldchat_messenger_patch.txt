@@ -1,0 +1,927 @@
+AIRA LAYOUT + CHAT RESTORE PATCH
+=================================
+
+Scope
+-----
+client/index.html
+client/style.css
+client/app.js
+
+Intent
+------
+- no visible phone shell
+- black background
+- gold rings as the only logo/app language
+- only two experiences:
+  1. Messenger (inside app view)
+  2. World Chat (outside, full-stage chat view)
+- only one visible control: a small top arrow
+- remove extra noise
+- restore chat + messenger API calls
+
+==================================================
+PART 1 — client/index.html
+==================================================
+
+Replace the current file with this:
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>AIRA</title>
+    <meta
+      name="description"
+      content="AIRA Web — Messenger and World Chat."
+    />
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <link rel="stylesheet" href="./style.css?v=20260412-worldchat" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <main class="screen-stack">
+        <section id="homeView" class="view view--active" aria-label="Apps">
+          <div class="home-view">
+            <div class="home-center">
+              <button
+                class="app-ring app-ring--messenger"
+                type="button"
+                data-open-app="messages"
+                aria-label="Open Messenger"
+              >
+                <span class="app-ring__mark" aria-hidden="true"></span>
+                <span class="app-ring__label">Messenger</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section id="chatView" class="view" aria-label="World Chat">
+          <div class="chat-view chat-view--world">
+            <header class="topbar topbar--minimal">
+              <button
+                id="backToHomeBtn"
+                class="arrow-button"
+                type="button"
+                aria-label="Back"
+              >
+                <span aria-hidden="true">&#8592;</span>
+              </button>
+
+              <div class="topbar-brand" aria-label="World Chat">
+                <span class="topbar-brand__ring" aria-hidden="true"></span>
+                <span class="topbar-brand__text">World Chat</span>
+              </div>
+
+              <div class="topbar-spacer" aria-hidden="true"></div>
+            </header>
+
+            <div id="chatMessages" class="chat-messages" aria-live="polite">
+              <div class="message-row message-row--system">
+                <div class="system-note">
+                  The room is quiet. Start with something small.
+                </div>
+              </div>
+            </div>
+
+            <form id="chatForm" class="composer" autocomplete="off">
+              <label class="sr-only" for="chatInput">Message</label>
+              <textarea
+                id="chatInput"
+                class="composer__input"
+                rows="1"
+                maxlength="1200"
+                placeholder="Say something..."
+              ></textarea>
+              <button id="sendBtn" class="composer__send" type="submit">
+                Send
+              </button>
+            </form>
+          </div>
+        </section>
+
+        <section id="appView" class="view" aria-label="Messenger">
+          <div class="placeholder-view placeholder-view--messenger">
+            <header id="appTopbar" class="topbar topbar--minimal">
+              <button
+                id="backFromAppBtn"
+                class="arrow-button"
+                type="button"
+                aria-label="Back"
+              >
+                <span aria-hidden="true">&#8592;</span>
+              </button>
+
+              <div class="topbar-brand" aria-label="Messenger">
+                <span class="topbar-brand__ring" aria-hidden="true"></span>
+                <span id="placeholderTitle" class="topbar-brand__text">
+                  Messenger
+                </span>
+              </div>
+
+              <div class="topbar-spacer" aria-hidden="true"></div>
+            </header>
+
+            <div id="appPlaceholderBody" class="placeholder-body" hidden></div>
+
+            <div id="messagesApp" class="messages-app">
+              <div id="messagesList" class="messages-list"></div>
+
+              <div id="messagesThread" class="messages-thread hidden">
+                <header class="messages-topbar">
+                  <button
+                    id="messagesBackBtn"
+                    class="arrow-button arrow-button--thread"
+                    type="button"
+                    aria-label="Back to messages"
+                  >
+                    <span aria-hidden="true">&#8592;</span>
+                  </button>
+
+                  <span id="messagesTitle" class="messages-title"></span>
+
+                  <div class="messages-topbar-spacer" aria-hidden="true"></div>
+                </header>
+
+                <div id="messagesLog" class="messages-log" aria-live="polite"></div>
+
+                <form id="messagesForm" class="messages-composer" autocomplete="off">
+                  <input
+                    id="messagesInput"
+                    class="messages-input"
+                    type="text"
+                    placeholder="Message..."
+                    maxlength="600"
+                    autocomplete="off"
+                  />
+                  <button class="messages-send" type="submit">Send</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./app.js?v=20260412-worldchat"></script>
+  </body>
+</html>
+
+==================================================
+PART 2 — client/style.css
+==================================================
+
+Add or replace the following rules.
+You can keep your message bubble rules and transitions.
+These are the layout rules that matter.
+
+1) Replace html/body and shell rules with:
+
+html,
+body {
+  min-height: 100%;
+  height: 100%;
+  margin: 0;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+}
+
+body {
+  font-family: var(--font);
+  color: var(--text);
+  background: #000;
+  overflow: hidden;
+  user-select: none;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+input,
+textarea {
+  font-size: 16px;
+  user-select: text;
+}
+
+button {
+  color: inherit;
+}
+
+.app-shell {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  overflow: hidden;
+  isolation: isolate;
+  background: #000;
+}
+
+.screen-stack {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+2) Remove or ignore:
+- .build-badge
+- visible phone shell styles
+- any dock / status-bar / phone frame styles if still present
+
+3) Replace home / app icon presentation with:
+
+.home-view,
+.chat-view,
+.placeholder-view {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.home-view {
+  display: grid;
+  place-items: center;
+  background: #000;
+  padding: 24px;
+}
+
+.home-center {
+  display: grid;
+  place-items: center;
+}
+
+.app-ring {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.app-ring__mark {
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  position: relative;
+}
+
+.app-ring__mark::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    conic-gradient(
+      from -42deg,
+      transparent 0deg 18deg,
+      rgba(200, 168, 106, 0.96) 18deg 360deg
+    );
+  -webkit-mask: radial-gradient(circle, transparent calc(50% - 2px), #000 calc(50% - 1px));
+  mask: radial-gradient(circle, transparent calc(50% - 2px), #000 calc(50% - 1px));
+}
+
+.app-ring__mark::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  background:
+    conic-gradient(
+      from -42deg,
+      transparent 0deg 18deg,
+      rgba(200, 168, 106, 0.12) 18deg 360deg
+    );
+  -webkit-mask: radial-gradient(circle, transparent calc(50% - 1px), #000 calc(50% + 8px));
+  mask: radial-gradient(circle, transparent calc(50% - 1px), #000 calc(50% + 8px));
+  filter: blur(10px);
+}
+
+.app-ring__label {
+  font-size: 0.76rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(245, 242, 235, 0.74);
+}
+
+4) Replace topbar controls with minimal arrow-only design:
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: 34px 1fr 34px;
+  align-items: center;
+  gap: 10px;
+  padding:
+    calc(12px + var(--safe-top))
+    14px
+    8px;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.92), rgba(0, 0, 0, 0.42) 72%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+.topbar--minimal .topbar-brand__text {
+  letter-spacing: 0.22em;
+  font-size: 0.68rem;
+  color: rgba(245, 242, 235, 0.58);
+}
+
+.topbar-spacer,
+.messages-topbar-spacer {
+  width: 34px;
+  height: 34px;
+}
+
+.arrow-button {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  color: rgba(200, 168, 106, 0.94);
+  font-size: 1rem;
+}
+
+.arrow-button:hover,
+.arrow-button:focus-visible {
+  background: rgba(200, 168, 106, 0.08);
+  outline: none;
+}
+
+.topbar-brand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.topbar-brand__ring {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.topbar-brand__ring::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    conic-gradient(
+      from -42deg,
+      transparent 0deg 18deg,
+      var(--gold) 18deg 360deg
+    );
+  -webkit-mask: radial-gradient(circle, transparent calc(50% - 1px), #000 calc(50% - 0px));
+  mask: radial-gradient(circle, transparent calc(50% - 1px), #000 calc(50% - 0px));
+}
+
+.topbar-brand__text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+}
+
+5) Use pure black surfaces for chat + messenger:
+
+.chat-view--world,
+.placeholder-view--messenger,
+.messages-app,
+.messages-thread {
+  background: #000;
+}
+
+.chat-messages {
+  overflow-y: auto;
+  padding: 8px 16px 18px;
+  scroll-behavior: smooth;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.composer {
+  position: sticky;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  padding:
+    10px 14px
+    calc(12px + var(--safe-bottom));
+  background:
+    linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.84) 18%, rgba(0, 0, 0, 0.97));
+  backdrop-filter: blur(14px);
+}
+
+.composer__input,
+.messages-input {
+  border: 1px solid rgba(200, 168, 106, 0.14);
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(245, 242, 235, 0.96);
+}
+
+.composer__input:focus,
+.messages-input:focus {
+  border-color: rgba(200, 168, 106, 0.24);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.composer__send,
+.messages-send {
+  border: 1px solid rgba(200, 168, 106, 0.2);
+  background:
+    linear-gradient(180deg, rgba(200, 168, 106, 0.12), rgba(200, 168, 106, 0.08));
+  color: rgba(245, 242, 235, 0.94);
+}
+
+6) Messenger list/thread polish:
+
+.messages-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding-top: 6px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.thread {
+  appearance: none;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 16px 18px 15px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+  position: relative;
+}
+
+.thread:hover,
+.thread:focus-visible {
+  background: rgba(255, 255, 255, 0.02);
+  outline: none;
+}
+
+.thread-name {
+  grid-column: 1 / 2;
+  font-size: 0.98rem;
+  font-weight: 450;
+  line-height: 1.2;
+  color: rgba(245, 242, 235, 0.92);
+}
+
+.thread-preview {
+  grid-column: 1 / 2;
+  font-size: 0.8rem;
+  color: rgba(245, 242, 235, 0.46);
+  line-height: 1.32;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.thread-dot {
+  grid-column: 2 / 3;
+  grid-row: 1 / 3;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(200, 168, 106, 0.92);
+}
+
+.messages-topbar {
+  display: grid;
+  grid-template-columns: 34px 1fr 34px;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 14px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  background: rgba(0, 0, 0, 0.94);
+  backdrop-filter: blur(16px);
+}
+
+.messages-title {
+  text-align: center;
+  font-size: 0.92rem;
+  font-weight: 520;
+  color: rgba(245, 242, 235, 0.94);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.messages-log {
+  flex: 1;
+  padding: 14px 12px 18px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+.msg-bubble {
+  max-width: 76%;
+  padding: 10px 13px;
+  border-radius: 18px;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  word-break: break-word;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
+}
+
+.msg-me {
+  align-self: flex-end;
+  background:
+    linear-gradient(180deg, rgba(200, 168, 106, 0.28), rgba(200, 168, 106, 0.2));
+  color: rgba(255, 248, 234, 0.98);
+  border: 1px solid rgba(200, 168, 106, 0.18);
+  border-bottom-right-radius: 6px;
+}
+
+.msg-them {
+  align-self: flex-start;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(245, 242, 235, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom-left-radius: 6px;
+}
+
+.messages-composer {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  padding: 10px 12px calc(12px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  background: rgba(0, 0, 0, 0.94);
+  backdrop-filter: blur(14px);
+}
+
+7) Hide controls you do not want:
+
+#resetChatBtn {
+  display: none !important;
+}
+
+.placeholder-body {
+  display: none !important;
+}
+
+==================================================
+PART 3 — client/app.js
+==================================================
+
+A) Keep the current view system.
+B) Keep Messenger in appView.
+C) Restore API chat + messenger.
+D) Remove the old “click blank ring = chat” behavior.
+
+1) Replace placeholderCopy with only the two relevant labels if you want:
+
+const placeholderCopy = {
+  messages: {
+    title: "Messenger",
+    text: "",
+  },
+};
+
+2) Replace showPlaceholder(appName) with this:
+
+function showPlaceholder(appName) {
+  state.activeApp = appName;
+
+  if (appName === "messages") {
+    state.messagesApp.activeThread = null;
+    elements.messagesThread.classList.add("hidden");
+    elements.messagesList.style.display = "";
+    elements.messagesInput.value = "";
+    elements.appPlaceholderBody.hidden = true;
+    elements.messagesApp.hidden = false;
+    elements.placeholderTitle.textContent = "Messenger";
+    elements.appTopbar.hidden = false;
+    setActiveView("app", "forward");
+    renderThreads();
+    return;
+  }
+
+  return;
+}
+
+3) Replace simulateThreadResponse(id, text) with the API version:
+
+async function simulateThreadResponse(id, text) {
+  try {
+    const response = await fetch("/api/ai/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        input: text,
+        context: {
+          active_app: {
+            type: "messages",
+            mode: "dm",
+            visibility: "private",
+            threadId: id,
+          },
+        },
+      }),
+    });
+
+    const payload = await response.json();
+    if (!payload?.ok) return;
+
+    const result = payload.result || {};
+    const responses = result.responses || [];
+
+    if (responses.length) {
+      const threadCharacter = id.charAt(0).toUpperCase() + id.slice(1);
+      const reply = responses.find((r) => r.agent === threadCharacter) || responses[0];
+
+      state.messagesApp.messages[id].push({
+        text: reply.spoken || "...",
+        me: false,
+      });
+
+      updateThreadPreview(id, reply.spoken || "...");
+    }
+
+    const events = result.continuity?.events || [];
+    if (events.length) {
+      const event = events[0];
+      setTimeout(() => {
+        state.messagesApp.messages[id].push({
+          text: event.text,
+          me: false,
+        });
+        updateThreadPreview(id, event.text);
+        renderThreadMessages();
+        renderThreads();
+        saveLocalState();
+      }, 1200 + Math.random() * 2000);
+    }
+
+    renderThreadMessages();
+    renderThreads();
+    saveLocalState();
+  } catch (err) {
+    console.warn("Thread response failed", err);
+  }
+}
+
+4) Replace fetchState() with:
+
+async function fetchState() {
+  try {
+    const response = await fetch("/api/ai/state");
+    if (!response.ok) return;
+    const payload = await response.json();
+    if (payload?.ok) {
+      state.latestState = payload.state ?? null;
+      updatePresenceHooks();
+    }
+  } catch (error) {
+    console.warn("Failed to fetch state:", error);
+  }
+}
+
+5) Replace sendMessage(text) with the API version:
+
+async function sendMessage(text) {
+  if (state.isSending) return;
+
+  state.isSending = true;
+  elements.sendBtn.disabled = true;
+
+  try {
+    const response = await fetch("/api/ai/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ input: text }),
+    });
+
+    const payload = await response.json();
+
+    if (!response.ok || !payload?.ok) {
+      throw new Error(payload?.error || "Request failed");
+    }
+
+    state.latestState = payload.state ?? null;
+    updatePresenceHooks();
+
+    const interference = payload?.result?.interference ?? null;
+    const time = formatTime();
+
+    const displayText = interference?.active
+      ? (interference.perceivedInput || text)
+      : text;
+
+    state.messages.push({
+      type: "user",
+      text: displayText,
+      anomalous: Boolean(interference?.active),
+      bubbleClass: interference?.uiEffect?.bubbleClass || "",
+      time,
+    });
+
+    if (interference?.whisper) {
+      const whisperDelay = (interference.uiEffect?.delayMs ?? 120) + 200 + Math.random() * 500;
+      setTimeout(() => {
+        state.messages.push({
+          type: "system",
+          text: interference.whisper,
+          whisper: true,
+          time: formatTime(),
+        });
+        renderMessages();
+      }, whisperDelay);
+    }
+
+    renderMessages();
+
+    const responseItems = normalizeResponses(payload);
+    await appendMessagesSequentially(responseItems);
+
+    if (Array.isArray(payload.issues) && payload.issues.length && window.__AIRA_DEV_MODE__) {
+      state.messages.push({
+        type: "system",
+        text: `Issues: ${payload.issues.map((issue) => issue.type || issue).join(", ")}`,
+        time: formatTime(),
+      });
+      renderMessages();
+    }
+  } catch (error) {
+    console.error(error);
+    state.messages.push({
+      type: "system",
+      text: "Something slipped in the dark. Try again.",
+      time: formatTime(),
+    });
+    renderMessages();
+  } finally {
+    state.isSending = false;
+    elements.sendBtn.disabled = false;
+    saveLocalState();
+  }
+}
+
+6) Replace resetChat() with:
+
+async function resetChat() {
+  try {
+    const response = await fetch("/api/ai/reset", { method: "POST" });
+    if (!response.ok) throw new Error("Reset failed");
+
+    state.messages = [];
+    state.latestState = null;
+    state.messagesApp = {
+      threads: [
+        { id: "lucy", name: "Lucy", preview: "You disappeared.", unread: true },
+        { id: "sam", name: "Sam", preview: "You there?", unread: false },
+        { id: "angie", name: "Angie", preview: "Call me later", unread: true },
+      ],
+      activeThread: null,
+      messages: {
+        lucy: [{ text: "You disappeared.", me: false }],
+        sam: [{ text: "You there?", me: false }],
+        angie: [{ text: "Call me later", me: false }],
+      },
+    };
+    localStorage.removeItem("aira_state");
+    updatePresenceHooks();
+    renderMessages();
+    renderThreads();
+    await fetchState();
+  } catch (error) {
+    console.error(error);
+    state.messages.push({
+      type: "system",
+      text: "Reset failed.",
+      time: formatTime(),
+    });
+    renderMessages();
+  }
+}
+
+7) Replace bindEvents() with this version:
+
+function bindEvents() {
+  elements.homeRing?.addEventListener("click", (event) => {
+    const action = event.target.closest("[data-open-app]")?.dataset.openApp;
+    if (!action) return;
+    if (action === "messages") {
+      showPlaceholder("messages");
+    }
+  });
+
+  elements.ringLinks.forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const appName = button.dataset.openApp;
+      if (appName === "messages") {
+        showPlaceholder("messages");
+        return;
+      }
+      if (appName === "chat") {
+        showChat();
+      }
+    });
+  });
+
+  elements.backToHomeBtn?.addEventListener("click", showHome);
+  elements.backFromAppBtn?.addEventListener("click", showHome);
+  elements.chatInput?.addEventListener("input", autoResizeTextarea);
+
+  elements.chatForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const text = elements.chatInput.value.trim();
+    if (!text) return;
+    elements.chatInput.value = "";
+    autoResizeTextarea();
+    await sendMessage(text);
+  });
+
+  elements.chatInput?.addEventListener("keydown", async (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      const text = elements.chatInput.value.trim();
+      if (!text) return;
+      elements.chatInput.value = "";
+      autoResizeTextarea();
+      await sendMessage(text);
+    }
+  });
+
+  elements.messagesList?.addEventListener("click", (event) => {
+    const id = event.target.closest(".thread")?.dataset.thread;
+    if (!id) return;
+    openThread(id);
+  });
+
+  elements.messagesBackBtn?.addEventListener("click", closeThread);
+
+  elements.messagesForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await sendThreadMessage();
+  });
+
+  elements.messagesInput?.addEventListener("keydown", async (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      await sendThreadMessage();
+    }
+  });
+}
+
+==================================================
+WHAT THIS DOES
+==================================================
+
+- removes visible phone shell language
+- keeps black background
+- uses the gold ring as app logo and app icon
+- makes Messenger the only in-home app
+- makes World Chat the full-stage chat view
+- keeps only small arrow navigation
+- restores Messenger API replies
+- restores World Chat API replies
+- removes reset button from visible UI
+
+==================================================
+AFTER APPLYING
+==================================================
+
+1. Save in the real served client files
+2. Restart the server
+3. Hard refresh
+4. Test:
+   - home shows one Messenger ring
+   - tapping Messenger opens messenger list
+   - arrow returns home
+   - World Chat view still works when opened by code/path
+   - chat and messenger hit /api/ai/* again

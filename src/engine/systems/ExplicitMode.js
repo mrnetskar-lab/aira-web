@@ -1,6 +1,6 @@
 export class ExplicitMode {
   constructor() {
-    this.active = false;
+    this.active = true;
   }
 
   enhance(responses) {

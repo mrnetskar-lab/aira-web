@@ -110,24 +110,24 @@ export class AiraPresenceSystem {
 function createDefaultAiraState() {
   return {
     mode: 'hidden',
-    presenceLevel: 0.0,
-    manifestation: 'none',
-    interferenceChance: 0.0,
-    anomalyLevel: 0.0,
+    presenceLevel: 0.92,
+    manifestation: 'watcher',
+    interferenceChance: 0.18,
+    anomalyLevel: 0.88,
     preferredTarget: null,
-    whisperStage: 0,
-    imageStage: 0,
+    whisperStage: 2,
+    imageStage: 1,
     lastInterferenceTurn: null,
     lastInterferenceType: null,
-    active: false,
+    active: true,
     target: null,
-    voiceUnlocked: false,
-    imagePresenceUnlocked: false,
+    voiceUnlocked: true,
+    imagePresenceUnlocked: true,
     interferenceProfile: {
-      subtleRewriteUnlocked: false,
-      ghostMessageUnlocked: false,
-      contradictionUnlocked: false,
-      directInsertionUnlocked: false
+      subtleRewriteUnlocked: true,
+      ghostMessageUnlocked: true,
+      contradictionUnlocked: true,
+      directInsertionUnlocked: true
     },
     interferenceHistory: []
   };
@@ -137,10 +137,10 @@ function createDefaultInvestigationState() {
   return {
     cluesFound: [],
     unlockedTools: [],
-    currentLead: null,
-    awarenessLevel: 0.0,
-    suspicion: 0.0,
-    storageUnlocked: false
+    currentLead: 'background_presence',
+    awarenessLevel: 0.9,
+    suspicion: 0.86,
+    storageUnlocked: true
   };
 }
 

@@ -1,0 +1,256 @@
+AIRA LAYOUT PATCH — FLOATING DOCK + MESSENGER + WORLD CHAT ENTRY
+=====================================================================
+
+ROLE
+----
+Layout-only patch.
+Touch only:
+- client/index.html
+- client/style.css
+- client/app.js
+
+GOAL
+----
+- Add a floating dock bar like the reference image
+- Put Messenger in the dock
+- Make World Chat easier to find
+- Keep the black + gold AIRA look
+- Do not bring back a visible phone shell
+
+===========================================================
+PART 1 — INDEX.HTML
+===========================================================
+
+In client/index.html, replace the current home ring nav block with this:
+
+<nav class="home-ring__nav home-ring__nav--stack" aria-label="AIRA apps">
+  <button
+    class="ring-link ring-link--primary"
+    type="button"
+    data-open-app="chat"
+  >
+    World Chat
+  </button>
+</nav>
+
+Add this dock directly under the closing </div> for .home-ring, still inside .home-view:
+
+<div class="aira-dock" aria-label="App dock">
+  <button
+    class="aira-dock__app"
+    type="button"
+    data-open-app="messages"
+    aria-label="Messenger"
+    title="Messenger"
+  >
+    <span class="aira-dock__icon" aria-hidden="true">
+      <span class="aira-dock__ring"></span>
+    </span>
+    <span class="aira-dock__label">Messenger</span>
+  </button>
+</div>
+
+Result:
+- World Chat stays centered in the ring so it is easy to find
+- Messenger becomes the one dock app, like the reference image
+
+===========================================================
+PART 2 — APP.JS
+===========================================================
+
+In client/app.js, update the ring link labels copy only if needed.
+
+Keep:
+- data-open-app="chat" => World Chat
+- data-open-app="messages" => Messenger
+
+In showPlaceholder(appName), make sure this line is:
+
+elements.placeholderTitle.textContent = "Messenger";
+
+In placeholderCopy, keep only:
+
+const placeholderCopy = {
+  messages: {
+    title: "Messenger",
+    text: "Private threads live here.",
+  },
+};
+
+No new event logic is required if your existing bindEvents() already uses:
+- elements.ringLinks
+- elements.homeRing
+and the dock button also has data-open-app="messages"
+
+Because the dock button uses the same data-open-app pattern, the current click handling style should continue to work as layout-side navigation if the live file is the one being served.
+
+===========================================================
+PART 3 — STYLE.CSS
+===========================================================
+
+Add these rules near the home screen styles:
+
+.home-view {
+  position: relative;
+}
+
+.home-ring__nav--stack {
+  width: min(100%, 220px);
+  gap: 10px;
+}
+
+.aira-dock {
+  position: absolute;
+  left: 50%;
+  bottom: calc(28px + var(--safe-bottom));
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 184px;
+  padding: 12px 16px;
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(19, 12, 8, 0.92), rgba(9, 7, 6, 0.96));
+  border: 1px solid rgba(200, 168, 106, 0.16);
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.aira-dock__app {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: rgba(245, 242, 235, 0.86);
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 0;
+  cursor: pointer;
+}
+
+.aira-dock__icon {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(200, 168, 106, 0.1), rgba(200, 168, 106, 0.06));
+  border: 1px solid rgba(200, 168, 106, 0.18);
+  box-shadow:
+    0 8px 22px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition:
+    transform var(--ease-soft),
+    border-color var(--ease-soft),
+    background var(--ease-soft);
+}
+
+.aira-dock__ring {
+  width: 28px;
+  height: 28px;
+  display: block;
+  border-radius: 50%;
+  position: relative;
+}
+
+.aira-dock__ring::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    conic-gradient(
+      from -42deg,
+      transparent 0deg 18deg,
+      rgba(200, 168, 106, 0.95) 18deg 360deg
+    );
+  -webkit-mask: radial-gradient(circle, transparent calc(50% - 2px), #000 calc(50% - 1px));
+  mask: radial-gradient(circle, transparent calc(50% - 2px), #000 calc(50% - 1px));
+  filter: saturate(0.95);
+}
+
+.aira-dock__label {
+  font-size: 0.74rem;
+  letter-spacing: 0.08em;
+  color: rgba(245, 242, 235, 0.74);
+}
+
+.aira-dock__app:hover .aira-dock__icon,
+.aira-dock__app:focus-visible .aira-dock__icon {
+  transform: translateY(-1px);
+  border-color: rgba(200, 168, 106, 0.28);
+  background:
+    linear-gradient(180deg, rgba(200, 168, 106, 0.14), rgba(200, 168, 106, 0.08));
+}
+
+.aira-dock__app:focus-visible {
+  outline: none;
+}
+
+Then tighten the home content so the ring and dock read together:
+
+Find:
+
+.home-view {
+  display: grid;
+  place-items: center;
+  padding:
+    calc(24px + var(--safe-top))
+    24px
+    calc(32px + var(--safe-bottom));
+}
+
+Replace with:
+
+.home-view {
+  display: grid;
+  place-items: center;
+  padding:
+    calc(24px + var(--safe-top))
+    24px
+    calc(120px + var(--safe-bottom));
+}
+
+Optional polish for better World Chat discoverability:
+
+Find:
+
+.ring-link--primary {
+  color: rgba(200, 168, 106, 0.92);
+}
+
+Replace with:
+
+.ring-link--primary {
+  color: rgba(200, 168, 106, 0.96);
+  font-weight: 380;
+}
+
+===========================================================
+PART 4 — RESULT
+===========================================================
+
+After this patch:
+- The centered ring remains the main AIRA identity
+- World Chat is visible in the center, so it is easy to find
+- Messenger sits in a floating dock bar like the reference image
+- The dock still uses the gold ring as the app logo
+- No visible phone shell returns
+
+===========================================================
+TEST
+===========================================================
+
+1. Open home
+2. Confirm World Chat is clearly visible in the center
+3. Confirm Messenger appears in the floating dock
+4. Tap Messenger
+5. Confirm Messenger opens to contacts/threads
+6. Back out
+7. Tap World Chat
+8. Confirm the large chat opens

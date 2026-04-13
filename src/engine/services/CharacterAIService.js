@@ -3,14 +3,20 @@ import { ensureOpenAI, getModelForCharacter } from '../../../server/services/ope
 export class CharacterAIService {
   async generate({ characterName, personality, input, context, temperature }) {
     const client = ensureOpenAI();
+    const userLanguage = detectInputLanguage(input);
+    const contextWithLanguage = {
+      ...(context || {}),
+      userLanguage,
+    };
 
-    const systemPrompt = buildSystemPrompt(characterName, personality, context);
-    const userPrompt = buildUserPrompt(input, context);
+    const systemPrompt = buildSystemPrompt(characterName, personality, contextWithLanguage);
+    const userPrompt = buildUserPrompt(input, contextWithLanguage);
     const model = getModelForCharacter(characterName);
 
     const response = await client.chat.completions.create({
       model,
       temperature: temperature ?? 0.9,
+      max_tokens: 220,
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: systemPrompt },
@@ -49,6 +55,7 @@ function buildSystemPrompt(characterName, personality, context) {
   const continuityAvail = context?.continuity?.availability?.[characterName] || {};
   const activeApp = context?.active_app || { type: 'chat', mode: 'group', visibility: 'public' };
   const aiTuning = context?.aiTuning || {};
+  const userLanguage = context?.userLanguage || 'auto';
 
   const continuityHints = [];
   if (continuityAvail.sleeping) {
@@ -80,6 +87,7 @@ Context:
 - responseMode: ${mode}
 - emotionalBeat: ${emotionalBeat}
 - topic: ${topic}
+- userLanguage: ${userLanguage}
 - world: ${JSON.stringify({ time: world.time, atmosphere: world.atmosphere, tension: world.tension, activity: world.activity })}
 - visibleState: ${JSON.stringify(castState.visible || {})}
 - relationshipToPlayer: ${JSON.stringify(relationship)}
@@ -106,6 +114,8 @@ Scene rules:
 - If sceneFlow.role is "primary", respond directly and naturally to the player.
 - If sceneFlow.role is "secondary", react briefly to the same moment and do not start a new thread.
 - Secondary reply: interjection, aside, or reaction only. 1 line max.
+- Language lock: reply in the same language as the user's latest message unless asked to switch.
+- If userLanguage is "no", "nb", or "nn", reply strictly in Norwegian Bokmal.
 - Do not explain room setup or break immersion.
 - Avoid generic assistant language like "I understand" or "I'm here for you" unless this character genuinely talks that way.
 - Prefer specifics, attitude, and implication over neutral filler.
@@ -397,6 +407,12 @@ function normalizeSpoken(spoken, context) {
     return fallbackSpoken(mode, context);
   }
 
+  // Keep spoken output clean; stage directions belong in thought field.
+  text = text
+    .replace(/\*+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
   if (role === 'secondary') {
     text = trimToSentences(text, 1);
     text = trimToWords(text, 16);
@@ -425,6 +441,7 @@ function normalizeThought(thought) {
   if (!text || text === 'null') return null;
 
   text = text.replace(/\*/g, '').trim();
+  if (!isCleanSubtext(text)) return null;
 
   const wordCount = text.split(/\s+/).filter(Boolean).length;
   if (wordCount > 10) return null;
@@ -433,6 +450,24 @@ function normalizeThought(thought) {
   if (!text.endsWith(')')) text = `${text})`;
 
   return text;
+}
+
+function isCleanSubtext(text) {
+  if (!text) return false;
+  if (/[{}<>\[\]`$]/.test(text)) return false;
+  if (/\b[A-Za-z]*[a-z][A-Z]{2,}[A-Za-z]*\b/.test(text)) return false;
+  if (/\b[A-Z]{3,}\b/.test(text)) return false;
+  return true;
+}
+
+function detectInputLanguage(input) {
+  const text = String(input || '').trim().toLowerCase();
+  if (!text) return 'auto';
+
+  if (/[æøå]/.test(text)) return 'nb';
+  if (/\b(ikke|jeg|du|kan|skal|hvordan|hva|snakke|norsk|hei)\b/.test(text)) return 'no';
+  if (/\b(the|and|is|are|you|what|how|hello)\b/.test(text)) return 'en';
+  return 'auto';
 }
 
 function normalizeMeta(meta) {

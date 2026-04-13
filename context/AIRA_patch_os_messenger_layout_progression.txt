@@ -1,0 +1,699 @@
+AIRA PATCH — OS + MESSENGER LAYOUT PROGRESSION
+===============================================
+
+Goal
+----
+Move the product forward visually, without touching AI/brain logic.
+
+Scope
+-----
+- client/index.html
+- client/style.css
+- client/app.js
+
+Rules
+-----
+- OS shell + Messenger only
+- no new AI systems
+- no new engine behavior
+- no Gallery / Clues work
+- no refactor outside listed edits
+
+This patch does 4 things:
+1. makes the OS feel more like an app shell
+2. removes the temporary repair badge
+3. tightens Messenger spacing and hierarchy
+4. gives list ↔ thread transitions a cleaner feel
+
+==================================================
+PART 1 — INDEX.HTML
+==================================================
+
+STEP 1 — Remove temporary repair marker
+
+In client/index.html:
+
+A) Find:
+  <body data-build="AIRA-P3-REPAIR">
+
+Replace with:
+  <body>
+
+B) Remove this line entirely:
+  <div class="build-badge" aria-hidden="true">AIRA P3</div>
+
+==================================================
+PART 2 — STYLE.CSS
+==================================================
+
+STEP 2 — Lock the app shell like a real app
+
+Find:
+
+  html,
+  body {
+    min-height: 100%;
+  }
+
+Replace with:
+
+  html,
+  body {
+    min-height: 100%;
+    height: 100%;
+    margin: 0;
+    overscroll-behavior: none;
+    touch-action: manipulation;
+  }
+
+Find:
+
+  body {
+    margin: 0;
+    font-family: var(--font);
+    color: var(--text);
+    background:
+      radial-gradient(circle at 50% 20%, rgba(32, 27, 18, 0.28), transparent 28%),
+      radial-gradient(circle at 70% 70%, rgba(27, 22, 12, 0.18), transparent 26%),
+      radial-gradient(circle at 30% 30%, rgba(18, 18, 34, 0.35), transparent 34%),
+      linear-gradient(180deg, #04040a 0%, #020204 100%);
+    overflow: hidden;
+  }
+
+Replace with:
+
+  body {
+    font-family: var(--font);
+    color: var(--text);
+    background:
+      radial-gradient(circle at 50% 20%, rgba(32, 27, 18, 0.28), transparent 28%),
+      radial-gradient(circle at 70% 70%, rgba(27, 22, 12, 0.18), transparent 26%),
+      radial-gradient(circle at 30% 30%, rgba(18, 18, 34, 0.35), transparent 34%),
+      linear-gradient(180deg, #04040a 0%, #020204 100%);
+    overflow: hidden;
+    user-select: none;
+  }
+
+Add this rule near button/input/textarea rules:
+
+  input,
+  textarea {
+    font-size: 16px;
+    user-select: text;
+  }
+
+Find:
+
+  .app-shell {
+    position: relative;
+    min-height: 100vh;
+    min-height: 100dvh;
+    isolation: isolate;
+  }
+
+Replace with:
+
+  .app-shell {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100dvh;
+    overflow: hidden;
+    isolation: isolate;
+  }
+
+Find:
+
+  .screen-stack {
+    position: relative;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+Replace with:
+
+  .screen-stack {
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+
+STEP 3 — Remove repair badge styles
+
+Delete the entire .build-badge block.
+
+That block starts with:
+
+  .build-badge {
+
+and ends at its closing }.
+
+==================================================
+PART 3 — OS POLISH
+==================================================
+
+STEP 4 — Tighten home ring layout
+
+Find:
+
+  .home-ring__content {
+    position: absolute;
+    inset: 13%;
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    gap: 16px;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 50% 45%, rgba(255, 244, 219, 0.012), transparent 50%),
+      radial-gradient(circle at 50% 50%, rgba(200, 168, 106, 0.022), transparent 74%);
+  }
+
+Replace with:
+
+  .home-ring__content {
+    position: absolute;
+    inset: 13%;
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    gap: 14px;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 50% 45%, rgba(255, 244, 219, 0.01), transparent 50%),
+      radial-gradient(circle at 50% 50%, rgba(200, 168, 106, 0.02), transparent 74%);
+  }
+
+Find:
+
+  .home-ring__eyebrow {
+    font-size: 0.68rem;
+    letter-spacing: 0.5em;
+    color: rgba(200, 168, 106, 0.68);
+    text-transform: uppercase;
+  }
+
+Replace with:
+
+  .home-ring__eyebrow {
+    font-size: 0.66rem;
+    letter-spacing: 0.46em;
+    color: rgba(200, 168, 106, 0.68);
+    text-transform: uppercase;
+  }
+
+Find:
+
+  .home-ring__nav {
+    display: grid;
+    gap: 9px;
+    width: min(100%, 184px);
+  }
+
+Replace with:
+
+  .home-ring__nav {
+    display: grid;
+    gap: 8px;
+    width: min(100%, 178px);
+  }
+
+Find:
+
+  .ring-link {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    padding: 3px 0;
+    text-align: center;
+    font-size: clamp(0.94rem, 2.3vw, 1.03rem);
+    font-weight: 300;
+    letter-spacing: 0.16em;
+    color: rgba(245, 242, 235, 0.58);
+    cursor: pointer;
+    transition:
+      color var(--ease-soft),
+      letter-spacing var(--ease-soft),
+      transform var(--ease-soft),
+      opacity var(--ease-soft);
+  }
+
+Replace with:
+
+  .ring-link {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    padding: 2px 0;
+    text-align: center;
+    font-size: clamp(0.92rem, 2.3vw, 1rem);
+    font-weight: 320;
+    letter-spacing: 0.14em;
+    color: rgba(245, 242, 235, 0.58);
+    cursor: pointer;
+    transition:
+      color var(--ease-soft),
+      letter-spacing var(--ease-soft),
+      transform var(--ease-soft),
+      opacity var(--ease-soft);
+  }
+
+STEP 5 — Calm topbar and chat spacing
+
+Find:
+
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: grid;
+    grid-template-columns: 44px 1fr 44px;
+    align-items: center;
+    gap: 12px;
+    padding:
+      calc(16px + var(--safe-top))
+      18px
+      12px;
+    background:
+      linear-gradient(180deg, rgba(3, 3, 7, 0.9), rgba(3, 3, 7, 0.55) 72%, transparent);
+    backdrop-filter: blur(8px);
+  }
+
+Replace with:
+
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: grid;
+    grid-template-columns: 44px 1fr 44px;
+    align-items: center;
+    gap: 12px;
+    padding:
+      calc(14px + var(--safe-top))
+      16px
+      10px;
+    background:
+      linear-gradient(180deg, rgba(3, 3, 7, 0.92), rgba(3, 3, 7, 0.58) 72%, transparent);
+    backdrop-filter: blur(10px);
+  }
+
+Find:
+
+  .chat-messages {
+    overflow-y: auto;
+    padding: 10px 18px 22px;
+    scroll-behavior: smooth;
+    overscroll-behavior: contain;
+  }
+
+Replace with:
+
+  .chat-messages {
+    overflow-y: auto;
+    padding: 8px 16px 20px;
+    scroll-behavior: smooth;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+==================================================
+PART 4 — MESSENGER POLISH
+==================================================
+
+STEP 6 — Improve list view spacing and thread hierarchy
+
+Find:
+
+  .messages-list {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    padding-top: 6px;
+  }
+
+Replace with:
+
+  .messages-list {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    padding-top: 4px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+Find:
+
+  .thread {
+    appearance: none;
+    width: 100%;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 8px 12px;
+    padding: 15px 18px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.035);
+    cursor: pointer;
+    transition:
+      background 180ms ease,
+      border-color 180ms ease;
+    position: relative;
+  }
+
+Replace with:
+
+  .thread {
+    appearance: none;
+    width: 100%;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 6px 12px;
+    padding: 16px 18px 15px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.032);
+    cursor: pointer;
+    transition:
+      background 180ms ease,
+      border-color 180ms ease;
+    position: relative;
+  }
+
+Find:
+
+  .thread-name {
+    grid-column: 1 / 2;
+    font-size: 1rem;
+    font-weight: 420;
+    line-height: 1.2;
+    color: rgba(245, 242, 235, 0.92);
+    letter-spacing: 0.01em;
+  }
+
+Replace with:
+
+  .thread-name {
+    grid-column: 1 / 2;
+    font-size: 0.98rem;
+    font-weight: 450;
+    line-height: 1.2;
+    color: rgba(245, 242, 235, 0.92);
+    letter-spacing: 0.01em;
+  }
+
+Find:
+
+  .thread-preview {
+    grid-column: 1 / 2;
+    font-size: 0.82rem;
+    color: rgba(245, 242, 235, 0.46);
+    line-height: 1.35;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+
+Replace with:
+
+  .thread-preview {
+    grid-column: 1 / 2;
+    font-size: 0.8rem;
+    color: rgba(245, 242, 235, 0.46);
+    line-height: 1.32;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+
+STEP 7 — Refine conversation top bar
+
+Find:
+
+  .messages-topbar {
+    display: grid;
+    grid-template-columns: 56px 1fr 56px;
+    align-items: center;
+    min-height: 52px;
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    background: rgba(7, 7, 11, 0.92);
+    backdrop-filter: blur(14px);
+  }
+
+Replace with:
+
+  .messages-topbar {
+    display: grid;
+    grid-template-columns: 56px 1fr 56px;
+    align-items: center;
+    min-height: 50px;
+    padding: 6px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    background: rgba(7, 7, 11, 0.94);
+    backdrop-filter: blur(16px);
+  }
+
+Find:
+
+  .messages-title {
+    text-align: center;
+    font-size: 0.98rem;
+    font-weight: 500;
+    color: rgba(245, 242, 235, 0.92);
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+Replace with:
+
+  .messages-title {
+    text-align: center;
+    font-size: 0.96rem;
+    font-weight: 520;
+    color: rgba(245, 242, 235, 0.94);
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+STEP 8 — Make message view feel more native
+
+Find:
+
+  .messages-log {
+    flex: 1;
+    padding: 16px 14px 18px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    scroll-behavior: smooth;
+  }
+
+Replace with:
+
+  .messages-log {
+    flex: 1;
+    padding: 14px 12px 18px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+
+Find:
+
+  .msg-bubble {
+    max-width: 74%;
+    padding: 10px 14px;
+    border-radius: 18px;
+    font-size: 0.96rem;
+    line-height: 1.42;
+    word-break: break-word;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.16);
+  }
+
+Replace with:
+
+  .msg-bubble {
+    max-width: 76%;
+    padding: 10px 13px;
+    border-radius: 18px;
+    font-size: 0.95rem;
+    line-height: 1.4;
+    word-break: break-word;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
+  }
+
+STEP 9 — Tighten composer
+
+Find:
+
+  .messages-composer {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    padding: 10px 12px calc(12px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+    background: rgba(7, 7, 11, 0.94);
+    backdrop-filter: blur(14px);
+  }
+
+Replace with:
+
+  .messages-composer {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    padding: 9px 10px calc(10px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+    background: rgba(7, 7, 11, 0.95);
+    backdrop-filter: blur(16px);
+  }
+
+Find:
+
+  .messages-input {
+    width: 100%;
+    min-height: 42px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    padding: 10px 14px;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(245, 242, 235, 0.96);
+    font-size: 0.95rem;
+    outline: none;
+    transition:
+      border-color 160ms ease,
+      background 160ms ease;
+  }
+
+Replace with:
+
+  .messages-input {
+    width: 100%;
+    min-height: 42px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 10px 14px;
+    background: rgba(255, 255, 255, 0.045);
+    color: rgba(245, 242, 235, 0.96);
+    font-size: 0.95rem;
+    outline: none;
+    transition:
+      border-color 160ms ease,
+      background 160ms ease;
+  }
+
+Find:
+
+  .messages-send {
+    min-width: 68px;
+    min-height: 42px;
+    border-radius: 999px;
+    border: 1px solid rgba(200, 168, 106, 0.18);
+    padding: 0 14px;
+    background:
+      linear-gradient(180deg, rgba(200, 168, 106, 0.13), rgba(200, 168, 106, 0.09));
+    color: rgba(245, 242, 235, 0.94);
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition:
+      border-color 160ms ease,
+      background 160ms ease,
+      transform 160ms ease;
+  }
+
+Replace with:
+
+  .messages-send {
+    min-width: 64px;
+    min-height: 42px;
+    border-radius: 999px;
+    border: 1px solid rgba(200, 168, 106, 0.18);
+    padding: 0 14px;
+    background:
+      linear-gradient(180deg, rgba(200, 168, 106, 0.12), rgba(200, 168, 106, 0.09));
+    color: rgba(245, 242, 235, 0.94);
+    font-size: 0.88rem;
+    font-weight: 520;
+    cursor: pointer;
+    transition:
+      border-color 160ms ease,
+      background 160ms ease,
+      transform 160ms ease;
+  }
+
+==================================================
+PART 5 — APP TRANSITION FEEL
+==================================================
+
+STEP 10 — Add subtle fade for Messages list/thread switch
+
+Add these new rules near the Messages section:
+
+  .messages-list,
+  .messages-thread {
+    will-change: opacity, transform;
+  }
+
+  .messages-list {
+    animation: airaMessageIn 180ms var(--ease-soft);
+  }
+
+  .messages-thread:not(.hidden) {
+    animation: viewEnterForward 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+==================================================
+PART 6 — APP.JS
+==================================================
+
+STEP 11 — Make list restore use CSS default
+
+In client/app.js, find every occurrence of:
+
+  elements.messagesList.style.display = "flex";
+
+Replace with:
+
+  elements.messagesList.style.display = "";
+
+This should happen in:
+- showPlaceholder("messages")
+- closeThread()
+
+Keep this line in openThread():
+  elements.messagesList.style.display = "none";
+
+Do not change that one.
+
+==================================================
+RESULT
+==================================================
+
+After this patch:
+- OS feels more locked and app-like
+- home ring feels slightly cleaner
+- top bars feel calmer
+- Messenger list feels more premium
+- thread view feels more native
+- list ↔ thread switching feels cleaner
+- no AI logic changed
+
+END

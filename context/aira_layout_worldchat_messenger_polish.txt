@@ -1,0 +1,854 @@
+AIRA LAYOUT PATCH — WORLD CHAT + MESSENGER FRAMING
+===========================================================
+
+ROLE
+----
+Layout-only patch.
+Touch only:
+- client/index.html
+- client/style.css
+- client/app.js
+
+Do not change server or AI route behavior.
+
+GOAL
+----
+1. World Chat = big main chat screen
+2. Messenger = SMS-style contact list first, then private thread
+3. No visible phone shell
+4. Black background + gold ring visual language
+5. Only a small top arrow for navigation
+6. Cleaner framing, less noise, better hierarchy
+
+===========================================================
+PART 1 — INDEX.HTML
+===========================================================
+
+1) Rename the app labels in the home ring
+
+In client/index.html:
+
+Find:
+  data-open-app="chat"
+  button text: Chat
+
+Replace with:
+  data-open-app="chat"
+  button text: World Chat
+
+Find:
+  data-open-app="messages"
+  button text: Messages
+
+Replace with:
+  data-open-app="messages"
+  button text: Messenger
+
+Do not add more app icons.
+Keep Gallery / Clues / Settings out of the home ring for now.
+
+So the nav should become:
+
+  <nav class="home-ring__nav" aria-label="AIRA apps">
+    <button
+      class="ring-link ring-link--primary"
+      type="button"
+      data-open-app="chat"
+    >
+      World Chat
+    </button>
+    <button
+      class="ring-link"
+      type="button"
+      data-open-app="messages"
+    >
+      Messenger
+    </button>
+  </nav>
+
+2) Keep the outer home ring as a DIV, not a button
+
+This should remain:
+
+  <div
+    id="homeRing"
+    class="home-ring"
+    aria-label="AIRA home"
+  >
+
+Do not revert it to a button.
+
+3) Keep only the small arrow in chat/app headers
+
+Keep:
+- backToHomeBtn
+- backFromAppBtn
+- messagesBackBtn
+
+Remove the reset button from the chat topbar.
+
+Find this block:
+  <button
+    id="resetChatBtn"
+    class="icon-button icon-button--ghost"
+    type="button"
+    aria-label="Reset chat"
+    title="Reset chat"
+  >
+    <span aria-hidden="true">&#x27F3;</span>
+  </button>
+
+Replace it with:
+  <div class="topbar-spacer" aria-hidden="true"></div>
+
+This keeps the layout balanced with only the arrow visible.
+
+===========================================================
+PART 2 — APP.JS
+===========================================================
+
+1) Home should route only to World Chat or Messenger
+
+Find placeholderCopy and reduce it to only this:
+
+const placeholderCopy = {
+  messages: {
+    title: "Messenger",
+    text: "Private threads live here.",
+  },
+};
+
+2) Reduce the ring links to only the two live apps
+
+No new logic is needed if the HTML only contains:
+- data-open-app="chat"
+- data-open-app="messages"
+
+3) Rename Messages UI text to Messenger
+
+In showPlaceholder(appName), change:
+  elements.placeholderTitle.textContent = "Messages";
+
+to:
+  elements.placeholderTitle.textContent = "Messenger";
+
+4) Improve Messenger thread previews so they feel like SMS contacts
+
+Update the initial state to use more contact-like previews:
+
+messagesApp: {
+  threads: [
+    { id: "lucy", name: "Lucy", preview: "You disappeared.", unread: true },
+    { id: "sam", name: "Sam", preview: "You there?", unread: false },
+    { id: "angie", name: "Angie", preview: "Call me later", unread: true },
+  ],
+  activeThread: null,
+  messages: {
+    lucy: [{ text: "You disappeared.", me: false }],
+    sam: [{ text: "You there?", me: false }],
+    angie: [{ text: "Call me later", me: false }],
+  },
+},
+
+That state can stay as-is if already present.
+
+5) Make World Chat read as the big public chat
+
+No structure rewrite required.
+Keep showChat() as the main world chat view.
+
+6) Remove reset button binding if reset button was removed
+
+In bindEvents(), remove or guard this line:
+
+  elements.resetChatBtn.addEventListener("click", resetChat);
+
+Replace with:
+
+  if (elements.resetChatBtn) {
+    elements.resetChatBtn.addEventListener("click", resetChat);
+  }
+
+===========================================================
+PART 3 — STYLE.CSS
+===========================================================
+
+1) Remove visible phone-shell feeling
+
+Use a flatter world with no device-frame cues.
+
+Find:
+  .app-shell {
+    position: relative;
+    min-height: 100vh;
+    min-height: 100dvh;
+    isolation: isolate;
+  }
+
+Replace with:
+  .app-shell {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100dvh;
+    overflow: hidden;
+    isolation: isolate;
+    background: #000;
+  }
+
+Find:
+  .screen-stack {
+    position: relative;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+Replace with:
+  .screen-stack {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: #000;
+  }
+
+2) Tighten the home ring so it feels like an app/logo cluster, not a phone shell
+
+Find:
+  .home-ring__content {
+    position: absolute;
+    inset: 13%;
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    gap: 16px;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 50% 45%, rgba(255, 244, 219, 0.012), transparent 50%),
+      radial-gradient(circle at 50% 50%, rgba(200, 168, 106, 0.022), transparent 74%);
+  }
+
+Replace with:
+  .home-ring__content {
+    position: absolute;
+    inset: 13%;
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    gap: 14px;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 50% 45%, rgba(255, 244, 219, 0.008), transparent 50%),
+      radial-gradient(circle at 50% 50%, rgba(200, 168, 106, 0.018), transparent 74%);
+  }
+
+Find:
+  .home-ring__nav {
+    display: grid;
+    gap: 9px;
+    width: min(100%, 184px);
+  }
+
+Replace with:
+  .home-ring__nav {
+    display: grid;
+    gap: 10px;
+    width: min(100%, 190px);
+  }
+
+Find:
+  .ring-link {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    padding: 3px 0;
+    text-align: center;
+    font-size: clamp(0.94rem, 2.3vw, 1.03rem);
+    font-weight: 300;
+    letter-spacing: 0.16em;
+    color: rgba(245, 242, 235, 0.58);
+    cursor: pointer;
+    transition:
+      color var(--ease-soft),
+      letter-spacing var(--ease-soft),
+      transform var(--ease-soft),
+      opacity var(--ease-soft);
+  }
+
+Replace with:
+  .ring-link {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    padding: 4px 0;
+    text-align: center;
+    font-size: clamp(0.96rem, 2.4vw, 1.04rem);
+    font-weight: 340;
+    letter-spacing: 0.14em;
+    color: rgba(245, 242, 235, 0.64);
+    cursor: pointer;
+    transition:
+      color var(--ease-soft),
+      letter-spacing var(--ease-soft),
+      transform var(--ease-soft),
+      opacity var(--ease-soft);
+  }
+
+3) Make topbars smaller and quieter
+
+Find:
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: grid;
+    grid-template-columns: 44px 1fr 44px;
+    align-items: center;
+    gap: 12px;
+    padding:
+      calc(16px + var(--safe-top))
+      18px
+      12px;
+    background:
+      linear-gradient(180deg, rgba(3, 3, 7, 0.9), rgba(3, 3, 7, 0.55) 72%, transparent);
+    backdrop-filter: blur(8px);
+  }
+
+Replace with:
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: grid;
+    grid-template-columns: 36px 1fr 36px;
+    align-items: center;
+    gap: 10px;
+    padding:
+      calc(12px + var(--safe-top))
+      12px
+      8px;
+    background:
+      linear-gradient(180deg, rgba(0, 0, 0, 0.92), rgba(0, 0, 0, 0.56) 72%, transparent);
+    backdrop-filter: blur(10px);
+  }
+
+Find:
+  .topbar-spacer {
+    width: 44px;
+    height: 44px;
+  }
+
+Replace with:
+  .topbar-spacer {
+    width: 36px;
+    height: 36px;
+  }
+
+Find:
+  .icon-button {
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.02);
+    display: inline-grid;
+    place-items: center;
+    cursor: pointer;
+    transition:
+      border-color 160ms ease,
+      background 160ms ease,
+      transform 160ms ease;
+  }
+
+Replace with:
+  .icon-button {
+    width: 32px;
+    height: 32px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    display: inline-grid;
+    place-items: center;
+    cursor: pointer;
+    color: rgba(200, 168, 106, 0.95);
+    transition:
+      color 160ms ease,
+      transform 160ms ease,
+      opacity 160ms ease;
+  }
+
+Find:
+  .icon-button:hover,
+  .icon-button:focus-visible {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: var(--line-strong);
+    transform: translateY(-1px);
+    outline: none;
+  }
+
+Replace with:
+  .icon-button:hover,
+  .icon-button:focus-visible {
+    background: transparent;
+    transform: translateX(-1px);
+    opacity: 0.92;
+    outline: none;
+  }
+
+Find:
+  .topbar-brand__text {
+    letter-spacing: 0.34em;
+    font-size: 0.75rem;
+    font-weight: 300;
+    color: rgba(245, 242, 235, 0.68);
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+Replace with:
+  .topbar-brand__text {
+    letter-spacing: 0.18em;
+    font-size: 0.72rem;
+    font-weight: 360;
+    color: rgba(245, 242, 235, 0.74);
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+4) Make World Chat feel bigger and cleaner
+
+Find:
+  .chat-messages {
+    overflow-y: auto;
+    padding: 10px 18px 22px;
+    scroll-behavior: smooth;
+    overscroll-behavior: contain;
+  }
+
+Replace with:
+  .chat-messages {
+    overflow-y: auto;
+    padding: 8px 14px 18px;
+    scroll-behavior: smooth;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    background: #000;
+  }
+
+Find:
+  .message {
+    max-width: min(84%, 460px);
+  }
+
+Replace with:
+  .message {
+    max-width: min(88%, 640px);
+  }
+
+Find:
+  .message__bubble {
+    padding: 14px 16px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.042);
+    border: 1px solid rgba(255, 255, 255, 0.045);
+    line-height: 1.58;
+    box-shadow: var(--shadow);
+    word-break: break-word;
+    backdrop-filter: blur(10px);
+  }
+
+Replace with:
+  .message__bubble {
+    padding: 13px 15px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.038);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    line-height: 1.56;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+    word-break: break-word;
+    backdrop-filter: blur(10px);
+  }
+
+Find:
+  .composer {
+    position: sticky;
+    bottom: 0;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    padding:
+      12px 18px
+      calc(14px + var(--safe-bottom));
+    background:
+      linear-gradient(180deg, transparent, rgba(3, 3, 7, 0.8) 18%, rgba(3, 3, 7, 0.94));
+    backdrop-filter: blur(14px);
+  }
+
+Replace with:
+  .composer {
+    position: sticky;
+    bottom: 0;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    padding:
+      10px 12px
+      calc(12px + var(--safe-bottom));
+    background:
+      linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.8) 18%, rgba(0, 0, 0, 0.96));
+    backdrop-filter: blur(14px);
+  }
+
+Find:
+  .composer__send {
+    min-width: 82px;
+    border: 1px solid rgba(200, 168, 106, 0.18);
+    border-radius: 18px;
+    background:
+      linear-gradient(180deg, rgba(200, 168, 106, 0.1), rgba(200, 168, 106, 0.07));
+    color: var(--gold);
+    padding: 0 16px;
+    cursor: pointer;
+    transition:
+      transform var(--ease-soft),
+      border-color var(--ease-soft),
+      background var(--ease-soft);
+  }
+
+Replace with:
+  .composer__send {
+    min-width: 72px;
+    border: 1px solid rgba(200, 168, 106, 0.22);
+    border-radius: 18px;
+    background:
+      linear-gradient(180deg, rgba(200, 168, 106, 0.12), rgba(200, 168, 106, 0.08));
+    color: var(--gold);
+    padding: 0 14px;
+    cursor: pointer;
+    transition:
+      transform var(--ease-soft),
+      border-color var(--ease-soft),
+      background var(--ease-soft);
+  }
+
+5) Make Messenger read as a real SMS inbox
+
+Find:
+  .messages-list {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    padding-top: 6px;
+  }
+
+Replace with:
+  .messages-list {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    padding-top: 2px;
+    background: #000;
+    -webkit-overflow-scrolling: touch;
+  }
+
+Find:
+  .thread {
+    appearance: none;
+    width: 100%;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 8px 12px;
+    padding: 15px 18px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.035);
+    cursor: pointer;
+    transition:
+      background 180ms ease,
+      border-color 180ms ease;
+    position: relative;
+  }
+
+Replace with:
+  .thread {
+    appearance: none;
+    width: 100%;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 5px 10px;
+    padding: 16px 16px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    cursor: pointer;
+    transition:
+      background 180ms ease,
+      border-color 180ms ease;
+    position: relative;
+  }
+
+Find:
+  .thread-name {
+    grid-column: 1 / 2;
+    font-size: 1rem;
+    font-weight: 420;
+    line-height: 1.2;
+    color: rgba(245, 242, 235, 0.92);
+    letter-spacing: 0.01em;
+  }
+
+Replace with:
+  .thread-name {
+    grid-column: 1 / 2;
+    font-size: 0.98rem;
+    font-weight: 460;
+    line-height: 1.2;
+    color: rgba(245, 242, 235, 0.95);
+    letter-spacing: 0.01em;
+  }
+
+Find:
+  .thread-preview {
+    grid-column: 1 / 2;
+    font-size: 0.82rem;
+    color: rgba(245, 242, 235, 0.46);
+    line-height: 1.35;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+
+Replace with:
+  .thread-preview {
+    grid-column: 1 / 2;
+    font-size: 0.8rem;
+    color: rgba(245, 242, 235, 0.5);
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+
+6) Make private thread feel like SMS, not a placeholder panel
+
+Find:
+  .messages-topbar {
+    display: grid;
+    grid-template-columns: 56px 1fr 56px;
+    align-items: center;
+    min-height: 52px;
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    background: rgba(7, 7, 11, 0.92);
+    backdrop-filter: blur(14px);
+  }
+
+Replace with:
+  .messages-topbar {
+    display: grid;
+    grid-template-columns: 40px 1fr 40px;
+    align-items: center;
+    min-height: 44px;
+    padding: 6px 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.035);
+    background: rgba(0, 0, 0, 0.94);
+    backdrop-filter: blur(16px);
+  }
+
+Find:
+  .messages-topbar-spacer {
+    width: 56px;
+    height: 1px;
+  }
+
+Replace with:
+  .messages-topbar-spacer {
+    width: 40px;
+    height: 1px;
+  }
+
+Find:
+  .messages-title {
+    text-align: center;
+    font-size: 0.98rem;
+    font-weight: 500;
+    color: rgba(245, 242, 235, 0.92);
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+Replace with:
+  .messages-title {
+    text-align: center;
+    font-size: 0.94rem;
+    font-weight: 520;
+    color: rgba(245, 242, 235, 0.96);
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+Find:
+  .messages-back {
+    justify-self: start;
+    width: 40px;
+    height: 40px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    font-size: 1.3rem;
+    color: rgba(200, 168, 106, 0.92);
+    cursor: pointer;
+    transition:
+      background 160ms ease,
+      transform 160ms ease;
+  }
+
+Replace with:
+  .messages-back {
+    justify-self: start;
+    width: 28px;
+    height: 28px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    font-size: 1.05rem;
+    color: rgba(200, 168, 106, 0.96);
+    cursor: pointer;
+    transition:
+      opacity 160ms ease,
+      transform 160ms ease;
+  }
+
+Find:
+  .messages-back:hover,
+  .messages-back:focus-visible {
+    background: rgba(200, 168, 106, 0.08);
+    transform: translateX(-1px);
+    outline: none;
+  }
+
+Replace with:
+  .messages-back:hover,
+  .messages-back:focus-visible {
+    background: transparent;
+    transform: translateX(-1px);
+    opacity: 0.92;
+    outline: none;
+  }
+
+Find:
+  .messages-log {
+    flex: 1;
+    padding: 16px 14px 18px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    scroll-behavior: smooth;
+  }
+
+Replace with:
+  .messages-log {
+    flex: 1;
+    padding: 14px 12px 18px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    scroll-behavior: smooth;
+    background: #000;
+    -webkit-overflow-scrolling: touch;
+  }
+
+Find:
+  .msg-bubble {
+    max-width: 74%;
+    padding: 10px 14px;
+    border-radius: 18px;
+    font-size: 0.96rem;
+    line-height: 1.42;
+    word-break: break-word;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.16);
+  }
+
+Replace with:
+  .msg-bubble {
+    max-width: 78%;
+    padding: 10px 13px;
+    border-radius: 18px;
+    font-size: 0.94rem;
+    line-height: 1.4;
+    word-break: break-word;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
+  }
+
+Find:
+  .messages-composer {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    padding: 10px 12px calc(12px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+    background: rgba(7, 7, 11, 0.94);
+    backdrop-filter: blur(14px);
+  }
+
+Replace with:
+  .messages-composer {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    padding: 10px 10px calc(12px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid rgba(255, 255, 255, 0.035);
+    background: rgba(0, 0, 0, 0.95);
+    backdrop-filter: blur(14px);
+  }
+
+7) Remove visible repair/build noise if still present
+
+Delete any .build-badge block if it still exists.
+
+===========================================================
+PART 4 — RESULT
+===========================================================
+
+After this patch:
+
+- Home feels like a black stage with gold ring identity
+- Messenger is the only in-app SMS-style destination
+- World Chat is the big outside conversation surface
+- Message list looks like contacts first
+- Private thread feels like SMS
+- Navigation is only the small arrow
+- No visible phone shell
+- No extra noise
+
+===========================================================
+TEST
+===========================================================
+
+1. Open home
+2. Tap World Chat
+3. Confirm large clean chat screen
+4. Arrow back
+5. Tap Messenger
+6. Confirm contact list first
+7. Tap Lucy / Sam / Angie
+8. Confirm private SMS thread
+9. Arrow back out of thread
+10. Arrow back to home

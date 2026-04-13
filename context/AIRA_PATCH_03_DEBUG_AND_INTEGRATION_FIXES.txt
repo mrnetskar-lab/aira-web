@@ -1,4 +1,4 @@
-AIRA_PATCH_03_DEBUG_AND_INTEGRATION_FIXES.txt
+﻿AIRA_PATCH_03_DEBUG_AND_INTEGRATION_FIXES.txt
 Project: AIRA Web
 Audience: Claude 4.6
 Purpose: Fix the current integration bugs between the updated chat UI and the AI engine
@@ -15,7 +15,7 @@ The updated chat UI in `client/app.js` is already trying to use:
 - `entry.meta.anomalyAware`
 - delayed whisper/system insertion
 
-This is visible in the current frontend file. fileciteturn5file1
+This is visible in the current frontend file.
 
 But the last known AI contract and engine flow still center on:
 - `result.responses`
@@ -26,10 +26,10 @@ But the last known AI contract and engine flow still center on:
 - orchestrator returning only `{ responses, gmLine }`
 
 This is visible in:
-- the current team contract response shape, which still documents only `responses` and `gmLine` in `result` fileciteturn6file13
-- the last known orchestrator file, which returns only `{ responses, gmLine }` and calls `observer.analyze(input, responses, this.state)` without interference fileciteturn6file16
+- the current team contract response shape, which still documents only `responses` and `gmLine` in `result`
+- the last known orchestrator file, which returns only `{ responses, gmLine }` and calls `observer.analyze(input, responses, this.state)` without interference
 
-So the current bug is primarily an API / engine / UI contract mismatch. fileciteturn5file1turn6file13turn6file16
+So the current bug is primarily an API / engine / UI contract mismatch.
 
 ======================================================================
 1) FIX ORDER
@@ -49,7 +49,7 @@ Apply in this exact order:
 Do NOT do these out of order.
 
 ======================================================================
-2) PATCH A — UPDATE AI CONTRACT
+2) PATCH A â€” UPDATE AI CONTRACT
 ======================================================================
 
 TARGET
@@ -60,7 +60,7 @@ The documented `/api/ai/run` result shape does not include:
 - `interference`
 - response `meta`
 
-That makes the current frontend technically ahead of the contract. fileciteturn6file13turn5file1
+That makes the current frontend technically ahead of the contract.
 
 PATCH INTENT
 Keep the existing contract stable, but add these fields as OPTIONAL / additive.
@@ -103,10 +103,10 @@ REPLACE THE `/api/ai/run` RESPONSE EXAMPLE WITH:
 ```
 
 WHY
-This makes the current frontend legal instead of speculative. fileciteturn5file1turn6file13
+This makes the current frontend legal instead of speculative.
 
 ======================================================================
-3) PATCH B — FIX ORCHESTRATOR RESULT SHAPE
+3) PATCH B â€” FIX ORCHESTRATOR RESULT SHAPE
 ======================================================================
 
 TARGET
@@ -124,7 +124,6 @@ It does not expose interference, and the observer call is still:
 ```js
 this.observer.analyze(input, responses, this.state);
 ```
-fileciteturn6file16
 
 PATCH INTENT
 Upgrade the orchestrator so the UI receives exactly what it expects, while preserving existing behavior when interference is inactive.
@@ -167,10 +166,10 @@ interference: {
 ```
 
 WHY
-The frontend currently assumes this object may exist and behaves around it. fileciteturn5file1turn6file16
+The frontend currently assumes this object may exist and behaves around it.
 
 ======================================================================
-4) PATCH C — FIX ROUTE ASYNC / RESPONSE SAFETY
+4) PATCH C â€” FIX ROUTE ASYNC / RESPONSE SAFETY
 ======================================================================
 
 TARGET
@@ -182,13 +181,13 @@ Your current frontend is doing:
 const payload = await response.json();
 const interference = payload.result?.interference || {};
 ```
-So `/api/ai/run` must reliably return the final engine result shape. fileciteturn5file1
+So `/api/ai/run` must reliably return the final engine result shape.
 
 The older pack routes shown in the uploaded packs call:
 ```js
 const result = engine.orchestrator.run(input);
 ```
-without `await`, which is wrong for the richer async engine path. fileciteturn6file1turn6file7
+without `await`, which is wrong for the richer async engine path.
 
 PATCH INTENT
 Make sure the live route does all of the following:
@@ -231,10 +230,10 @@ router.post('/run', async (req, res) => {
 ```
 
 WHY
-Without this, the frontend may receive stale or incomplete result state. fileciteturn5file1turn6file1turn6file7
+Without this, the frontend may receive stale or incomplete result state.
 
 ======================================================================
-5) PATCH D — GUARANTEE RESPONSE META ON CHARACTER OUTPUT
+5) PATCH D â€” GUARANTEE RESPONSE META ON CHARACTER OUTPUT
 ======================================================================
 
 TARGET
@@ -246,9 +245,8 @@ PROBLEM
 The frontend now reads:
 - `entry.meta?.toneClass`
 - `entry.meta?.anomalyAware`
-fileciteturn5file1
 
-But the old contract never required `meta`, and the last known orchestrator/contract examples do not include it. fileciteturn6file13turn6file16
+But the old contract never required `meta`, and the last known orchestrator/contract examples do not include it.
 
 PATCH INTENT
 Always normalize every response to include `meta`, even if minimal.
@@ -277,24 +275,24 @@ RULES
   - `tender`
 
 WHY
-This removes a silent UI dependency and makes rendering stable. fileciteturn5file1
+This removes a silent UI dependency and makes rendering stable.
 
 ======================================================================
-6) PATCH E — FIX CURRENT FRONTEND BUGS IN app.js
+6) PATCH E â€” FIX CURRENT FRONTEND BUGS IN app.js
 ======================================================================
 
 TARGET
 `client/app.js`
 
 IMPORTANT
-This file is Layout-owned under the contract, but these are integration fixes needed for the current UI to work with the AI contract. The frontend already contains the newer hooks. fileciteturn6file13turn5file1
+This file is Layout-owned under the contract, but these are integration fixes needed for the current UI to work with the AI contract. The frontend already contains the newer hooks.
 
-BUG 1 — USER MESSAGE IS RENDERED BEFORE FINAL INTERFERENCE STATE
+BUG 1 â€” USER MESSAGE IS RENDERED BEFORE FINAL INTERFERENCE STATE
 CURRENT BEHAVIOR
-The app pushes a normal user message first, renders it, then later mutates it with `setTimeout()` if interference is active. fileciteturn5file1
+The app pushes a normal user message first, renders it, then later mutates it with `setTimeout()` if interference is active.
 
 WHY IT FEELS WRONG
-That creates an “edited after send” feel instead of “this is what got sent.”
+That creates an â€œedited after sendâ€ feel instead of â€œthis is what got sent.â€
 
 FIX
 Move the user push until AFTER the payload is known.
@@ -381,11 +379,11 @@ async function sendMessage(text) {
 WHY
 - avoids awkward mutation
 - keeps the sent message truthful to the final system output
-- keeps interference creepy instead of buggy fileciteturn5file1
+- keeps interference creepy instead of buggy
 
-BUG 2 — WHISPERS ARE NOT VISUALLY DISTINCT
+BUG 2 â€” WHISPERS ARE NOT VISUALLY DISTINCT
 CURRENT BEHAVIOR
-Whispers are pushed as plain `type: "system"` entries with no flag. fileciteturn5file1
+Whispers are pushed as plain `type: "system"` entries with no flag.
 
 FIX
 Render them differently.
@@ -403,15 +401,15 @@ TO:
 ```
 
 WHY
-Whispers need their own visual lane. fileciteturn5file1
+Whispers need their own visual lane.
 
-BUG 3 — DEV ISSUE RENDERING IS WRONG
+BUG 3 â€” DEV ISSUE RENDERING IS WRONG
 CURRENT BEHAVIOR
 The app currently does:
 ```js
 text: `Issues: ${payload.issues.join(", ")}`
 ```
-But `issues` is an array of objects in the current engine/dev pattern, not strings. This will print `[object Object]`. fileciteturn5file1turn6file16
+But `issues` is an array of objects in the current engine/dev pattern, not strings. This will print `[object Object]`.
 
 FIX
 Use:
@@ -419,11 +417,11 @@ Use:
 text: `Issues: ${payload.issues.map((issue) => issue.type || issue).join(", ")}`
 ```
 
-BUG 4 — TIMESTAMP DRIFT ON DELAYED MUTATION
-By mutating the original user message after a timeout, the UI can show a visually shifted message with the old timestamp and a delayed rewrite. Removing mutation fixes this automatically. fileciteturn5file1
+BUG 4 â€” TIMESTAMP DRIFT ON DELAYED MUTATION
+By mutating the original user message after a timeout, the UI can show a visually shifted message with the old timestamp and a delayed rewrite. Removing mutation fixes this automatically.
 
 ======================================================================
-7) PATCH F — FIX NORMALIZE RESPONSES SAFETY
+7) PATCH F â€” FIX NORMALIZE RESPONSES SAFETY
 ======================================================================
 
 TARGET
@@ -464,10 +462,10 @@ function normalizeResponses(payload) {
 ```
 
 WHY
-This matches the current UI assumptions and fails safely. fileciteturn5file1
+This matches the current UI assumptions and fails safely.
 
 ======================================================================
-8) PATCH G — UPDATE OBSERVER TO ACCEPT INTERFERENCE
+8) PATCH G â€” UPDATE OBSERVER TO ACCEPT INTERFERENCE
 ======================================================================
 
 TARGET
@@ -478,7 +476,6 @@ The last known observer signature is:
 ```js
 analyze(input, responses, state)
 ```
-fileciteturn6file16
 
 PATCH INTENT
 Change it to:
@@ -496,10 +493,10 @@ This is needed for:
 - future patch tuning
 
 WHY
-Without this, the patcher cannot govern AIRA quality. fileciteturn6file16
+Without this, the patcher cannot govern AIRA quality.
 
 ======================================================================
-9) PATCH H — UPDATE DEVLOG / README TO MATCH REAL SYSTEM
+9) PATCH H â€” UPDATE DEVLOG / README TO MATCH REAL SYSTEM
 ======================================================================
 
 TARGETS
@@ -507,7 +504,7 @@ TARGETS
 - `DEVLOG.md`
 
 PROBLEM
-README still describes the architecture without the interference layer in the main run loop. fileciteturn6file12
+README still describes the architecture without the interference layer in the main run loop.
 
 PATCH INTENT
 Update the architecture section to:
@@ -516,7 +513,7 @@ Update the architecture section to:
 - note anomaly-aware response meta
 
 WHY
-The docs are now behind the app behavior. fileciteturn6file12turn5file1
+The docs are now behind the app behavior.
 
 ======================================================================
 10) FAST MANUAL TEST PLAN
@@ -524,7 +521,7 @@ The docs are now behind the app behavior. fileciteturn6file12turn5file1
 
 AFTER APPLYING THIS PATCH FILE, TEST IN THIS ORDER:
 
-TEST 1 — NORMAL SEND
+TEST 1 â€” NORMAL SEND
 Input:
 `hello`
 Expected:
@@ -533,7 +530,7 @@ Expected:
 - normal reply(s)
 - no whisper most turns
 
-TEST 2 — SUBTLE INTERFERENCE
+TEST 2 â€” SUBTLE INTERFERENCE
 Use a build where interference chance is nonzero.
 Input:
 `i trust you`
@@ -542,17 +539,17 @@ Expected:
 - no "normal first, rewritten later" effect
 - possible whisper appears later, visually distinct
 
-TEST 3 — META SAFETY
+TEST 3 â€” META SAFETY
 Expected:
 - no console errors if `meta` missing
 - `toneClass` and `anomalyAware` do not break rendering
 
-TEST 4 — DEV ISSUES
+TEST 4 â€” DEV ISSUES
 Enable dev mode.
 Expected:
 - issues line shows type names, not `[object Object]`
 
-TEST 5 — API SHAPE
+TEST 5 â€” API SHAPE
 Check `/api/ai/run`
 Expected:
 - `result.interference` always present
@@ -580,3 +577,4 @@ It is a contract reconciliation patch between:
 
 ======================================================================
 END
+

@@ -1,3 +1,22 @@
+// Sensible starting values that match the engine's own defaults
+const OFFLINE_DEFAULTS = {
+  tension:    0.9,
+  randomness: 0.82,
+  aira: {
+    presenceLevel: 0.92,
+    anomalyLevel:  0.88,
+  },
+  investigation: {
+    awarenessLevel: 0.9,
+    suspicion:      0.86,
+  },
+  relationships: {
+    Lucy:  { trust: 0.91, attraction: 0.9, comfort: 0.9, attachment: 0.88, interest: 0.93, romanticTension: 0.89, longing: 0.85, jealousy: 0.62, hurt: 0.32, avoidance: 0.18, intimacyReadiness: 0.9, exclusivityPressure: 0.8, betrayalSensitivity: 0.78 },
+    Sam:   { trust: 0.86, attraction: 0.88, comfort: 0.84, attachment: 0.82, interest: 0.9, romanticTension: 0.91, longing: 0.81, jealousy: 0.74, hurt: 0.42, avoidance: 0.3, intimacyReadiness: 0.85, exclusivityPressure: 0.84, betrayalSensitivity: 0.87 },
+    Angie: { trust: 0.93, attraction: 0.9, comfort: 0.91, attachment: 0.88, interest: 0.92, romanticTension: 0.87, longing: 0.84, jealousy: 0.66, hurt: 0.34, avoidance: 0.2, intimacyReadiness: 0.9, exclusivityPressure: 0.81, betrayalSensitivity: 0.79 },
+  },
+};
+
 export class AiraDevDrawer {
   constructor({ getState, onStateUpdate, onReset }) {
     this.getState = getState;
@@ -126,7 +145,9 @@ export class AiraDevDrawer {
       { key: "randomness", label: "Randomness", hint: "0=stable  1=chaotic" },
     ];
 
-    container.innerHTML = params.map(({ key, label, hint }) => `
+    container.innerHTML = params.map(({ key, label, hint }) => {
+      const def = (OFFLINE_DEFAULTS[key] ?? 0).toFixed(2);
+      return `
       <div class="dev-tuning-row">
         <div class="dev-tuning-label">
           <span>${label}</span>
@@ -134,12 +155,12 @@ export class AiraDevDrawer {
         </div>
         <div class="dev-tuning-control">
           <input class="dev-slider dev-slider--state" type="range"
-            min="0" max="1" step="0.01" value="0"
+            min="0" max="1" step="0.01" value="${def}"
             data-state-key="${key}" />
-          <span class="dev-slider-val" id="stateVal_${key}">0.00</span>
+          <span class="dev-slider-val" id="stateVal_${key}">${def}</span>
         </div>
       </div>
-    `).join("");
+    `;}).join("");
 
     container.querySelectorAll(".dev-slider--state").forEach((slider) => {
       const k = slider.dataset.stateKey;
@@ -166,19 +187,21 @@ export class AiraDevDrawer {
       { ns: "investigation", key: "suspicion",      label: "Suspicion"       },
     ];
 
-    container.innerHTML = params.map(({ ns, key, label }) => `
+    container.innerHTML = params.map(({ ns, key, label }) => {
+      const def = ((OFFLINE_DEFAULTS[ns] || {})[key] ?? 0).toFixed(2);
+      return `
       <div class="dev-tuning-row">
         <div class="dev-tuning-label">
           <span>${label}</span>
-          <span class="dev-slider-val" id="airaVal_${ns}_${key}">—</span>
+          <span class="dev-slider-val" id="airaVal_${ns}_${key}">${def}</span>
         </div>
         <div class="dev-tuning-control">
           <input class="dev-slider dev-slider--aira" type="range"
-            min="0" max="1" step="0.01" value="0"
+            min="0" max="1" step="0.01" value="${def}"
             data-aira-ns="${ns}" data-aira-key="${key}" />
         </div>
       </div>
-    `).join("");
+    `;}).join("");
 
     container.querySelectorAll(".dev-slider--aira").forEach((slider) => {
       const id = `aira:${slider.dataset.airaNs}:${slider.dataset.airaKey}`;
@@ -259,7 +282,7 @@ export class AiraDevDrawer {
         if (this._activeSliders.has(`rel:${name}:${key}`)) continue;
         const slider = this.root.querySelector(`.dev-slider--rel[data-char="${name}"][data-key="${key}"]`);
         const lbl    = this.root.querySelector(`#relVal_${name}_${key}`);
-        const val    = typeof rel[key] === "number" ? rel[key] : 0;
+        const val    = typeof rel[key] === "number" ? rel[key] : ((OFFLINE_DEFAULTS.relationships[name] || {})[key] ?? 0);
         if (slider) slider.value = val.toFixed(2);
         if (lbl)    lbl.textContent = val.toFixed(2);
       }
@@ -281,7 +304,7 @@ export class AiraDevDrawer {
       if (this._activeSliders.has("state:" + k)) continue;
       const slider = this.root.querySelector(`.dev-slider--state[data-state-key="${k}"]`);
       const lbl    = this.root.querySelector(`#stateVal_${k}`);
-      const val    = typeof state?.[k] === "number" ? state[k] : 0;
+      const val    = typeof state?.[k] === "number" ? state[k] : (OFFLINE_DEFAULTS[k] ?? 0);
       if (slider) slider.value = val.toFixed(2);
       if (lbl)    lbl.textContent = val.toFixed(2);
     }
@@ -299,7 +322,7 @@ export class AiraDevDrawer {
       const id  = `aira:${ns}:${key}`;
       if (this._activeSliders.has(id)) continue;
       const src = state?.[ns];
-      const val = typeof src?.[key] === "number" ? src[key] : 0;
+      const val = typeof src?.[key] === "number" ? src[key] : ((OFFLINE_DEFAULTS[ns] || {})[key] ?? 0);
       const slider = this.root.querySelector(`.dev-slider--aira[data-aira-ns="${ns}"][data-aira-key="${key}"]`);
       const lbl    = this.root.querySelector(`#airaVal_${ns}_${key}`);
       if (slider) slider.value = val.toFixed(2);
@@ -535,9 +558,10 @@ export class AiraDevDrawer {
     // ── Aira sliders
     if (state) this._updateAiraSliders(state);
 
-    // ── Relationships
-    if (!this._relRendered && state?.relationships) {
-      this._renderRelSliders(state);
+    // ── Relationships — fall back to OFFLINE_DEFAULTS if server hasn't sent state
+    const relState = state?.relationships ? state : { relationships: OFFLINE_DEFAULTS.relationships };
+    if (!this._relRendered) {
+      this._renderRelSliders(relState);
       this._relRendered = true;
     } else if (state?.relationships) {
       this._updateRelSliders(state);

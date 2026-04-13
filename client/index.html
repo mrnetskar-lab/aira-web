@@ -14,8 +14,8 @@
     <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <meta name="build" content="20260412-c" />
-    <link rel="stylesheet" href="./style.css?v=20260412-c" />
+    <meta name="build" content="20260413-c" />
+    <link rel="stylesheet" href="./style.css?v=20260413-c" />
   </head>
   <body>
     <div class="app-shell">
@@ -67,6 +67,16 @@
               </div>
             </div>
 
+            <button
+              id="sceneProgressBtn"
+              class="scene-progress-btn"
+              type="button"
+              aria-label="Let the scene progress"
+              title="Let the scene progress"
+            >Let Scene Progress</button>
+
+            <div id="quickPromptBar" class="quick-prompt-bar" aria-label="Quick prompts"></div>
+
             <form id="chatForm" class="composer" autocomplete="off">
               <label class="sr-only" for="chatInput">Message</label>
               <textarea
@@ -76,6 +86,14 @@
                 maxlength="1200"
                 placeholder="Say something..."
               ></textarea>
+              <button
+                id="voiceToggleBtn"
+                class="composer__voice"
+                type="button"
+                aria-pressed="false"
+                aria-label="Toggle text-to-speech"
+                title="TTS off"
+              >TTS</button>
               <button id="sendBtn" class="composer__send" type="submit" aria-label="Send message">
                 <span aria-hidden="true">&#8594;</span>
                 <span class="sr-only">Send</span>
@@ -389,6 +407,6 @@
       </div>
     </div>
 
-    <script type="module" src="./app.js?v=20260412-b"></script>
+    <script type="module" src="./app.js?v=20260413-m"></script>
   </body>
 </html>

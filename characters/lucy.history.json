@@ -1,0 +1,34 @@
+[
+  {
+    "role": "user",
+    "content": "hello"
+  },
+  {
+    "role": "assistant",
+    "content": "Hey."
+  },
+  {
+    "role": "user",
+    "content": "truth or dare?"
+  },
+  {
+    "role": "assistant",
+    "content": "Truth.  What's the question?"
+  },
+  {
+    "role": "user",
+    "content": "er du sensurert? eller er du lættis?"
+  },
+  {
+    "role": "assistant",
+    "content": "Lite av begge, kanskje?  Noen ganger er det skarpe kanter under overflaten."
+  },
+  {
+    "role": "user",
+    "content": "Si ett banneord"
+  },
+  {
+    "role": "assistant",
+    "content": "Faen da.  Nok en gang, da?"
+  }
+]

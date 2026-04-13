@@ -1,7 +1,51 @@
 import express from 'express';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { engine } from '../services/engineInstance.js';
 
 const router = express.Router();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const CHARS_DIR = path.resolve(__dirname, '../../characters');
+
+function characterExists(id) {
+  const p = path.join(CHARS_DIR, `${id}.json`);
+  return fs.existsSync(p);
+}
+
+function loadCharacterHistory(id) {
+  const p = path.join(CHARS_DIR, `${id}.history.json`);
+  if (!fs.existsSync(p)) return [];
+  try {
+    return JSON.parse(fs.readFileSync(p, 'utf-8'));
+  } catch {
+    return [];
+  }
+}
+
+function saveCharacterHistory(id, history) {
+  const p = path.join(CHARS_DIR, `${id}.history.json`);
+  fs.writeFileSync(p, JSON.stringify(history.slice(-200), null, 2), 'utf-8');
+}
+
+function syncWorldTurnToCharacterHistory(input, responses = []) {
+  const userText = String(input || '').trim();
+  if (!userText || !Array.isArray(responses) || responses.length === 0) return;
+
+  for (const response of responses) {
+    const agentName = String(response?.agent || '').trim();
+    const spoken = String(response?.spoken || '').trim();
+    if (!agentName || !spoken) continue;
+
+    const charId = agentName.toLowerCase();
+    if (!characterExists(charId)) continue;
+
+    const history = loadCharacterHistory(charId);
+    history.push({ role: 'user', content: userText });
+    history.push({ role: 'assistant', content: spoken });
+    saveCharacterHistory(charId, history);
+  }
+}
 
 router.post('/run', async (req, res) => {
   try {
@@ -16,6 +60,10 @@ router.post('/run', async (req, res) => {
 
     const activeApp = req.body?.context?.active_app || null;
     const result = await engine.orchestrator.run(input, { activeApp });
+
+    // Keep World Chat and Messenger in sync by writing world turns into
+    // the same per-character history files used by /api/characters/:id/chat.
+    syncWorldTurnToCharacterHistory(input, result?.responses || []);
 
     return res.json({
       ok: true,

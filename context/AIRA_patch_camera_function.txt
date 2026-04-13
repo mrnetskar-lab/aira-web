@@ -1,0 +1,376 @@
+AIRA PATCH — CAMERA BUTTON + IMAGE GENERATION FLOW
+====================================================
+
+Goal
+----
+Add a camera button to chat that lets the user generate an image from the current scene.
+
+Scope
+-----
+- client/index.html
+- client/style.css
+- client/app.js
+- server/routes/ai.js
+
+No engine rewrites.
+No Messages changes.
+Keep this as a simple first version.
+
+What this version does
+----------------------
+- adds a camera button beside Send in the main chat composer
+- opens a small prompt flow
+- sends a request to the server
+- server returns an image URL (or placeholder if not wired yet)
+- image appears inside the chat as a system image card
+
+IMPORTANT
+---------
+This patch assumes you already have:
+- main chat working
+- /api/ai/run working
+- current AIRA shell structure
+
+If you do NOT have image generation wired yet, this patch still builds the UI and request flow.
+
+==================================================
+PART 1 — INDEX.HTML
+==================================================
+
+STEP 1 — Add camera button to the main chat composer
+
+In client/index.html, inside:
+
+  <form id="chatForm" class="composer" autocomplete="off">
+
+Find the current send button block:
+
+  <button id="sendBtn" class="composer__send" type="submit">
+    Send
+  </button>
+
+Replace it with:
+
+  <div class="composer__actions">
+    <button
+      id="cameraBtn"
+      class="composer__camera"
+      type="button"
+      aria-label="Generate image"
+      title="Generate image"
+    >
+      <span aria-hidden="true">&#128247;</span>
+    </button>
+
+    <button id="sendBtn" class="composer__send" type="submit">
+      Send
+    </button>
+  </div>
+
+==================================================
+PART 2 — STYLE.CSS
+==================================================
+
+STEP 2 — Update composer layout for camera + send
+
+In client/style.css, find:
+
+  .composer {
+    position: sticky;
+    bottom: 0;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    padding:
+      12px 18px
+      calc(14px + var(--safe-bottom));
+    background:
+      linear-gradient(180deg, transparent, rgba(3, 3, 7, 0.8) 18%, rgba(3, 3, 7, 0.94));
+    backdrop-filter: blur(14px);
+  }
+
+Replace with:
+
+  .composer {
+    position: sticky;
+    bottom: 0;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    align-items: end;
+    padding:
+      12px 18px
+      calc(14px + var(--safe-bottom));
+    background:
+      linear-gradient(180deg, transparent, rgba(3, 3, 7, 0.8) 18%, rgba(3, 3, 7, 0.94));
+    backdrop-filter: blur(14px);
+  }
+
+STEP 3 — Add button row styling
+
+Add these new blocks near the composer styles:
+
+  .composer__actions {
+    display: inline-grid;
+    grid-auto-flow: column;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .composer__camera {
+    width: 52px;
+    min-height: 52px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.04);
+    color: rgba(245, 242, 235, 0.82);
+    display: inline-grid;
+    place-items: center;
+    cursor: pointer;
+    transition:
+      transform var(--ease-soft),
+      border-color var(--ease-soft),
+      background var(--ease-soft);
+  }
+
+  .composer__camera:hover,
+  .composer__camera:focus-visible {
+    transform: translateY(-1px);
+    border-color: rgba(200, 168, 106, 0.24);
+    background: rgba(255, 255, 255, 0.06);
+    outline: none;
+  }
+
+STEP 4 — Add chat image card styling
+
+Add these new blocks near the main chat message styles:
+
+  .message--image {
+    max-width: min(88%, 460px);
+  }
+
+  .message__image-card {
+    overflow: hidden;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.03);
+    box-shadow: var(--shadow);
+  }
+
+  .message__image {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  .message__image-caption {
+    padding: 10px 12px;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    color: var(--muted);
+  }
+
+==================================================
+PART 3 — APP.JS
+==================================================
+
+STEP 5 — Add camera button element reference
+
+In client/app.js, inside the elements object, add:
+
+  cameraBtn: document.getElementById("cameraBtn"),
+
+Place it near:
+- chatInput
+- sendBtn
+
+STEP 6 — Support image messages in renderMessages()
+
+In client/app.js, inside renderMessages(), add this block BEFORE the current:
+  if (message.type === "system") { ... }
+
+Add:
+
+  if (message.type === "image") {
+    return `
+      <div class="message-row">
+        <article class="message message--image">
+          <div class="message__name">AIRA</div>
+          <div class="message__image-card">
+            <img
+              class="message__image"
+              src="${escapeHtml(message.url)}"
+              alt="${escapeHtml(message.alt || "Generated scene image")}"
+            />
+            ${message.caption ? `<div class="message__image-caption">${escapeHtml(message.caption)}</div>` : ""}
+          </div>
+          <div class="message__meta">${escapeHtml(message.time)}</div>
+        </article>
+      </div>
+    `;
+  }
+
+STEP 7 — Add generateChatImage() helper
+
+Add this full function below sendMessage() or near the other async chat helpers:
+
+  async function generateChatImage() {
+    const promptBase = elements.chatInput.value.trim();
+    const prompt = window.prompt(
+      "Describe the image you want to generate.",
+      promptBase || "A cinematic scene inside the AIRA world"
+    );
+
+    if (!prompt) return;
+
+    const placeholderTime = formatTime();
+
+    state.messages.push({
+      type: "system",
+      text: "AIRA is framing the scene...",
+      time: placeholderTime,
+    });
+    renderMessages();
+
+    elements.cameraBtn.disabled = true;
+
+    try {
+      const response = await fetch("/api/ai/generate-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt,
+          context: {
+            view: state.currentView,
+            activeApp: state.activeApp,
+          },
+        }),
+      });
+
+      const payload = await response.json();
+
+      if (!response.ok || !payload?.ok || !payload?.imageUrl) {
+        throw new Error(payload?.error || "Image generation failed");
+      }
+
+      state.messages.push({
+        type: "image",
+        url: payload.imageUrl,
+        alt: payload.alt || prompt,
+        caption: payload.caption || prompt,
+        time: formatTime(),
+      });
+
+      renderMessages();
+    } catch (error) {
+      console.error(error);
+      state.messages.push({
+        type: "system",
+        text: "The image did not resolve. Try again.",
+        time: formatTime(),
+      });
+      renderMessages();
+    } finally {
+      elements.cameraBtn.disabled = false;
+    }
+  }
+
+STEP 8 — Bind the camera button
+
+In bindEvents(), add:
+
+  elements.cameraBtn.addEventListener("click", async () => {
+    await generateChatImage();
+  });
+
+==================================================
+PART 4 — SERVER ROUTE
+==================================================
+
+STEP 9 — Add a temporary image generation endpoint
+
+In server/routes/ai.js, add a new route:
+
+  router.post("/generate-image", async (req, res) => {
+    try {
+      const prompt = String(req.body?.prompt || "").trim();
+
+      if (!prompt) {
+        return res.status(400).json({
+          ok: false,
+          error: "Missing prompt",
+        });
+      }
+
+      // TEMPORARY VERSION:
+      // Replace this with your real image generation provider later.
+      // For now return a deterministic placeholder image.
+
+      const encoded = encodeURIComponent(prompt);
+      const imageUrl = `https://placehold.co/1024x1024/png?text=${encoded}`;
+
+      return res.json({
+        ok: true,
+        imageUrl,
+        alt: prompt,
+        caption: prompt,
+      });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        ok: false,
+        error: "Image generation route failed",
+      });
+    }
+  });
+
+IMPORTANT
+---------
+This route is only a scaffold.
+Later, replace the placeholder URL with:
+- OpenAI image generation
+- your own image service
+- or your world-scene renderer
+
+==================================================
+PART 5 — REAL IMAGE GENERATION (LATER)
+==================================================
+
+When you are ready to make it real, replace the placeholder route logic with:
+
+- provider call
+- returned hosted image URL
+- optional world-aware caption
+
+Possible future inputs:
+- current chat history
+- current relationship tension
+- current AIRA manifestation state
+- active character speaker
+- scene tags
+
+But do NOT add that yet.
+Keep version 1 simple.
+
+==================================================
+EXPECTED RESULT
+==================================================
+
+After this patch:
+
+1. The main chat composer shows a camera button
+2. Clicking it asks for an image prompt
+3. The app sends a request to /api/ai/generate-image
+4. Returned image is rendered inside the chat
+
+==================================================
+TEST CHECKLIST
+==================================================
+
+- camera button visible in chat composer
+- click opens prompt
+- image card appears in chat
+- send button still works
+- scrolling still works
+
+END

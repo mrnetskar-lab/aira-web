@@ -1,0 +1,46 @@
+AIRA PROMPT: Render Persistent Disk Support (No Cloudinary)
+
+Task:
+Update this Node/Express app to store generated/uploaded images on Render Persistent Disk in production, while still working locally in development.
+
+Requirements:
+1. Do NOT use Cloudinary in this flow.
+2. Use Render disk mount path from env var:
+   - RENDER_DISK_PATH (example: /var/data)
+3. Use local fallback in dev:
+   - ./gallery/shots (or existing local image folder)
+4. Build absolute storage path safely with path.resolve.
+5. Ensure storage directory exists at startup with fs.mkdir(..., { recursive: true }).
+6. Save files using unique names (timestamp + random suffix).
+7. Return a public URL path that the frontend can display.
+8. Serve files statically from a route like /media.
+9. Keep all secrets server-only (no server secrets in client code).
+10. Add startup logs that show:
+    - selected storage path
+  - whether running on Render disk or local fallback.
+
+Implementation details:
+- Add a small storage config module (for example: server/services/storagePath.js) that exports:
+  - getStorageRoot()
+  - ensureStorageRoot()
+- In production path selection:
+  - if process.env.RENDER_DISK_PATH is set, use path.resolve(process.env.RENDER_DISK_PATH, 'shots')
+  - else fallback to path.resolve(process.cwd(), 'gallery', 'shots')
+- In server bootstrap:
+  - call ensureStorageRoot() once on startup
+  - mount express.static(getStorageRoot()) at /media
+- In image save logic:
+  - write generated file to getStorageRoot()
+  - return URL like /media/<filename>
+
+Validation steps:
+1. Confirm /health includes storage diagnostics:
+   - storagePath
+   - usingRenderDisk (boolean)
+2. Confirm generated image appears at /media/<filename>
+3. Confirm files persist across app restart when RENDER_DISK_PATH is set.
+
+Output format requested from assistant:
+1. Show changed files.
+2. Show exact env vars to set on Render.
+3. Show one curl or browser URL test for /health and /media.

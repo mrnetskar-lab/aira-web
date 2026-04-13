@@ -157,6 +157,16 @@ const views = {
   chat: document.getElementById("chatView"),
 };
 
+const QUICK_PROMPTS = [
+  "Hva tenker du akkurat naa?",
+  "Kan vi snakke norsk bokmaal?",
+  "Hva foeler du egentlig her?",
+  "La oss vaere helt aeerlige na.",
+  "Hva husker du fra i gaar?",
+  "Hvis du maatte velge na, hva ville du valgt?",
+  "Hva vil du at scenen skal bli?",
+];
+
 const elements = {
   backToHomeBtn: document.getElementById("backToHomeBtn"),
   resetChatBtn: document.getElementById("resetChatBtn"),
@@ -167,9 +177,12 @@ const elements = {
   worldRoomScene: document.getElementById("worldRoomScene"),
   serverHeartbeat: document.getElementById("serverHeartbeat"),
   worldPresenceState: document.getElementById("worldPresenceState"),
+  quickPromptBar: document.getElementById("quickPromptBar"),
   chatForm: document.getElementById("chatForm"),
   chatInput: document.getElementById("chatInput"),
+  voiceToggleBtn: document.getElementById("voiceToggleBtn"),
   sendBtn: document.getElementById("sendBtn"),
+  sceneProgressBtn: document.getElementById("sceneProgressBtn"),
   composer: document.getElementById("chatForm"),
   phoneHandle: document.getElementById("phoneHandle"),
   phoneView: document.getElementById("phoneView"),
@@ -212,6 +225,16 @@ const state = {
   latestState: null,
   serverOnline: null,
   isSending: false,
+  sceneProgress: {
+    lastAt: 0,
+    burstStartsAt: 0,
+    burstCount: 0,
+  },
+  tts: {
+    enabled: false,
+    speaking: false,
+    voicesReady: false,
+  },
   messagesApp: buildDefaultMessagesApp(),
   phoneApp: null,
   booting: true,
@@ -225,6 +248,166 @@ const state = {
 
 let frozenWorldScrollTop = 0;
 let serverHeartbeatTimer = null;
+
+function getSpeechSynth() {
+  if (typeof window === "undefined") return null;
+  return window.speechSynthesis || null;
+}
+
+function stripSpeechMarkup(text) {
+  return String(text || "")
+    .replace(/\*[^*]*\*/g, " ")
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function detectSpeechLang(text) {
+  const s = String(text || "").toLowerCase();
+  if (!s) return "nb-NO";
+  if (/[\u00e6\u00f8\u00e5]/.test(s)) return "nb-NO";
+  if (/\b(ikke|jeg|du|kan|skal|hvordan|hva|norsk|hei)\b/.test(s)) return "nb-NO";
+  return "en-US";
+}
+
+function isLikelyFemaleVoice(name = "") {
+  const n = String(name || "").toLowerCase();
+  return /(female|woman|girl|kvinne|pernille|hedda|hulda|nora|noora|liv|ida|sara|sofie|silje|kari|frida|mia|tone|aria|zira|hazel|emma|anna|eva|x-cfn|f01|f02)/.test(n);
+}
+
+function isLikelyMaleVoice(name = "") {
+  const n = String(name || "").toLowerCase();
+  return /(male|man|boy|finn|olav|lars|jon|erik|clayton|david|mark|thomas|harald|x-cmn|m01|m02)/.test(n);
+}
+
+function isBlockedVoice(name = "") {
+  const n = String(name || "").toLowerCase();
+  // User explicitly reported this voice as undesirable.
+  return /\bclayton\b/.test(n);
+}
+
+function voiceScore(voice, lang) {
+  const vLang = String(voice?.lang || "").toLowerCase();
+  const vName = String(voice?.name || "");
+  const target = String(lang || "nb-NO").toLowerCase();
+  const targetBase = target.slice(0, 2);
+
+  let score = 0;
+
+  if (isBlockedVoice(vName)) return -1000;
+
+  if (vLang === target) score += 120;
+  if (vLang.startsWith(targetBase)) score += 70;
+
+  // Strong preference for Norwegian voices for this app.
+  if (vLang.startsWith("nb") || vLang.startsWith("nn") || vLang.startsWith("no")) score += 60;
+
+  if (isLikelyFemaleVoice(vName)) score += 28;
+  if (isLikelyMaleVoice(vName)) score -= 42;
+
+  // Slight preference for higher quality neural/natural voices when available.
+  if (/natural|neural|online/i.test(vName)) score += 8;
+
+  // If no Norwegian female is available, still prefer female over male fallback voices.
+  if (!vLang.startsWith("nb") && !vLang.startsWith("nn") && !vLang.startsWith("no")) {
+    if (isLikelyFemaleVoice(vName)) score += 18;
+    if (isLikelyMaleVoice(vName)) score -= 16;
+  }
+
+  return score;
+}
+
+function chooseSpeechVoice(lang) {
+  const synth = getSpeechSynth();
+  if (!synth) return null;
+  const voices = synth.getVoices() || [];
+  if (!voices.length) return null;
+
+  const clean = voices.filter((v) => !isBlockedVoice(v?.name));
+  const langLower = String(lang || "nb-NO").toLowerCase();
+  const base = langLower.slice(0, 2);
+  const wantsNorwegian = base === "nb" || base === "nn" || base === "no";
+
+  const langVoices = clean.filter((v) => String(v?.lang || "").toLowerCase().startsWith(base));
+  const femaleLangVoices = langVoices.filter((v) => isLikelyFemaleVoice(v?.name));
+
+  if (femaleLangVoices.length) {
+    return [...femaleLangVoices].sort((a, b) => voiceScore(b, lang) - voiceScore(a, lang))[0];
+  }
+
+  // For Norwegian text, pronunciation quality matters most.
+  // Prefer any Norwegian voice before falling back to an English female voice.
+  if (wantsNorwegian && langVoices.length) {
+    return [...langVoices].sort((a, b) => voiceScore(b, lang) - voiceScore(a, lang))[0];
+  }
+
+  const anyFemale = clean.filter((v) => isLikelyFemaleVoice(v?.name));
+  if (anyFemale.length) {
+    return [...anyFemale].sort((a, b) => voiceScore(b, lang) - voiceScore(a, lang))[0];
+  }
+
+  const nonMaleLang = langVoices.filter((v) => !isLikelyMaleVoice(v?.name));
+  if (nonMaleLang.length) {
+    return [...nonMaleLang].sort((a, b) => voiceScore(b, lang) - voiceScore(a, lang))[0];
+  }
+
+  const ranked = [...clean].sort((a, b) => voiceScore(b, lang) - voiceScore(a, lang));
+  return ranked[0] || clean[0] || voices[0] || null;
+}
+
+function updateTtsButtonUI() {
+  const btn = elements.voiceToggleBtn;
+  if (!btn) return;
+  btn.classList.toggle("is-on", state.tts.enabled);
+  btn.setAttribute("aria-pressed", state.tts.enabled ? "true" : "false");
+  btn.title = state.tts.enabled ? "TTS on" : "TTS off";
+}
+
+function setTtsEnabled(enabled) {
+  state.tts.enabled = Boolean(enabled);
+  const synth = getSpeechSynth();
+  if (!state.tts.enabled && synth) {
+    synth.cancel();
+    state.tts.speaking = false;
+  }
+  updateTtsButtonUI();
+}
+
+function speakText(text, agentName = "") {
+  if (!state.tts.enabled) return;
+  const synth = getSpeechSynth();
+  if (!synth || typeof SpeechSynthesisUtterance === "undefined") return;
+
+  const spokenText = stripSpeechMarkup(text);
+  if (!spokenText) return;
+
+  const lang = detectSpeechLang(spokenText);
+  const selectedVoice = chooseSpeechVoice(lang);
+  const femaleLike = isLikelyFemaleVoice(selectedVoice?.name || "");
+  const maleLike = isLikelyMaleVoice(selectedVoice?.name || "");
+
+  const utterance = new SpeechSynthesisUtterance(spokenText);
+  utterance.lang = lang;
+  utterance.voice = selectedVoice;
+  utterance.rate = 1.0;
+  const basePitch = agentName === "Lucy" ? 1.08 : agentName === "Sam" ? 1.02 : 1.1;
+  // If browser keeps giving a male-ish voice, push pitch up for softer/feminine playback.
+  utterance.pitch = maleLike && !femaleLike ? Math.max(1.22, basePitch) : basePitch;
+  utterance.volume = 1;
+
+  utterance.onstart = () => {
+    state.tts.speaking = true;
+  };
+  utterance.onend = () => {
+    state.tts.speaking = false;
+  };
+  utterance.onerror = () => {
+    state.tts.speaking = false;
+  };
+
+  synth.cancel();
+  synth.speak(utterance);
+}
 
 function syncBodyMode() {
   document.body.classList.toggle("is-chat-active", state.currentView === "chat");
@@ -694,18 +877,52 @@ async function simulatePhoneThreadResponse(id, text) {
 
   try {
     const char = CHARACTERS[id];
-    if (!char) return;
+    if (!char) {
+      hidePhoneTyping();
+      return;
+    }
 
+    const startedAt = performance.now();
     const response = await fetch(`/api/characters/${char.key}/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text }),
     });
 
-    const payload = await response.json();
+    let payload = null;
+    try {
+      payload = await response.json();
+    } catch {
+      payload = { ok: false, error: "Invalid JSON from server" };
+    }
+
+    if (window.__AIRA_DEV_MODE__) {
+      const tookMs = Math.round(performance.now() - startedAt);
+      const debugText = `[DEV phone] ${response.status} ${response.statusText || ""} (${tookMs}ms)`;
+      state.messagesApp.messages[id].push({
+        text: debugText.trim(),
+        me: false,
+        timestamp: new Date().toISOString(),
+        animate: true,
+      });
+    }
+
     hidePhoneTyping();
 
-    if (!payload?.ok) return;
+    if (!payload?.ok) {
+      const errorText = payload?.error || "Ingen svar akkurat na. Proev igjen.";
+      state.messagesApp.messages[id].push({
+        text: errorText,
+        me: false,
+        timestamp: new Date().toISOString(),
+        animate: true,
+      });
+      updateThreadPreview(id, errorText);
+      renderPhoneThreadMessages();
+      renderPhoneThreads();
+      saveLocalState();
+      return;
+    }
 
     state.messagesApp.messages[id].push({
       text: payload.reply || "...",
@@ -713,6 +930,8 @@ async function simulatePhoneThreadResponse(id, text) {
       timestamp: new Date().toISOString(),
       animate: true,
     });
+
+    speakText(payload.reply || "", char.name || "");
 
     updateThreadPreview(id, payload.reply || "...");
     playMessageTone("incoming");
@@ -722,6 +941,26 @@ async function simulatePhoneThreadResponse(id, text) {
   } catch (err) {
     hidePhoneTyping();
     console.warn("Phone thread response failed", err);
+    if (window.__AIRA_DEV_MODE__) {
+      const debugText = `[DEV phone] network error: ${err?.message || "unknown"}`;
+      state.messagesApp.messages[id].push({
+        text: debugText,
+        me: false,
+        timestamp: new Date().toISOString(),
+        animate: true,
+      });
+    }
+    const fallbackText = "Ingen svar akkurat na. Proev igjen om et oyeblikk.";
+    state.messagesApp.messages[id].push({
+      text: fallbackText,
+      me: false,
+      timestamp: new Date().toISOString(),
+      animate: true,
+    });
+    updateThreadPreview(id, fallbackText);
+    renderPhoneThreadMessages();
+    renderPhoneThreads();
+    saveLocalState();
   }
 }
 
@@ -811,6 +1050,35 @@ function createMessageClasses(message) {
 function scrollMessagesToBottom() {
   requestAnimationFrame(() => {
     elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+  });
+}
+
+function renderQuickPrompts() {
+  const host = elements.quickPromptBar;
+  if (!host) return;
+
+  host.innerHTML = QUICK_PROMPTS.map((prompt) => `
+    <button
+      class="quick-prompt-chip"
+      type="button"
+      data-quick-prompt="${escapeHtml(prompt)}"
+      aria-label="Send quick prompt"
+      title="${escapeHtml(prompt)}"
+    >${escapeHtml(prompt)}</button>
+  `).join("");
+
+  host.querySelectorAll("[data-quick-prompt]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (state.isSending || state.booting) return;
+      const prompt = String(button.getAttribute("data-quick-prompt") || "").trim();
+      if (!prompt) return;
+
+      if (elements.chatInput) {
+        elements.chatInput.value = "";
+      }
+      autoResizeTextarea();
+      await sendMessage(prompt);
+    });
   });
 }
 
@@ -1050,6 +1318,10 @@ async function appendMessagesSequentially(items) {
     renderMessages();
     saveLocalState();
 
+    if (item.type === "character") {
+      speakText(item.text, item.agent);
+    }
+
     if (i < items.length - 1) {
       await wait(320);
     }
@@ -1058,6 +1330,10 @@ async function appendMessagesSequentially(items) {
 
 async function sendMessage(text) {
   if (state.isSending) return;
+
+  // A normal user message unlocks manual scene progression burst lock.
+  state.sceneProgress.burstCount = 0;
+  state.sceneProgress.burstStartsAt = Date.now();
 
   state.isSending = true;
   elements.sendBtn.disabled = true;
@@ -1131,6 +1407,98 @@ async function sendMessage(text) {
     state.isSending = false;
     elements.sendBtn.disabled = false;
     saveLocalState();
+  }
+}
+
+async function letSceneProgress() {
+  if (state.isSending || state.booting) return;
+
+  const now = Date.now();
+  const COOLDOWN_MS = 3500;
+  const BURST_WINDOW_MS = 30000;
+  const BURST_MAX = 4;
+
+  if (now - state.sceneProgress.lastAt < COOLDOWN_MS) {
+    const waitSec = Math.max(1, Math.ceil((COOLDOWN_MS - (now - state.sceneProgress.lastAt)) / 1000));
+    state.messages.push({
+      type: "system",
+      text: `Vent litt (${waitSec}s) før du dytter scenen igjen.`,
+      time: formatTime(),
+    });
+    renderMessages();
+    return;
+  }
+
+  if (now - state.sceneProgress.burstStartsAt > BURST_WINDOW_MS) {
+    state.sceneProgress.burstStartsAt = now;
+    state.sceneProgress.burstCount = 0;
+  }
+
+  if (state.sceneProgress.burstCount >= BURST_MAX) {
+    state.messages.push({
+      type: "system",
+      text: "Scene-sperre: skriv en vanlig melding før neste push.",
+      time: formatTime(),
+    });
+    renderMessages();
+    return;
+  }
+
+  const btn = elements.sceneProgressBtn;
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Progressing...";
+  }
+
+  try {
+    const res = await fetch("/api/ai/tick", { method: "POST" });
+    const payload = await res.json();
+
+    if (!payload?.ok || !payload.response) {
+      state.messages.push({
+        type: "system",
+        text: "Scenen er rolig akkurat naa.",
+        time: formatTime(),
+      });
+      renderMessages();
+      return;
+    }
+
+    const r = payload.response;
+    state.sceneProgress.lastAt = now;
+    state.sceneProgress.burstCount += 1;
+
+    showTyping(r.agent);
+    await wait(typingDelay(r.spoken || ""));
+    hideTyping();
+
+    state.messages.push({
+      type: "character",
+      agent: r.agent,
+      text: r.spoken,
+      thought: r.showThought ? r.thought : null,
+      toneClass: r.meta?.toneClass || null,
+      anomalyAware: r.meta?.anomalyAware || false,
+      time: formatTime(),
+    });
+
+    speakText(r.spoken, r.agent);
+
+    saveLocalState();
+    renderMessages();
+  } catch (error) {
+    console.warn("Scene progress failed", error);
+    state.messages.push({
+      type: "system",
+      text: "Klarte ikke aa dytte scenen videre naa.",
+      time: formatTime(),
+    });
+    renderMessages();
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Let Scene Progress";
+    }
   }
 }
 
@@ -1369,6 +1737,39 @@ function bindEvents() {
   elements.phoneScrim?.addEventListener("click", closePhone);
 
   bindTap(elements.backToHomeBtn, showHome);
+  let ttsToggleLockUntil = 0;
+  const toggleTts = (event) => {
+    if (event) event.preventDefault();
+    const now = Date.now();
+    if (now < ttsToggleLockUntil) return;
+    ttsToggleLockUntil = now + 450;
+
+    const next = !state.tts.enabled;
+    setTtsEnabled(next);
+
+    const selectedVoice = next ? chooseSpeechVoice("nb-NO") : null;
+    const voiceLabel = selectedVoice?.name ? ` (${selectedVoice.name})` : "";
+    const voiceLang = String(selectedVoice?.lang || "").toLowerCase();
+    const noLangHint = next && selectedVoice && !(voiceLang.startsWith("nb") || voiceLang.startsWith("nn") || voiceLang.startsWith("no"))
+      ? " - mangler norsk stemmepakke"
+      : "";
+    const femaleHint = selectedVoice && !isLikelyFemaleVoice(selectedVoice.name)
+      ? " - ingen tydelig kvinnestemme funnet lokalt"
+      : "";
+
+    state.messages.push({
+      type: "system",
+      text: next ? `TTS: paa${voiceLabel}${noLangHint}${femaleHint}` : "TTS: av",
+      time: formatTime(),
+    });
+    renderMessages();
+
+    if (next) {
+      speakText("TTS er paa.", "Aira");
+    }
+  };
+  elements.voiceToggleBtn?.addEventListener("click", toggleTts);
+  elements.voiceToggleBtn?.addEventListener("touchend", toggleTts, { passive: false });
   elements.chatInput?.addEventListener("input", autoResizeTextarea);
   window.addEventListener("resize", syncComposerClearance, { passive: true });
 
@@ -1394,6 +1795,8 @@ function bindEvents() {
     autoResizeTextarea();
     await sendMessage(text);
   });
+
+  bindTap(elements.sceneProgressBtn, letSceneProgress);
 
   elements.chatInput?.addEventListener("keydown", async (event) => {
     if (event.key === "Enter" && !event.shiftKey) {
@@ -1448,10 +1851,18 @@ async function init() {
   exposeAiraConsoleApi();
   bindEvents();
   startServerHeartbeatChecks();
+  updateTtsButtonUI();
+  const synth = getSpeechSynth();
+  if (synth && typeof synth.onvoiceschanged !== "undefined") {
+    synth.onvoiceschanged = () => {
+      state.tts.voicesReady = true;
+    };
+  }
   autoResizeTextarea();
   syncComposerClearance();
   restoreLocalState();
   renderMessages();
+  renderQuickPrompts();
   renderPhoneThreads();
   renderWorldRoomBar();
   await fetchState();
@@ -1516,6 +1927,8 @@ function startAutoTalk() {
         anomalyAware: r.meta?.anomalyAware || false,
         time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       });
+
+      speakText(r.spoken, r.agent);
 
       saveLocalState();
       renderMessages();

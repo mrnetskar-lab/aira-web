@@ -1,0 +1,18 @@
+[
+  {
+    "role": "user",
+    "content": "Hva tenker du akkurat naa?"
+  },
+  {
+    "role": "assistant",
+    "content": "Hmm.  Tenker på hvor spent atmosfæren er.  Eller."
+  },
+  {
+    "role": "user",
+    "content": "er du sensurert? eller er du lættis?"
+  },
+  {
+    "role": "assistant",
+    "content": "Lite av begge, kanskje?"
+  }
+]

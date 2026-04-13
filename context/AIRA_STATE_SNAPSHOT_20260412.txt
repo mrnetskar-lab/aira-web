@@ -1,0 +1,317 @@
+AIRA WEB — CURRENT STATE SNAPSHOT
+Project: AIRA Web
+Date: 2026-04-12
+Author: Claude Code (builder pass)
+Audience: Next Claude session / ChatGPT design pass
+Purpose: Authoritative record of what is actually live in the codebase right now
+
+======================================================================
+WHAT THIS DOCUMENT IS
+======================================================================
+
+This is a snapshot of the real code state as of 2026-04-12.
+Use this instead of trying to infer state from the patch series.
+The patch files in this folder are instruction documents, not status documents.
+This file is the status document.
+
+======================================================================
+STACK
+======================================================================
+
+- Node.js + Express, ESM modules, port 3000
+- Run: npm run dev from D:\V3\Aira_web\
+- Entry: server/index.js
+- Client: client/index.html + client/app.js + client/style.css + client/devPanel.js
+- AI route: server/routes/ai.js — POST /api/ai/run, GET /api/ai/state, POST /api/ai/reset
+- Engine: server/services/engineInstance.js
+
+======================================================================
+BUILD ID
+======================================================================
+
+client/app.js: BUILD_ID = "20260412d"
+style.css version param: ?v=20260412-worldchat
+app.js version param: ?v=20260412-worldchat
+
+======================================================================
+PATCHES FULLY APPLIED
+======================================================================
+
+The following patches have been implemented and are live in the code:
+
+[DONE] aira_layout_worldchat_messenger_patch.txt (restore patch)
+  - index.html matches the structure described there exactly
+  - app.js has the API-based sendMessage, simulateThreadResponse,
+    fetchState, resetChat, bindEvents as described
+  - style.css has the minimal black/gold surfaces as described
+
+[DONE] aira_layout_worldchat_messenger_polish.txt (framing polish)
+  - Messenger label applied
+  - Thread previews updated (Lucy/Sam/Angie)
+  - CSS topbar/arrow tightening applied
+
+[DONE] PATCH_04_CONTINUITY_SYSTEM / 04A / 04B
+  - Continuity event rendering in simulateThreadResponse is live
+  - result.continuity.events delay-rendering works
+
+[DONE] AIRA_interference_system.txt
+  - Interference rendering live in sendMessage:
+    interference.active, interference.perceivedInput, interference.uiEffect,
+    interference.whisper — all wired
+
+[DONE] AIRA_PATCH_03_DEBUG_AND_INTEGRATION_FIXES
+  - Full API wiring live, no fake/mock mode active
+
+======================================================================
+PATCHES NOT YET APPLIED
+======================================================================
+
+The following patches have been written but NOT implemented in the code.
+
+----------------------------------------------------------------------
+[PENDING] AIRA_PATCH_06A_IMPLEMENTATION_PASS.txt — Subtext + Autotalk
+----------------------------------------------------------------------
+
+STATUS: Not started. Zero lines of this patch are in the code.
+
+What it wants:
+
+1. Remove separate thought block from renderMessages()
+   CURRENT CODE still has:
+     const thoughtHtml = message.thought
+       ? `<div class="message__thought">${escapeHtml(message.thought)}</div>`
+       : "";
+   and ${thoughtHtml} in the character template.
+   This should be removed.
+
+2. Add three helpers to app.js:
+   - escapeHtmlAllowInline(value)
+   - cleanSubtext(thought)
+   - buildInlineSubtext(spoken, thought, meta)
+   These do NOT exist yet.
+
+3. Update normalizeResponses() to use buildInlineSubtext:
+   CURRENT CODE:
+     text: entry.spoken || "",
+     thought: entry.thought || "",
+   TARGET:
+     text: buildInlineSubtext(entry.spoken, entry.thought, entry.meta),
+     thought: "",
+
+4. Change character bubble render to use message.text directly
+   (not escapeHtml(message.text)) — since buildInlineSubtext pre-escapes it.
+   CURRENT CODE:
+     ${escapeHtml(message.text)}
+   TARGET:
+     ${message.text}
+
+5. Add CSS class .subtext-inline and .subtext-inline.is-strong
+   These do NOT exist yet. The CSS variable --subtext exists but the class does not.
+   The existing .message__thought can stay for now but stop being used.
+
+6. Add ambient autotalk render lane:
+   - let ambientToken = 0;
+   - async function appendAmbientMessages(items)
+   - ambientToken += 1; at start of sendMessage()
+   - appendAmbientMessages(payload?.result?.ambient?.autoTalk ?? []) after response
+
+7. AI writing prompt cleanup (in CharacterAIService or equivalent prompt builder)
+   - No roleplay asterisk narration
+   - Thought residue short and emotionally suggestive
+   - Short spoken lines preferred
+
+----------------------------------------------------------------------
+[PENDING] aira_dock_messenger_worldchat_patch.txt — Floating Dock
+----------------------------------------------------------------------
+
+STATUS: Not started. Current home screen shows only the Messenger ring button.
+        There is no World Chat access from the home screen.
+        There is no floating dock.
+
+What it wants:
+
+HOME SCREEN CHANGE:
+  Replace the single Messenger ring button with:
+  - A centered nav inside the ring showing "World Chat" as the primary button
+  - A floating dock bar at the bottom with Messenger
+
+CURRENT index.html home section:
+  <div class="home-center">
+    <button id="homeRing" class="app-ring app-ring--messenger"
+      data-open-app="messages">
+      <span class="app-ring__mark"></span>
+      <span class="app-ring__label">Messenger</span>
+    </button>
+  </div>
+
+TARGET:
+  Keep a centered nav with World Chat button.
+  Add .aira-dock below the ring with Messenger dock icon.
+
+  NOTE: This conflicts slightly with the current home-ring approach.
+  The current code uses an app-ring button (not the old home-ring div).
+  Decide whether to use the old home-ring div approach or the app-ring approach.
+  The app-ring is simpler. The dock patch wants to go back to a ring+nav+dock combo.
+
+CSS additions needed:
+  .aira-dock — floating bottom bar
+  .aira-dock__app — app icon button
+  .aira-dock__icon — icon square with gold border
+  .aira-dock__ring — ring mark inside icon
+  .aira-dock__label — small label text
+
+======================================================================
+CURRENT HOME SCREEN BEHAVIOR
+======================================================================
+
+Home shows:
+  - One gold ring button labeled "Messenger"
+  - Tapping it opens the Messenger contact list
+
+World Chat:
+  - Accessible only if opened programmatically
+  - There is NO World Chat button visible on the home screen right now
+  - showChat() exists in app.js but nothing on the home screen calls it
+
+Ring links:
+  elements.ringLinks = Array.from(document.querySelectorAll("[data-open-app]"))
+  Currently only picks up the homeRing button (data-open-app="messages")
+
+======================================================================
+CURRENT CSS STATE — KNOWN ORPHANED RULES
+======================================================================
+
+The following CSS classes exist in style.css but their HTML elements
+no longer exist. They are dead weight but harmless.
+
+Dead (from old home-ring era):
+  .home-ring, .home-ring::before, .home-ring::after
+  .home-ring__content
+  .home-ring__eyebrow
+  .home-ring__nav
+  .ring-link (partially — no nav items exist)
+  .ring-link--primary
+  .ring-link[data-open-app="chat"]::after
+  .home-mark
+  .is-reactive on .home-ring
+
+Active and used:
+  .app-ring, .app-ring__mark, .app-ring__label
+  .home-view, .home-center
+  .chat-view, .chat-messages, .message-row, .message, .message__bubble
+  .message__name, .message__name--Lucy/Sam/Angie
+  .message__thought (still in CSS and JS, just unused if PATCH_06A is applied)
+  .composer, .composer__input, .composer__send
+  .topbar, .topbar--minimal, .topbar-brand, .topbar-brand__ring
+  .arrow-button, .topbar-spacer
+  .messages-app, .messages-list, .thread, .thread-name, .thread-preview, .thread-dot
+  .messages-topbar, .messages-title, .messages-log
+  .msg-bubble, .msg-me, .msg-them
+  .messages-composer, .messages-input, .messages-send
+  .system-note, .system-note--whisper
+
+CSS variables defined and active:
+  --subtext: rgba(201, 167, 255, 0.7)
+  --subtext-strong: rgba(201, 167, 255, 0.82)
+  (used by .message__thought — will be reused by .subtext-inline once PATCH_06A lands)
+
+======================================================================
+CURRENT app.js STRUCTURE SUMMARY
+======================================================================
+
+Key functions (all live):
+  clearLegacyClientCaches()
+  setActiveView(name, direction)
+  showHome()
+  showChat()
+  showPlaceholder(appName) — only handles "messages"
+  renderThreads()
+  renderThreadMessages()
+  sendThreadMessage()
+  simulateThreadResponse(id, text) — calls /api/ai/run with threadId context
+  openThread(id)
+  closeThread()
+  syncTypingState()
+  autoResizeTextarea()
+  formatTime()
+  escapeHtml(value) — only helper, no inline-safe variant
+  characterNameClass(name)
+  createMessageClasses(message)
+  scrollMessagesToBottom()
+  renderMessages() — still has separate thoughtHtml block
+  updatePresenceHooks()
+  fetchState()
+  normalizeResponses(payload) — maps entry.spoken + entry.thought separately
+  saveLocalState() / restoreLocalState()
+  wait(ms)
+  appendMessagesSequentially(items)
+  sendMessage(text) — calls /api/ai/run, handles interference, continuity
+  resetChat()
+  bindEvents()
+  init()
+
+Dev panel:
+  import { AiraDevDrawer } from "./devPanel.js"
+  Mounted in init(), shows only when window.__AIRA_DEV_MODE__ is true
+
+======================================================================
+CURRENT API RESPONSE SHAPE (what the client expects)
+======================================================================
+
+POST /api/ai/run returns:
+  {
+    ok: true,
+    result: {
+      responses: [
+        {
+          agent: "Lucy" | "Sam" | "Angie",
+          spoken: "...",
+          thought: "...",       ← exists but not yet rendered as inline subtext
+          anomalous: false,
+          meta: {
+            toneClass: "...",   ← used
+            anomalyAware: false, ← used
+            thoughtMode: "...", ← NOT yet read by client
+            subtextStrength: "...", ← NOT yet read by client
+            canOverlap: true,   ← NOT yet read by client
+          }
+        }
+      ],
+      gmLine: "...",            ← rendered only in dev mode
+      interference: { ... },   ← fully handled
+      continuity: { events: [] }, ← handled in simulateThreadResponse
+      ambient: { autoTalk: [] } ← NOT yet handled (PATCH_06A pending)
+    },
+    state: { ... },
+    recentMemory: [...],
+    issues: [...],
+    patches: [...]
+  }
+
+======================================================================
+NEXT RECOMMENDED STEPS
+======================================================================
+
+Priority 1 — Apply PATCH_06A (subtext inline rendering)
+  File: client/app.js
+  File: client/style.css
+  Low risk. Client-side only. Will immediately improve room chat quality.
+  Backend already sends `thought` — client just doesn't display it inline yet.
+
+Priority 2 — Add World Chat access from home
+  Options:
+    A) Apply the dock patch: add floating .aira-dock with Messenger + restore ring nav
+    B) Simpler: add a second button on the home screen below the Messenger ring
+  The dock patch is the more polished approach but requires more CSS.
+  Option B is 10 lines of HTML and 3 lines of CSS.
+
+Priority 3 — Clean up orphaned CSS
+  Low urgency. Remove dead .home-ring, .home-ring__content, .home-ring__nav etc.
+  after the dock patch decision is finalized.
+
+Priority 4 — AI writing prompt cleanup (from PATCH_06A section 9)
+  In CharacterAIService or equivalent prompt builder.
+  Short spoken lines, no asterisk narration, thought as emotional residue.
+
+======================================================================
+END OF SNAPSHOT

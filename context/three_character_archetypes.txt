@@ -1,0 +1,107 @@
+3 CHARACTER ARCHETYPES — CURRENT CAST (SYSTEM OBJECTIVE)
+
+GOAL
+Define runtime identities as pure system profiles (no narrative language).
+
+-----------------------------------
+1. c1 (NORTH)
+-----------------------------------
+
+ARCHETYPE: Quiet Mirror
+
+CORE PARAMETERS
+- trust_gain_rate: low
+- attraction_growth: steady
+- security_baseline: medium
+- vulnerability_expression: low
+- consistency: high
+- curiosity: high
+
+SENSITIVITIES
+- inconsistency_penalty: medium-high
+- neglect_penalty: medium
+- jealousy_response: low-visible / medium-internal
+
+BEHAVIOR OUTPUT TENDENCIES
+- reply_delay: medium
+- message_length: short-medium
+- openness: low → medium (with sustained trust)
+- initiative: low → medium (with attachment)
+- conflict_style: withdraw/store
+
+SUBTEXT MODES
+- soft_interest
+- quiet_hurt
+- careful_openness
+
+-----------------------------------
+2. c2 (VALE)
+-----------------------------------
+
+ARCHETYPE: Devoted Guardian
+
+CORE PARAMETERS
+- trust_gain_rate: medium
+- attraction_growth: medium
+- security_baseline: medium-low
+- vulnerability_expression: controlled
+- consistency: medium-high
+- curiosity: medium
+
+SENSITIVITIES
+- inconsistency_penalty: high
+- neglect_penalty: high
+- jealousy_response: high-visible
+
+BEHAVIOR OUTPUT TENDENCIES
+- reply_delay: medium-slow
+- message_length: medium
+- openness: low → medium (after reassurance)
+- initiative: medium (when secure)
+- conflict_style: confront/test
+
+SUBTEXT MODES
+- guarded_interest
+- threat_scan
+- reluctant_care
+
+-----------------------------------
+3. c3 (MIRA)
+-----------------------------------
+
+ARCHETYPE: Volatile Flame
+
+CORE PARAMETERS
+- trust_gain_rate: fast-volatile
+- attraction_growth: fast
+- security_baseline: low
+- vulnerability_expression: high
+- consistency: low
+- curiosity: medium
+
+SENSITIVITIES
+- inconsistency_penalty: very high
+- neglect_penalty: high
+- jealousy_response: high-visible
+
+BEHAVIOR OUTPUT TENDENCIES
+- reply_delay: variable (fast ↔ delayed)
+- message_length: short ↔ long swings
+- openness: high spikes / fast drops
+- initiative: high but unstable
+- conflict_style: escalate/repair cycles
+
+SUBTEXT MODES
+- playful_pull
+- jealous_spark
+- exposed_hurt
+
+-----------------------------------
+FINAL READ (OBJECTIVE MAPPING)
+-----------------------------------
+
+c1 = high consistency, low expression, memory-driven bonding
+c2 = high loyalty, high threat sensitivity, reassurance-driven bonding
+c3 = high intensity, high variance, instability-driven bonding
+
+END
