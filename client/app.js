@@ -1,17 +1,57 @@
-import { AiraDevDrawer } from "./devPanel.js";
+// LEGACY SHELL: This file is backend-dependent and requires API routes. Not for static hosting. Use index-v2.html + app-v2.js for static local runs.
+// import { AiraDevDrawer } from "./devPanel.js"; // Disabled for browser compatibility
 
-const BUILD_ID = "20260412d";
 
-// ------------------------------------
-// CHARACTER REGISTRY — IDs are permanent.
-// Rename displayName freely without breaking state/threads/memory.
-// ------------------------------------
+
+
+// PATCH: Single shell, one source of truth for views, safe event binding
+const VIEWS = { home: "homeView", chat: "chatView", lab: "labView", dm: "dmView" };
+let activeView = "home";
+
+function setPrimaryView(viewName) {
+  Object.values(VIEWS).forEach((id) => {
+    document.getElementById(id)?.classList.remove("view--active");
+  });
+  const targetId = VIEWS[viewName] || "homeView";
+  document.getElementById(targetId)?.classList.add("view--active");
+  state.currentView = viewName;
+  activeView = viewName;
+  syncBodyMode();
+}
+
+
+
+function bindShellEvents() {
+  document.getElementById("enterChatBtn")?.addEventListener("click", () => setPrimaryView("chat"));
+  document.getElementById("backToHomeBtn")?.addEventListener("click", () => setPrimaryView("home"));
+}
+
+
+
+
+// PATCH: Remove early event binding, only bind in init
+// PATCH: Remove Aira from nav/threads/character lists
 const CHARACTERS = {
   c1: { id: "c1", name: "Lucy",  displayName: "Lucy",  key: "lucy"  },
   c2: { id: "c2", name: "Sam",   displayName: "Sam",   key: "sam"   },
   c3: { id: "c3", name: "Angie", displayName: "Angie", key: "angie" },
-  c4: { id: "c4", name: "Aira",  displayName: "Aira",  key: "aira"  },
+  // c4: { id: "c4", name: "Aira",  displayName: "Aira",  key: "aira"  }, // Aira is now hidden/system only
 };
+
+// Ensure syncBodyMode is defined before any usage
+function syncBodyMode() {
+  document.body.classList.toggle("is-home", state.currentView === "home");
+  document.body.classList.toggle("is-chat", state.currentView === "chat");
+}
+
+
+
+/** Returns true if the character is visible (not system/GM/hidden). */
+function isVisibleCharacter(char) {
+  if (!char) return false;
+  const k = (char.key || char.id || char.name || "").toLowerCase();
+  return k !== "aira" && k !== "c4" && k !== "aira";
+}
 
 /** Look up a character by name or key (e.g. "lucy", "Lucy", "c1"). */
 function getCharacterByKey(nameOrId) {
@@ -27,7 +67,7 @@ function buildDefaultMessagesApp() {
     c1: "Du forsvant.",
     c2: "Er her fortsatt.",
     c3: "Hei, hvor ble du av?",
-    c4: "Jeg har ventet.",
+    // c4: "Jeg har ventet.",
   };
   const now = Date.now();
   const seedBase = now - 1000 * 60 * 12;
@@ -38,13 +78,13 @@ function buildDefaultMessagesApp() {
       { id: "c1", name: "Lucy",  displayName: "Lucy",  preview: previews.c1, unread: false },
       { id: "c2", name: "Sam",   displayName: "Sam",   preview: previews.c2, unread: false },
       { id: "c3", name: "Angie", displayName: "Angie", preview: previews.c3, unread: false },
-      { id: "c4", name: "Aira",  displayName: "Aira",  preview: previews.c4, unread: false },
+      // No Aira thread
     ],
     messages: {
       c1: [{ text: previews.c1, me: false, timestamp: new Date(seedBase).toISOString() }],
       c2: [{ text: previews.c2, me: false, timestamp: new Date(seedBase + 1000 * 60 * 3).toISOString() }],
       c3: [{ text: previews.c3, me: false, timestamp: new Date(seedBase + 1000 * 60 * 6).toISOString() }],
-      c4: [{ text: previews.c4, me: false, timestamp: new Date(seedBase + 1000 * 60 * 9).toISOString() }],
+      // c4: [{ text: previews.c4, me: false, timestamp: new Date(seedBase + 1000 * 60 * 9).toISOString() }],
     },
   };
 }
@@ -176,6 +216,7 @@ const elements = {
   worldRoomVibe: document.getElementById("worldRoomVibe"),
   worldRoomScene: document.getElementById("worldRoomScene"),
   serverHeartbeat: document.getElementById("serverHeartbeat"),
+  leftRailHeartbeat: document.getElementById("leftRailHeartbeat"),
   worldPresenceState: document.getElementById("worldPresenceState"),
   quickPromptBar: document.getElementById("quickPromptBar"),
   chatForm: document.getElementById("chatForm"),
@@ -217,10 +258,17 @@ const elements = {
   phoneMessagesForm: document.getElementById("phoneMessagesForm"),
   phoneMessagesBackBtn: document.getElementById("phoneMessagesBackBtn"),
   phoneThreadBackBtn: document.getElementById("phoneThreadBackBtn"),
+  phoneCastApp: document.getElementById("phoneCastApp"),
+  phoneCastBackBtn: document.getElementById("phoneCastBackBtn"),
+  phoneCastNewBtn: document.getElementById("phoneCastNewBtn"),
+  phoneCastList: document.getElementById("phoneCastList"),
+  phoneCastCreator: document.getElementById("phoneCastCreator"),
+  phoneCastCreatorClose: document.getElementById("phoneCastCreatorClose"),
+  phoneCastCreatorForm: document.getElementById("phoneCastCreatorForm"),
 };
 
 const state = {
-  currentView: "chat",
+  currentView: "home",
   messages: [],
   latestState: null,
   serverOnline: null,
@@ -409,9 +457,7 @@ function speakText(text, agentName = "") {
   synth.speak(utterance);
 }
 
-function syncBodyMode() {
-  document.body.classList.toggle("is-chat-active", state.currentView === "chat");
-}
+
 
 function syncPresenceModes() {
   document.body.classList.toggle("is-phone-open", state.phone.open);
@@ -436,27 +482,34 @@ function setWorldAvailability(isAvailable) {
 function updateServerHeartbeat(isOnline, detail = "") {
   state.serverOnline = typeof isOnline === "boolean" ? isOnline : null;
 
-  if (!elements.serverHeartbeat) return;
+  const targets = [elements.serverHeartbeat, elements.leftRailHeartbeat].filter(Boolean);
+  if (!targets.length) return;
 
-  elements.serverHeartbeat.classList.remove("is-online", "is-offline", "is-unknown");
+  targets.forEach(el => el.classList.remove("is-online", "is-offline", "is-unknown"));
 
   if (isOnline === true) {
-    elements.serverHeartbeat.classList.add("is-online");
-    elements.serverHeartbeat.setAttribute("aria-label", "Server online");
-    elements.serverHeartbeat.title = detail || "Server status: online";
+    targets.forEach(el => {
+      el.classList.add("is-online");
+      el.setAttribute("aria-label", "Server online");
+      el.title = detail || "Server status: online";
+    });
     return;
   }
 
   if (isOnline === false) {
-    elements.serverHeartbeat.classList.add("is-offline");
-    elements.serverHeartbeat.setAttribute("aria-label", "Server offline");
-    elements.serverHeartbeat.title = detail || "Server status: offline";
+    targets.forEach(el => {
+      el.classList.add("is-offline");
+      el.setAttribute("aria-label", "Server offline");
+      el.title = detail || "Server status: offline";
+    });
     return;
   }
 
-  elements.serverHeartbeat.classList.add("is-unknown");
-  elements.serverHeartbeat.setAttribute("aria-label", "Server status unknown");
-  elements.serverHeartbeat.title = detail || "Server status: checking";
+  targets.forEach(el => {
+    el.classList.add("is-unknown");
+    el.setAttribute("aria-label", "Server status unknown");
+    el.title = detail || "Server status: checking";
+  });
 }
 
 async function checkServerHeartbeat() {
@@ -674,6 +727,11 @@ function openPhoneApp(appName) {
     resetSnapApp();
   }
 
+  if (appName === "cast") {
+    elements.phoneCastApp?.removeAttribute("hidden");
+    renderCastList();
+  }
+
   syncPresenceModes();
 }
 
@@ -684,6 +742,7 @@ function closePhoneApp() {
   elements.phoneMessagesApp?.setAttribute("hidden", "");
   elements.phoneGalleryApp?.setAttribute("hidden", "");
   elements.phoneSnapApp?.setAttribute("hidden", "");
+  elements.phoneCastApp?.setAttribute("hidden", "");
   elements.phoneHome?.removeAttribute("hidden");
   syncPresenceModes();
 }
@@ -740,28 +799,43 @@ function closePhoneThread() {
   renderPhoneThreads();
 }
 
+const THREAD_AVATAR_COLORS = {
+  c1: { bg: "#2e1f4a", fg: "#c9a7ff" },
+  c2: { bg: "#162038", fg: "#8eaef9" },
+  c3: { bg: "#3a2210", fg: "#d7a65f" },
+  c4: { bg: "#0b2e2a", fg: "#6be8b8" },
+};
+
 function renderPhoneThreads() {
   if (!elements.phoneMessagesList) return;
 
   elements.phoneMessagesList.innerHTML = state.messagesApp.threads
+    .filter(isVisibleCharacter)
     .map((thread) => {
       const threadMessages = state.messagesApp.messages[thread.id] || [];
       const lastMessage = threadMessages[threadMessages.length - 1] || null;
       const previewText = lastMessage?.text || thread.preview || "";
-      const timeLabel = lastMessage?.timestamp ? formatPhoneThreadTime(lastMessage.timestamp) : "--:--";
-      const dateLabel = lastMessage?.timestamp ? formatPhoneThreadListDate(lastMessage.timestamp) : "";
+      const timeLabel = lastMessage?.timestamp ? formatPhoneThreadTime(lastMessage.timestamp) : "";
+      const colors = THREAD_AVATAR_COLORS[thread.id] || { bg: "#2a2a32", fg: "#ccc" };
+      const initial = (thread.displayName || thread.name || "?")[0].toUpperCase();
 
       return `
       <button
         class="phone-thread ${thread.unread ? "is-unread" : ""}"
         type="button"
-        data-thread="${thread.id}"
+        data-thread="${escapeHtml(thread.id)}"
       >
-        <div class="phone-thread__name">${escapeHtml(thread.displayName || thread.name)}</div>
-        <div class="phone-thread__time">${escapeHtml(timeLabel)}</div>
-        <div class="phone-thread__preview">${escapeHtml(previewText)}</div>
-        <div class="phone-thread__date">${escapeHtml(dateLabel)}</div>
-        ${thread.unread ? '<div class="phone-thread__dot"></div>' : ""}
+        <div class="phone-thread__avatar" style="--avatar-bg:${colors.bg};--avatar-fg:${colors.fg}">${initial}</div>
+        <div class="phone-thread__body">
+          <div class="phone-thread__top">
+            <span class="phone-thread__name">${escapeHtml(thread.displayName || thread.name)}</span>
+            <span class="phone-thread__time">${escapeHtml(timeLabel)}</span>
+          </div>
+          <div class="phone-thread__bottom">
+            <span class="phone-thread__preview">${escapeHtml(previewText)}</span>
+            ${thread.unread ? '<div class="phone-thread__dot"></div>' : ""}
+          </div>
+        </div>
       </button>
     `;
     })
@@ -817,6 +891,17 @@ function openPhoneThread(id) {
   if (elements.phoneMessagesTitle) {
     elements.phoneMessagesTitle.textContent = thread.displayName || thread.name;
   }
+
+  // Update thread avatar colors in topbar
+  const threadAvatar = document.querySelector(".phone-thread-avatar");
+  if (threadAvatar) {
+    const colors = THREAD_AVATAR_COLORS[id] || { bg: "#2a2a32", fg: "#ccc" };
+    const initial = (thread.displayName || thread.name || "?")[0].toUpperCase();
+    threadAvatar.style.setProperty("--avatar-bg", colors.bg);
+    threadAvatar.style.setProperty("--avatar-fg", colors.fg);
+    threadAvatar.textContent = initial;
+  }
+
   if (elements.phoneMessagesList) {
     elements.phoneMessagesList.style.display = "none";
   }
@@ -988,6 +1073,659 @@ function updateThreadPreview(id, previewText) {
   thread.preview = previewText;
 }
 
+// ─── Cast App ─────────────────────────────────────────────────────────────────
+
+const CORE_CHARACTERS = ['lucy', 'sam', 'angie']; // Aira is not visible
+
+let castMutedSet = new Set();
+
+async function fetchMuted() {
+  try {
+    const res = await fetch('/api/ai/state');
+    const data = await res.json();
+    const muted = data?.state?.mutedAgents || data?.state?.muted || [];
+    castMutedSet = new Set(muted.map(n => n.toLowerCase()));
+  } catch { castMutedSet = new Set(); }
+}
+
+async function renderCastList() {
+  const list = elements.phoneCastList;
+  if (!list) return;
+  list.innerHTML = '<div class="phone-cast-section-label">Loading…</div>';
+
+  await fetchMuted();
+
+  let characters = [];
+  try {
+    const res = await fetch('/api/characters');
+    const data = await res.json();
+    characters = data.characters || [];
+  } catch { list.innerHTML = '<div class="phone-cast-section-label">Error loading characters</div>'; return; }
+
+  if (!characters.length) {
+    list.innerHTML = '<div class="phone-cast-section-label">No characters found</div>';
+    return;
+  }
+
+  list.innerHTML = '';
+
+  for (const char of characters) {
+    if (!isVisibleCharacter(char)) continue;
+    const isCore = CORE_CHARACTERS.includes(char.id);
+    const isMuted = castMutedSet.has((char.name || char.id).toLowerCase());
+    const initial = (char.name || '?')[0].toUpperCase();
+    const color = char.color || '#6b7280';
+    const threadId = char.id;
+
+    const card = document.createElement('div');
+    card.className = 'phone-cast-card';
+    card.innerHTML = `
+      <div class="phone-cast-card__avatar" style="background:${escapeHtml(color)}">${escapeHtml(initial)}</div>
+      <div class="phone-cast-card__info">
+        <div class="phone-cast-card__name">${escapeHtml(char.name || char.id)}</div>
+        <div class="phone-cast-card__bio">${escapeHtml(char.bio || char.personality || '')}</div>
+      </div>
+      <div class="phone-cast-card__actions">
+        <div>
+          <button class="phone-cast-toggle${isMuted ? '' : ' is-active'}" data-char-name="${escapeHtml(char.name || char.id)}" title="${isMuted ? 'Off in world chat' : 'Active in world chat'}"></button>
+          <span class="phone-cast-toggle__label">World</span>
+        </div>
+        <button class="phone-cast-msg-btn" data-thread-id="${escapeHtml(threadId)}">DM</button>
+        ${!isCore ? `<button class="phone-cast-del-btn" data-char-id="${escapeHtml(char.id)}" title="Delete">×</button>` : ''}
+      </div>
+    `;
+
+    // World chat toggle
+    const toggle = card.querySelector('.phone-cast-toggle');
+    toggle?.addEventListener('click', async () => {
+      const name = toggle.dataset.charName;
+      const willMute = toggle.classList.contains('is-active');
+      toggle.classList.toggle('is-active', !willMute);
+      toggle.title = willMute ? 'Off in world chat' : 'Active in world chat';
+      try {
+        await fetch('/api/ai/mute', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, muted: willMute }),
+        });
+      } catch { /* non-blocking */ }
+    });
+
+    // DM button → open Messenger thread or add one
+    const dmBtn = card.querySelector('.phone-cast-msg-btn');
+    dmBtn?.addEventListener('click', () => {
+      let thread = state.messagesApp.threads.find(t => t.id === threadId);
+      if (!thread) {
+        // Add thread dynamically
+        thread = { id: threadId, name: char.name, displayName: char.name, preview: '', unread: false };
+        state.messagesApp.threads.push(thread);
+        if (!state.messagesApp.messages[threadId]) {
+          state.messagesApp.messages[threadId] = [];
+        }
+      }
+      // Close cast, open messages, open thread
+      elements.phoneCastApp?.setAttribute('hidden', '');
+      elements.phoneMessagesApp?.removeAttribute('hidden');
+      elements.phoneAppLayer?.removeAttribute('hidden');
+      state.phoneApp = 'messages';
+      openPhoneThread(threadId);
+    });
+
+    // Delete button
+    const delBtn = card.querySelector('.phone-cast-del-btn');
+    delBtn?.addEventListener('click', async () => {
+      if (!confirm(`Delete ${char.name}?`)) return;
+      try {
+        await fetch(`/api/characters/${char.id}`, { method: 'DELETE' });
+        card.remove();
+        // Remove from messenger threads if present
+        state.messagesApp.threads = state.messagesApp.threads.filter(t => t.id !== threadId);
+      } catch (err) { alert('Delete failed: ' + err.message); }
+    });
+
+    list.appendChild(card);
+  }
+}
+
+function openCastCreator() {
+  elements.phoneCastCreator?.classList.remove('hidden');
+  document.getElementById('castFieldName')?.focus();
+}
+
+function closeCastCreator() {
+  elements.phoneCastCreator?.classList.add('hidden');
+  elements.phoneCastCreatorForm?.reset();
+}
+
+async function submitCastCreator(e) {
+  e.preventDefault();
+  const name = document.getElementById('castFieldName')?.value.trim();
+  const bio = document.getElementById('castFieldBio')?.value.trim();
+  const personality = document.getElementById('castFieldPersonality')?.value.trim();
+  const system_prompt = document.getElementById('castFieldPrompt')?.value.trim();
+  const color = document.getElementById('castFieldColor')?.value || '#6b7280';
+
+  if (!name) return;
+
+  const saveBtn = document.getElementById('phoneCastSaveBtn');
+  if (saveBtn) { saveBtn.textContent = 'Creating…'; saveBtn.disabled = true; }
+
+  try {
+    const res = await fetch('/api/characters', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, bio, personality, system_prompt, color }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Failed');
+
+    closeCastCreator();
+    renderCastList();
+  } catch (err) {
+    alert('Error: ' + err.message);
+  } finally {
+    if (saveBtn) { saveBtn.textContent = 'Create Character'; saveBtn.disabled = false; }
+  }
+}
+
+// Wire up Cast app buttons
+elements.phoneCastBackBtn?.addEventListener('click', () => {
+  closeCastCreator();
+  closePhoneApp();
+});
+
+elements.phoneCastNewBtn?.addEventListener('click', openCastCreator);
+elements.phoneCastCreatorClose?.addEventListener('click', closeCastCreator);
+elements.phoneCastCreatorForm?.addEventListener('submit', submitCastCreator);
+
+// ─── Web App Shell — View Switching ──────────────────────────────────────────
+
+
+
+// ─── Lab View ─────────────────────────────────────────────────────────────────
+
+let labSelectedId = null;
+let labMutedSet = new Set();
+let labCharacters = [];
+
+async function renderLabView() {
+  const list = document.getElementById('labCharList');
+  if (!list) return;
+  list.innerHTML = '<div style="padding:20px;color:rgba(255,255,255,0.3);font-size:.85rem;">Loading…</div>';
+
+  try {
+    const [charsRes, stateRes] = await Promise.all([
+      fetch('/api/characters'),
+      fetch('/api/ai/state'),
+    ]);
+    const charsData = await charsRes.json();
+    const stateData = await stateRes.json();
+    labCharacters = charsData.characters || [];
+    const muted = stateData?.state?.mutedAgents || stateData?.state?.muted || [];
+    labMutedSet = new Set(muted.map(n => n.toLowerCase()));
+  } catch {
+    list.innerHTML = '<div style="padding:20px;color:rgba(255,80,80,0.7);font-size:.85rem;">Failed to load</div>';
+    return;
+  }
+
+  list.innerHTML = '';
+  for (const char of labCharacters) {
+    if (!isVisibleCharacter(char)) continue;
+    const isMuted = labMutedSet.has((char.name || '').toLowerCase());
+    const initial = (char.name || '?')[0].toUpperCase();
+    const item = document.createElement('div');
+    item.className = 'lab-char-item' + (char.id === labSelectedId ? ' is-selected' : '');
+    item.dataset.charId = char.id;
+    item.innerHTML = `
+      <div class="lab-char-avatar" style="background:${escapeHtml(char.color || '#6b7280')}">${escapeHtml(initial)}</div>
+      <div class="lab-char-info">
+        <div class="lab-char-name">${escapeHtml(char.name || char.id)}</div>
+        <div class="lab-char-bio">${escapeHtml(char.bio || char.personality || '')}</div>
+      </div>
+      <span class="lab-char-badge${isMuted ? ' is-muted' : ''}">${isMuted ? 'Off' : 'Live'}</span>
+    `;
+    item.addEventListener('click', () => openLabPanel(char.id));
+    list.appendChild(item);
+  }
+}
+
+function openLabPanel(charId) {
+  const char = labCharacters.find(c => c.id === charId);
+  if (!char) return;
+  labSelectedId = charId;
+
+  // Highlight selected
+  document.querySelectorAll('.lab-char-item').forEach(el => {
+    el.classList.toggle('is-selected', el.dataset.charId === charId);
+  });
+
+  const panel = document.getElementById('labPanel');
+  if (panel) panel.removeAttribute('hidden');
+
+  document.getElementById('labPanelTitle').textContent = char.name || char.id;
+  document.getElementById('labFieldName').value = char.name || '';
+  document.getElementById('labFieldBio').value = char.bio || '';
+  document.getElementById('labFieldPersonality').value = char.personality || '';
+  document.getElementById('labFieldPrompt').value = char.system_prompt || '';
+  document.getElementById('labFieldColor').value = char.color || '#6b7280';
+
+  const isMuted = labMutedSet.has((char.name || '').toLowerCase());
+  const toggle = document.getElementById('labWorldToggle');
+  if (toggle) {
+    toggle.textContent = isMuted ? 'Muted' : 'Active';
+    toggle.classList.toggle('is-muted', isMuted);
+    toggle.dataset.charName = char.name || char.id;
+    toggle.dataset.muted = isMuted ? '1' : '';
+  }
+
+  // Populate visual profile fields
+  const v = char.visual || {};
+  const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val ?? ''; };
+  setVal('labVisualAvatarImage',    v.avatarImage    || '');
+  setVal('labVisualModelName',      v.modelName      || '');
+  setVal('labVisualModelVersion',   v.modelVersion   || '');
+  setVal('labVisualLoraStack',      v.loraStack      || '');
+  setVal('labVisualPositivePrompt', v.positivePrompt || '');
+  setVal('labVisualNegativePrompt', v.negativePrompt || '');
+  setVal('labVisualSeed',           v.seed != null ? v.seed : '');
+  setVal('labVisualSteps',          v.steps != null ? v.steps : '');
+  setVal('labVisualCfg',            v.cfg != null ? v.cfg : '');
+  setVal('labVisualAspect',         v.preferredAspect || '');
+  setVal('labVisualAssetSource',    v.assetSource    || '');
+  setVal('labVisualAssetCreator',   v.assetCreator   || '');
+  setVal('labVisualAssetPage',      v.assetPage      || '');
+  setVal('labVisualLicenseType',    v.licenseType    || '');
+  setVal('labVisualNotes',          v.notes          || '');
+  const commBtn = document.getElementById('labVisualCommercial');
+  if (commBtn) {
+    const allowed = Boolean(v.commercialUseAllowed);
+    commBtn.dataset.value = allowed ? 'true' : 'false';
+    commBtn.textContent = allowed ? 'Yes' : 'No';
+    commBtn.classList.toggle('is-muted', !allowed);
+  }
+
+  // Reset tabs to profile
+  document.querySelectorAll('.lab-tab').forEach(t => t.classList.toggle('is-active', t.dataset.labTab === 'profile'));
+  document.getElementById('labTabProfile')?.removeAttribute('hidden');
+  document.getElementById('labTabVisual')?.setAttribute('hidden', '');
+  document.getElementById('labTabSandbox')?.setAttribute('hidden', '');
+
+  // Clear sandbox log
+  const log = document.getElementById('labSandboxLog');
+  if (log) log.innerHTML = `<div class="lab-sandbox-msg lab-sandbox-msg--system">Chat with ${escapeHtml(char.name)} — isolated test session</div>`;
+}
+
+// Panel tab switching
+document.querySelectorAll('.lab-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.lab-tab').forEach(t => t.classList.remove('is-active'));
+    btn.classList.add('is-active');
+    const tab = btn.dataset.labTab;
+    document.getElementById('labTabProfile')?.toggleAttribute('hidden', tab !== 'profile');
+    document.getElementById('labTabVisual')?.toggleAttribute('hidden', tab !== 'visual');
+    document.getElementById('labTabSandbox')?.toggleAttribute('hidden', tab !== 'sandbox');
+  });
+});
+
+// Close panel
+document.getElementById('labPanelClose')?.addEventListener('click', () => {
+  document.getElementById('labPanel')?.setAttribute('hidden', '');
+  labSelectedId = null;
+  document.querySelectorAll('.lab-char-item').forEach(el => el.classList.remove('is-selected'));
+});
+
+// World chat toggle
+document.getElementById('labWorldToggle')?.addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  const name = btn.dataset.charName;
+  const willMute = !btn.dataset.muted;
+  btn.dataset.muted = willMute ? '1' : '';
+  btn.textContent = willMute ? 'Muted' : 'Active';
+  btn.classList.toggle('is-muted', willMute);
+  // Update badge in list
+  const badge = document.querySelector(`.lab-char-item[data-char-id="${labSelectedId}"] .lab-char-badge`);
+  if (badge) { badge.textContent = willMute ? 'Off' : 'Live'; badge.classList.toggle('is-muted', willMute); }
+  try {
+    await fetch('/api/ai/mute', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, muted: willMute }),
+    });
+  } catch { /* non-blocking */ }
+});
+
+// Save character edits
+document.getElementById('labEditForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!labSelectedId) return;
+  const saveBtn = document.getElementById('labSaveBtn');
+  if (saveBtn) { saveBtn.textContent = 'Saving…'; saveBtn.disabled = true; }
+  try {
+    const body = {
+      name: document.getElementById('labFieldName')?.value.trim(),
+      bio: document.getElementById('labFieldBio')?.value.trim(),
+      personality: document.getElementById('labFieldPersonality')?.value.trim(),
+      system_prompt: document.getElementById('labFieldPrompt')?.value.trim(),
+      color: document.getElementById('labFieldColor')?.value,
+    };
+    const res = await fetch(`/api/characters/${labSelectedId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error);
+    // Refresh list
+    renderLabView();
+    if (saveBtn) saveBtn.textContent = 'Saved ✓';
+    setTimeout(() => { if (saveBtn) saveBtn.textContent = 'Save'; }, 1800);
+  } catch (err) {
+    alert('Save failed: ' + err.message);
+  } finally {
+    if (saveBtn) saveBtn.disabled = false;
+  }
+});
+
+// Open DM from lab
+document.getElementById('labOpenDmBtn')?.addEventListener('click', () => {
+  if (!labSelectedId) return;
+  switchView('dm');
+  setTimeout(() => openDmThread(labSelectedId), 80);
+});
+
+// Commercial use toggle in visual tab
+document.getElementById('labVisualCommercial')?.addEventListener('click', (e) => {
+  const btn = e.currentTarget;
+  const current = btn.dataset.value === 'true';
+  const next = !current;
+  btn.dataset.value = next ? 'true' : 'false';
+  btn.textContent = next ? 'Yes' : 'No';
+  btn.classList.toggle('is-muted', !next);
+});
+
+// Save visual profile
+document.getElementById('labVisualSaveBtn')?.addEventListener('click', async () => {
+  if (!labSelectedId) return;
+  const saveBtn = document.getElementById('labVisualSaveBtn');
+  if (saveBtn) { saveBtn.textContent = 'Saving…'; saveBtn.disabled = true; }
+  try {
+    const numOrNull = (id) => {
+      const v = document.getElementById(id)?.value.trim();
+      return v !== '' && v != null ? Number(v) : null;
+    };
+    const visual = {
+      avatarImage:         document.getElementById('labVisualAvatarImage')?.value.trim() || null,
+      modelName:           document.getElementById('labVisualModelName')?.value.trim() || null,
+      modelVersion:        document.getElementById('labVisualModelVersion')?.value.trim() || null,
+      loraStack:           document.getElementById('labVisualLoraStack')?.value.trim() || null,
+      positivePrompt:      document.getElementById('labVisualPositivePrompt')?.value.trim() || null,
+      negativePrompt:      document.getElementById('labVisualNegativePrompt')?.value.trim() || null,
+      seed:                numOrNull('labVisualSeed'),
+      steps:               numOrNull('labVisualSteps'),
+      cfg:                 numOrNull('labVisualCfg'),
+      preferredAspect:     document.getElementById('labVisualAspect')?.value || null,
+      assetSource:         document.getElementById('labVisualAssetSource')?.value.trim() || null,
+      assetCreator:        document.getElementById('labVisualAssetCreator')?.value.trim() || null,
+      assetPage:           document.getElementById('labVisualAssetPage')?.value.trim() || null,
+      licenseType:         document.getElementById('labVisualLicenseType')?.value.trim() || null,
+      commercialUseAllowed: document.getElementById('labVisualCommercial')?.dataset.value === 'true',
+      notes:               document.getElementById('labVisualNotes')?.value.trim() || null,
+    };
+    const res = await fetch(`/api/characters/${labSelectedId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ visual }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error);
+    // Update local cache
+    const idx = labCharacters.findIndex(c => c.id === labSelectedId);
+    if (idx >= 0) labCharacters[idx] = { ...labCharacters[idx], visual };
+    if (saveBtn) saveBtn.textContent = 'Saved ✓';
+    setTimeout(() => { if (saveBtn) saveBtn.textContent = 'Save Visual'; }, 1800);
+  } catch (err) {
+    alert('Save failed: ' + err.message);
+  } finally {
+    if (saveBtn) saveBtn.disabled = false;
+  }
+});
+
+// New character
+document.getElementById('labNewCharBtn')?.addEventListener('click', () => {
+  document.getElementById('labCreator')?.classList.remove('hidden');
+  document.getElementById('labNewName')?.focus();
+});
+
+document.getElementById('labCreatorClose')?.addEventListener('click', () => {
+  document.getElementById('labCreator')?.classList.add('hidden');
+  document.getElementById('labCreatorForm')?.reset();
+});
+
+document.getElementById('labCreatorForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = e.target.querySelector('[type="submit"]');
+  if (btn) { btn.textContent = 'Creating…'; btn.disabled = true; }
+  try {
+    const body = {
+      name: document.getElementById('labNewName')?.value.trim(),
+      bio: document.getElementById('labNewBio')?.value.trim(),
+      personality: document.getElementById('labNewPersonality')?.value.trim(),
+      system_prompt: document.getElementById('labNewPrompt')?.value.trim(),
+      color: document.getElementById('labNewColor')?.value,
+    };
+    const res = await fetch('/api/characters', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error);
+    document.getElementById('labCreator')?.classList.add('hidden');
+    document.getElementById('labCreatorForm')?.reset();
+    renderLabView();
+  } catch (err) {
+    alert('Error: ' + err.message);
+  } finally {
+    if (btn) { btn.textContent = 'Create Character'; btn.disabled = false; }
+  }
+});
+
+// Sandbox test chat
+let sandboxHistory = {};
+
+document.getElementById('labSandboxForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const input = document.getElementById('labSandboxInput');
+  const text = input?.value.trim();
+  if (!text || !labSelectedId) return;
+  input.value = '';
+
+  const log = document.getElementById('labSandboxLog');
+  const addMsg = (content, side) => {
+    const el = document.createElement('div');
+    el.className = `lab-sandbox-msg lab-sandbox-msg--${side}`;
+    el.textContent = content;
+    log?.appendChild(el);
+    log?.scrollTo({ top: log.scrollHeight, behavior: 'smooth' });
+  };
+
+  addMsg(text, 'me');
+
+  const typing = document.createElement('div');
+  typing.className = 'lab-sandbox-msg lab-sandbox-msg--them';
+  typing.textContent = '…';
+  log?.appendChild(typing);
+  log?.scrollTo({ top: log.scrollHeight, behavior: 'smooth' });
+
+  try {
+    const res = await fetch(`/api/characters/${labSelectedId}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    const data = await res.json();
+    typing.remove();
+    addMsg(data.reply || '…', 'them');
+  } catch {
+    typing.remove();
+    addMsg('(failed to respond)', 'system');
+  }
+});
+
+document.getElementById('labSandboxReset')?.addEventListener('click', () => {
+  const log = document.getElementById('labSandboxLog');
+  const char = labCharacters.find(c => c.id === labSelectedId);
+  if (log) log.innerHTML = `<div class="lab-sandbox-msg lab-sandbox-msg--system">Chat with ${escapeHtml(char?.name || '')} — isolated test session</div>`;
+});
+
+// ─── DM View ──────────────────────────────────────────────────────────────────
+
+const DM_AVATAR_COLORS = {
+  lucy:  { bg: '#2e1f4a', fg: '#c9a7ff' },
+  sam:   { bg: '#162038', fg: '#8eaef9' },
+  angie: { bg: '#3a2210', fg: '#d7a65f' },
+  // aira:  { bg: '#0b2e2a', fg: '#6be8b8' },
+};
+
+let dmActiveThread = null;
+let dmMessages = {};
+
+// Premium Inbox/DM thread list for Lucy, Sam, Angie, Hazel, Nina
+async function renderDmView() {
+  const inner = document.getElementById('dmThreadListInner');
+  if (!inner) return;
+
+  // Static character list for now (can be dynamic later)
+  const characters = [
+    { id: 'lucy', name: 'Lucy', color: '#bfa3e3', bio: 'Lucy: clever, direct, warm.' },
+    { id: 'sam', name: 'Sam', color: '#a3cbe3', bio: 'Sam: playful, honest, sharp.' },
+    { id: 'angie', name: 'Angie', color: '#e3bfa3', bio: 'Angie: bold, loyal, funny.' },
+    { id: 'hazel', name: 'Hazel', color: '#e3a3b7', bio: 'Hazel: mysterious, gentle, deep.' },
+    { id: 'nina', name: 'Nina', color: '#a3e3b7', bio: 'Nina: nostalgic, sweet, surprising.' }
+  ];
+
+  inner.innerHTML = '';
+  for (const char of characters) {
+    const id = char.id;
+    if (!dmMessages[id]) dmMessages[id] = [];
+    const msgs = dmMessages[id];
+    const last = msgs[msgs.length - 1];
+    const colors = { bg: char.color, fg: '#fff' };
+    const initial = (char.name || '?')[0].toUpperCase();
+    const preview = last?.text || char.bio || '';
+    const timeStr = last ? formatPhoneThreadTime(last.timestamp) : '';
+
+    const item = document.createElement('div');
+    item.className = 'dm-thread-item';
+    item.dataset.charId = id;
+    item.innerHTML = `
+      <div class="dm-thread-item__avatar" style="background:${escapeHtml(colors.bg)};color:${escapeHtml(colors.fg)}">${escapeHtml(initial)}</div>
+      <div class="dm-thread-item__body">
+        <div class="dm-thread-item__top">
+          <span class="dm-thread-item__name">${escapeHtml(char.name || id)}</span>
+          <span class="dm-thread-item__time">${escapeHtml(timeStr)}</span>
+        </div>
+        <div class="dm-thread-item__preview">${escapeHtml(preview)}</div>
+      </div>
+    `;
+    item.addEventListener('click', () => openDmThread(id, char));
+    inner.appendChild(item);
+  }
+}
+
+async function openDmThread(charId, charData) {
+  let char = charData;
+  if (!char) {
+    try {
+      const res = await fetch('/api/characters');
+      const data = await res.json();
+      char = (data.characters || []).find(c => c.id === charId);
+    } catch { return; }
+  }
+  if (!char) return;
+
+  dmActiveThread = charId;
+  if (!dmMessages[charId]) dmMessages[charId] = [];
+
+  const threadList = document.getElementById('dmThreadList');
+  const thread = document.getElementById('dmThread');
+  if (threadList) threadList.style.display = 'none';
+  if (thread) thread.removeAttribute('hidden');
+
+  const colors = DM_AVATAR_COLORS[charId] || { bg: char.color || '#6b7280', fg: '#fff' };
+  const initial = (char.name || '?')[0].toUpperCase();
+  const avatar = document.getElementById('dmThreadAvatar');
+  const name = document.getElementById('dmThreadName');
+  if (avatar) { avatar.textContent = initial; avatar.style.background = colors.bg; avatar.style.color = colors.fg; }
+  if (name) name.textContent = char.name || charId;
+
+  renderDmLog();
+  document.getElementById('dmInput')?.focus();
+}
+
+function renderDmLog() {
+  const log = document.getElementById('dmLog');
+  if (!log || !dmActiveThread) return;
+  const msgs = dmMessages[dmActiveThread] || [];
+  log.innerHTML = '';
+  for (const msg of msgs) {
+    const row = document.createElement('div');
+    row.className = `dm-msg-row dm-msg-row--${msg.me ? 'me' : 'them'}`;
+    row.innerHTML = `
+      <div class="dm-bubble dm-bubble--${msg.me ? 'me' : 'them'}">${escapeHtml(msg.text)}</div>
+      <div class="dm-msg-time">${escapeHtml(formatPhoneThreadTime(msg.timestamp))}</div>
+    `;
+    log.appendChild(row);
+  }
+  log.scrollTop = log.scrollHeight;
+}
+
+document.getElementById('dmBackBtn')?.addEventListener('click', () => {
+  dmActiveThread = null;
+  const threadList = document.getElementById('dmThreadList');
+  const thread = document.getElementById('dmThread');
+  if (threadList) threadList.style.display = '';
+  if (thread) thread.setAttribute('hidden', '');
+  renderDmView();
+});
+
+document.getElementById('dmForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const input = document.getElementById('dmInput');
+  const text = input?.value.trim();
+  if (!text || !dmActiveThread) return;
+  input.value = '';
+
+  dmMessages[dmActiveThread].push({ text, me: true, timestamp: new Date().toISOString() });
+  renderDmLog();
+
+  // Typing indicator
+  const log = document.getElementById('dmLog');
+  const typing = document.createElement('div');
+  typing.className = 'dm-msg-row dm-msg-row--them';
+  typing.id = 'dmTyping';
+  typing.innerHTML = `<div class="dm-typing"><span></span><span></span><span></span></div>`;
+  log?.appendChild(typing);
+  log && (log.scrollTop = log.scrollHeight);
+
+  try {
+    const res = await fetch(`/api/characters/${dmActiveThread}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    const data = await res.json();
+    document.getElementById('dmTyping')?.remove();
+    if (data.ok && data.reply) {
+      dmMessages[dmActiveThread].push({ text: data.reply, me: false, timestamp: new Date().toISOString() });
+      renderDmLog();
+    }
+  } catch {
+    document.getElementById('dmTyping')?.remove();
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 function syncTypingState() {
   const hasText = elements.chatInput.value.trim().length > 0;
@@ -1113,6 +1851,14 @@ function renderMessages() {
         `;
       }
 
+      if (message.type === "story_beat") {
+        return `
+          <div class="message-row message-row--story-beat">
+            <div class="story-beat">${escapeHtml(message.text)}</div>
+          </div>
+        `;
+      }
+
       const thoughtText = message.thought
         ? message.thought.replace(/^\(|\)$/g, "").trim()
         : null;
@@ -1145,35 +1891,37 @@ function updatePresenceHooks() {
 }
 
 function renderWorldRoomBar() {
-  const availability = state.latestState?.continuity?.availability || null;
-  const timeBlock = state.latestState?.continuity?.timeBlock || "evening";
-  const tension = Number(state.latestState?.tension || 0);
+  const timeBlock    = state.latestState?.continuity?.timeBlock || "evening";
+  const tension      = Number(state.latestState?.tension || 0);
   const manifestation = state.latestState?.aira?.manifestation || "none";
+  const mutedAgents  = state.latestState?.mutedAgents || [];
 
-  const availabilityEntries = availability ? Object.values(availability) : [];
-  const onlineCount = availabilityEntries.length
-    ? availabilityEntries.filter((slot) => slot?.online !== false).length
-    : 3;
-
-  const activeCount = availabilityEntries.length
-    ? availabilityEntries.filter((slot) => slot?.replying || slot?.seen).length
-    : 0;
+  // Active cast = registered characters minus muted ones
+  const allNames = ['Lucy', 'Sam', 'Angie'];
+  const mutedSet = new Set(mutedAgents.map(n => String(n).toLowerCase()));
+  const activeNames = allNames.filter(n => !mutedSet.has(n.toLowerCase()));
+  const castLine = activeNames.length ? activeNames.join(' · ') : 'Empty room';
 
   let vibe = "Calm";
   if (tension > 0.7) vibe = "Volatile";
   else if (tension > 0.45) vibe = "Charged";
   else if (tension > 0.2) vibe = "Warm";
 
-  const beat = `${capitalizeWord(timeBlock)}${manifestation !== "none" ? " · Strange" : ""}`;
+  const scene = capitalizeWord(timeBlock) + (manifestation !== "none" ? " · Strange" : "");
 
-  if (elements.worldRoomCount) {
-    elements.worldRoomCount.textContent = `${onlineCount} online${activeCount ? ` · ${activeCount} active` : ""}`;
-  }
-  if (elements.worldRoomVibe) {
-    elements.worldRoomVibe.textContent = vibe;
-  }
-  if (elements.worldRoomScene) {
-    elements.worldRoomScene.textContent = beat;
+  const bar = document.getElementById('worldRoomBar');
+  const prevCast = elements.worldRoomCount?.textContent || '';
+
+  if (elements.worldRoomCount) elements.worldRoomCount.textContent = castLine;
+  if (elements.worldRoomVibe)  elements.worldRoomVibe.textContent  = vibe;
+  if (elements.worldRoomScene) elements.worldRoomScene.textContent = scene;
+
+  // Flash the bar if the cast changed
+  if (bar && prevCast && prevCast !== castLine) {
+    bar.classList.remove('is-updating');
+    void bar.offsetWidth; // force reflow
+    bar.classList.add('is-updating');
+    setTimeout(() => bar.classList.remove('is-updating'), 600);
   }
 }
 
@@ -1199,26 +1947,32 @@ async function fetchState() {
 
 function normalizeResponses(payload) {
   const responses = payload?.result?.responses ?? [];
-  const gmLine = payload?.result?.gmLine ?? null;
+  const gmLine    = payload?.result?.gmLine    ?? null;
+  const storyBeat = payload?.result?.storyBeat ?? null;
   const time = formatTime();
 
-  const items = responses.map((entry) => ({
-    type: "character",
-    agent: entry.agent || "AIRA",
-    text: entry.spoken || "",
-    thought: entry.showThought && entry.thought ? entry.thought : null,
-    anomalous: Boolean(entry.anomalous),
-    toneClass: entry.meta?.toneClass || "",
-    anomalyAware: Boolean(entry.meta?.anomalyAware),
-    time,
-  }));
+  const items = [];
 
-  if (gmLine && window.__AIRA_DEV_MODE__) {
+  // Story beat appears before character responses — sets the scene
+  if (storyBeat) {
+    items.push({ type: "story_beat", text: storyBeat, time });
+  }
+
+  for (const entry of responses) {
     items.push({
-      type: "system",
-      text: gmLine,
+      type: "character",
+      agent: entry.agent || "AIRA",
+      text: entry.spoken || "",
+      thought: entry.showThought && entry.thought ? entry.thought : null,
+      anomalous: Boolean(entry.anomalous),
+      toneClass: entry.meta?.toneClass || "",
+      anomalyAware: Boolean(entry.meta?.anomalyAware),
       time,
     });
+  }
+
+  if (gmLine && window.__AIRA_DEV_MODE__) {
+    items.push({ type: "system", text: gmLine, time });
   }
 
   return items;
@@ -1334,6 +2088,7 @@ async function sendMessage(text) {
   // A normal user message unlocks manual scene progression burst lock.
   state.sceneProgress.burstCount = 0;
   state.sceneProgress.burstStartsAt = Date.now();
+  elements.sceneProgressBtn?.classList.remove('is-locked');
 
   state.isSending = true;
   elements.sendBtn.disabled = true;
@@ -1342,7 +2097,7 @@ async function sendMessage(text) {
     const response = await fetch("/api/ai/run", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ input: text }),
+      body: JSON.stringify({ input: text, context: { active_app: { type: 'world_chat' } } }),
     });
 
     const payload = await response.json();
@@ -1416,17 +2171,10 @@ async function letSceneProgress() {
   const now = Date.now();
   const COOLDOWN_MS = 3500;
   const BURST_WINDOW_MS = 30000;
-  const BURST_MAX = 4;
+  const BURST_MAX = 2; // Only allow 2 consecutive uses before requiring user input
 
   if (now - state.sceneProgress.lastAt < COOLDOWN_MS) {
-    const waitSec = Math.max(1, Math.ceil((COOLDOWN_MS - (now - state.sceneProgress.lastAt)) / 1000));
-    state.messages.push({
-      type: "system",
-      text: `Vent litt (${waitSec}s) før du dytter scenen igjen.`,
-      time: formatTime(),
-    });
-    renderMessages();
-    return;
+    return; // silent cooldown
   }
 
   if (now - state.sceneProgress.burstStartsAt > BURST_WINDOW_MS) {
@@ -1435,9 +2183,12 @@ async function letSceneProgress() {
   }
 
   if (state.sceneProgress.burstCount >= BURST_MAX) {
+    // Hand control back to the player — emit a pause/question moment
+    const btn = elements.sceneProgressBtn;
+    if (btn) btn.classList.add('is-locked');
     state.messages.push({
-      type: "system",
-      text: "Scene-sperre: skriv en vanlig melding før neste push.",
+      type: "story_beat",
+      text: "The room goes quiet. What do you do?",
       time: formatTime(),
     });
     renderMessages();
@@ -1447,26 +2198,34 @@ async function letSceneProgress() {
   const btn = elements.sceneProgressBtn;
   if (btn) {
     btn.disabled = true;
-    btn.textContent = "Progressing...";
+    btn.classList.remove('is-locked');
   }
+
+  const SCENE_ICON = `<svg class="scene-progress-btn__icon" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><polygon points="3,1 13,7 3,13" fill="currentColor"/></svg>`;
 
   try {
     const res = await fetch("/api/ai/tick", { method: "POST" });
     const payload = await res.json();
 
     if (!payload?.ok || !payload.response) {
-      state.messages.push({
-        type: "system",
-        text: "Scenen er rolig akkurat naa.",
-        time: formatTime(),
-      });
-      renderMessages();
+      // The room is still — that's fine, no noise
       return;
     }
 
     const r = payload.response;
     state.sceneProgress.lastAt = now;
     state.sceneProgress.burstCount += 1;
+
+    // Show story beat first if present (Patch 4)
+    if (payload.storyBeat) {
+      state.messages.push({
+        type: "story_beat",
+        text: payload.storyBeat,
+        time: formatTime(),
+      });
+      renderMessages();
+      await wait(600);
+    }
 
     showTyping(r.agent);
     await wait(typingDelay(r.spoken || ""));
@@ -1488,16 +2247,10 @@ async function letSceneProgress() {
     renderMessages();
   } catch (error) {
     console.warn("Scene progress failed", error);
-    state.messages.push({
-      type: "system",
-      text: "Klarte ikke aa dytte scenen videre naa.",
-      time: formatTime(),
-    });
-    renderMessages();
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.textContent = "Let Scene Progress";
+      btn.innerHTML = SCENE_ICON;
     }
   }
 }
@@ -1770,6 +2523,14 @@ function bindEvents() {
   };
   elements.voiceToggleBtn?.addEventListener("click", toggleTts);
   elements.voiceToggleBtn?.addEventListener("touchend", toggleTts, { passive: false });
+
+  // Photo button — open phone to Snap app
+  document.getElementById('photoBtn')?.addEventListener('click', () => {
+    if (!state.phone.open) openPhone();
+    // Small delay so phone opens before navigating to snap
+    setTimeout(() => openPhoneApp('snap'), state.phone.open ? 0 : 280);
+  });
+
   elements.chatInput?.addEventListener("input", autoResizeTextarea);
   window.addEventListener("resize", syncComposerClearance, { passive: true });
 
@@ -1847,6 +2608,8 @@ async function init() {
   }
 
   await clearLegacyClientCaches();
+  bindShellEvents();
+  setPrimaryView("home");
   syncBodyMode();
   exposeAiraConsoleApi();
   bindEvents();
@@ -1867,14 +2630,7 @@ async function init() {
   renderWorldRoomBar();
   await fetchState();
 
-  const devDrawer = new AiraDevDrawer({
-    getState: () => state.latestState,
-    onStateUpdate: (freshState) => { state.latestState = freshState; },
-    onReset: resetChat,
-  });
 
-  devDrawer.mount();
-  window.__airaDevDrawer = devDrawer;
 
   startAutoTalk();
   lockBootScroll();
@@ -1896,8 +2652,8 @@ async function init() {
 }
 
 function startAutoTalk() {
-  const IDLE_BY_LEVEL = [0, 120_000, 90_000, 60_000, 45_000, 25_000];
-  const getIdleMs = () => IDLE_BY_LEVEL[window.__AIRA_TUNING__?.autoTalkFrequency ?? 3] ?? 60_000;
+  const IDLE_BY_LEVEL = [null, 120_000, 90_000, 60_000, 45_000, 25_000]; // level 0 = off
+  const getIdleMs = () => IDLE_BY_LEVEL[window.__AIRA_TUNING__?.autoTalkFrequency ?? 0] ?? null;
   let lastActivity = Date.now();
 
   const resetTimer = () => { lastActivity = Date.now(); };
@@ -1906,7 +2662,8 @@ function startAutoTalk() {
 
   window.setInterval(async () => {
     if (state.isSending || state.booting) return;
-    if (Date.now() - lastActivity < getIdleMs()) return;
+    const idleMs = getIdleMs();
+    if (idleMs === null || Date.now() - lastActivity < idleMs) return;
 
     try {
       const res = await fetch("/api/ai/tick", { method: "POST" });
@@ -2125,5 +2882,34 @@ function exposeAiraConsoleApi() {
   window.AiraConsole = api;
   window.aira = api;
 }
+
+// Add dev drawer hotkey (F12 and §)
+window.addEventListener("keydown", (e) => {
+  // F12 (dev tools) or § (Norwegian/ISO keyboard)
+  if ((e.key === "F12" || e.key === "§") && window.__airaDevDrawer) {
+    e.preventDefault();
+    window.__airaDevDrawer.toggle();
+  }
+});
+
+// --- Reusable Global Moment Viewer ---
+window.showMomentViewer = function showMomentViewer({ img, caption }) {
+  const overlay = document.getElementById('moment-viewer-overlay');
+  const viewerImg = document.getElementById('moment-viewer-img');
+  const viewerCaption = document.getElementById('moment-viewer-caption');
+  if (!overlay || !viewerImg || !viewerCaption) return;
+  viewerImg.src = img || '';
+  viewerCaption.textContent = caption || '';
+  overlay.style.display = 'flex';
+  setTimeout(() => { overlay.style.opacity = '1'; }, 10);
+};
+window.hideMomentViewer = function hideMomentViewer() {
+  const overlay = document.getElementById('moment-viewer-overlay');
+  if (!overlay) return;
+  overlay.style.opacity = '0';
+  setTimeout(() => { overlay.style.display = 'none'; }, 250);
+};
+// Example: To trigger from any message, call:
+// showMomentViewer({ img: 'URL', caption: 'A cinematic moment' });
 
 init();

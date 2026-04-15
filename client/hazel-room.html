@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hazel · Private Room</title>
+  <link rel="stylesheet" href="./style-v2.css" />
+</head>
+<body class="room room--hazel">
+  <main class="room-shell" data-room-id="hazel-room">
+
+    <section class="room-stage">
+
+      <header class="room-header">
+        <a class="room-header__back" href="./lounge-v2.html">← Back</a>
+        <div class="room-header__main">
+          <p class="room-header__eyebrow">Private room</p>
+          <h1 class="room-header__title">Hazel</h1>
+        </div>
+        <div class="room-header__meta">
+          <span class="meta-chip">Live</span>
+          <span class="meta-chip">Private</span>
+        </div>
+      </header>
+
+      <section class="room-presence">
+        <span>The room is warmer when it's just you</span>
+        <span>Hazel is paying attention</span>
+        <span>Something may open if you stay long enough</span>
+      </section>
+
+      <section class="room-thread" id="roomThread">
+        <article class="stage-line stage-line--mist">
+          <span class="stage-line__name">Room</span>
+          <p>The door closing behind you is the whole first act.</p>
+        </article>
+
+        <article class="stage-line">
+          <button class="profile-trigger" data-profile="hazel" aria-label="View Hazel's profile">
+            <span class="profile-trigger__dot"></span>
+          </button>
+          <span class="stage-line__name">Hazel</span>
+          <p>You actually came. I wasn't sure you would.</p>
+        </article>
+
+        <article class="stage-line stage-line--mist">
+          <span class="stage-line__name">Room</span>
+          <p>Amber light. Nowhere to be.</p>
+        </article>
+
+        <article class="stage-line">
+          <button class="profile-trigger" data-profile="hazel" aria-label="View Hazel's profile">
+            <span class="profile-trigger__dot"></span>
+          </button>
+          <span class="stage-line__name">Hazel</span>
+          <p>I like that you didn't open with a question. Most people do.</p>
+        </article>
+      </section>
+
+      <footer class="room-composer">
+        <div class="room-composer__signal">
+          <span class="room-composer__signal-dot"></span>
+          <span id="roomSignalLabel">she's listening</span>
+        </div>
+        <form class="room-composer__form" id="roomComposer">
+          <input
+            id="roomInput"
+            class="room-composer__input"
+            type="text"
+            placeholder="Say something..."
+            maxlength="240"
+            autocomplete="off"
+          />
+          <button type="button" class="room-composer__cam" aria-label="Camera">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+              <circle cx="12" cy="13" r="4"/>
+            </svg>
+          </button>
+          <button type="submit" class="room-composer__send">Send</button>
+        </form>
+      </footer>
+
+    </section>
+
+    <aside class="room-side">
+      <section class="room-card">
+        <p class="room-card__eyebrow">Room state</p>
+        <h3 class="room-card__title">Close quarters. She notices everything.</h3>
+        <p class="room-card__text">
+          This room is slower and more direct than the lounge.
+          What you say here lands differently.
+        </p>
+      </section>
+
+      <section class="room-card">
+        <p class="room-card__eyebrow">Route</p>
+        <h3 class="room-card__title">Earned ground</h3>
+        <p class="room-card__text">
+          Honesty keeps the room open.
+          Deflection closes it, and she'll notice that too.
+        </p>
+      </section>
+    </aside>
+
+  </main>
+
+  <!-- Profile card — singleton overlay, populated by app-v2.js -->
+  <div id="profileCard" class="profile-card" aria-hidden="true" role="dialog" aria-label="Profile">
+    <div class="profile-card__inner">
+      <div class="profile-card__face profile-card__face--front">
+        <div class="profile-card__avatar" id="pcAvatar"></div>
+        <div class="profile-card__body">
+          <p class="profile-card__name" id="pcName"></p>
+          <p class="profile-card__vibe" id="pcVibe"></p>
+          <span class="profile-card__state" id="pcState"></span>
+        </div>
+        <button class="profile-card__flip" id="pcFlipBtn" aria-label="See status">›</button>
+      </div>
+      <div class="profile-card__face profile-card__face--back">
+        <ul class="profile-card__stats" id="pcStats"></ul>
+        <button class="profile-card__flip profile-card__flip--back" id="pcFlipBackBtn" aria-label="See identity">‹</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Live AI for Hazel
+    (function() {
+      const form   = document.getElementById('roomComposer');
+      const input  = document.getElementById('roomInput');
+      const thread = document.getElementById('roomThread');
+      const signal = document.getElementById('roomSignalLabel');
+      if (!form || !input || !thread) return;
+
+      function escHtml(s) {
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      }
+
+      function addLine(who, text, isMist) {
+        const el = document.createElement('article');
+        el.className = 'stage-line' + (isMist ? ' stage-line--mist' : '');
+        el.style.opacity = '0';
+        el.style.transition = 'opacity 0.4s ease';
+        el.innerHTML = `<span class="stage-line__name">${who}</span><p>${escHtml(text)}</p>`;
+        thread.appendChild(el);
+        thread.scrollTop = thread.scrollHeight;
+        requestAnimationFrame(() => { el.style.opacity = '1'; });
+      }
+
+      form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const val = input.value.trim();
+        if (!val) return;
+
+        addLine('You', val, false);
+        input.value = '';
+        input.disabled = true;
+        form.querySelector('[type=submit]').disabled = true;
+        if (signal) signal.textContent = 'she\'s thinking…';
+
+        try {
+          const res = await fetch('/api/ai/run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              input: val,
+              context: {
+                focusCharacter: 'Hazel',
+                active_app: { type: 'direct_chat', threadId: 'hazel' }
+              }
+            })
+          });
+          const data = await res.json();
+          const responses = data?.result?.responses || [];
+          const hazelResp = responses.find(r => r.agent === 'Hazel');
+          const spoken = hazelResp?.spoken;
+
+          await new Promise(r => setTimeout(r, 400 + Math.random() * 300));
+
+          if (spoken) {
+            addLine('Hazel', spoken, false);
+          } else {
+            addLine('Hazel', 'She goes quiet for a moment.', false);
+          }
+        } catch {
+          addLine('Hazel', 'She goes quiet for a moment.', false);
+        } finally {
+          input.disabled = false;
+          form.querySelector('[type=submit]').disabled = false;
+          if (signal) signal.textContent = 'she\'s listening';
+          input.focus();
+        }
+      });
+    })();
+  </script>
+  <script>
+    (function() {
+      const camBtn = document.querySelector('.room-composer__cam');
+      if (!camBtn) return;
+      camBtn.addEventListener('click', async function() {
+        const btn = this;
+        btn.disabled = true;
+        btn.style.opacity = '0.6';
+        try {
+          const res = await fetch('/api/camera/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              character: 'Hazel',
+              sceneType: 'private',
+              contextHint: 'Anal sex scene, explicit penetration, close-up angles, detailed, big round boobs, Hazel'
+            })
+          });
+          const data = await res.json();
+          if (data.ok && data.shot?.path) {
+            window.open(data.shot.path, '_blank');
+          } else {
+            alert('Camera moment failed to generate.');
+          }
+        } catch (e) {
+          alert('Couldn\'t reach the camera.');
+        } finally {
+          btn.disabled = false;
+          btn.style.opacity = '';
+        }
+      });
+    })();
+  </script>
+  <script src="./app-v2.js"></script>
+</body>
+</html>

@@ -14,9 +14,20 @@ const router = express.Router();
 // Body: { prompt?: string }  — omit prompt to auto-build from engine state
 router.post('/generate', async (req, res) => {
   try {
-    const customPrompt = req.body?.prompt || null;
+    const customPrompt  = req.body?.prompt    || null;
+    const character     = req.body?.character || null;
+    const contextHint   = req.body?.contextHint || null;
     const state = engine.orchestrator.getState();
-    const shot = await generateCameraShot({ state, customPrompt });
+
+    // If a specific character is requested, override the cast in state
+    const stateOverride = character
+      ? { ...state, attention: { [character]: 1 }, relationships: { [character]: { trust: 1 } } }
+      : state;
+
+    // Single character private room → portrait orientation
+    const portrait = !!character;
+
+    const shot = await generateCameraShot({ state: stateOverride, customPrompt, contextHint, portrait });
     return res.json({ ok: true, shot });
   } catch (error) {
     console.error('Camera generate error:', error);

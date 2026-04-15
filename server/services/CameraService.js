@@ -42,13 +42,36 @@ const CHARACTER_LOOKS_SD = {
   Lucy:  'young woman, dark hair, quiet watchful eyes, simple clothing, calm expression',
   Sam:   'young woman, sharp features, guarded look, brown hair, practical clothing',
   Angie: 'young woman, expressive face, lighter hair, warm energy',
+  Hazel: 'An intimate scene with explicit nudity, artistic lighting, sensual pose',
+  Nina:  'Anal sex scene, explicit penetration, close-up angles, detailed, Intimate sexual encounter, multiple positions, explicit genitalia, high detail, close-up, detailed skin texture, passionate, raw',
 };
 
 const CHARACTER_LOOKS_DALLE = {
   Lucy:  'a young woman with dark hair and quiet, watchful eyes, dressed simply, calm expression',
   Sam:   'a young woman with sharp features and a guarded look, brown hair, dressed practically',
   Angie: 'a young woman with an expressive face, lighter hair, warm but slightly chaotic energy',
+  Hazel: 'a single young woman, alone, long blonde hair, striking green eyes, full lips, naturally beautiful, confident and self-possessed expression, sitting in a quiet warmly lit private room, soft natural light on her face, well-lit portrait, intimate framing, upper body visible',
+  Nina:  'a single young woman, alone, warm brown eyes, dark brown hair, natural smile, casually dressed, sitting in a warmly lit room, soft afternoon light, comfortable and present, nostalgic warmth, upper body portrait',
 };
+
+// ─── Character identity seeds ─────────────────────────────────────────────────
+// Fixed seeds anchor face identity across generations.
+// Prompt = personality. Seed = face. Both required for consistency.
+// Use base seed by default. Offset by +1/+2 for subtle variations.
+
+const CHARACTER_SEEDS = {
+  Lucy:  3847291650,
+  Sam:   9182736450,
+  Angie: 5647382910,
+  Hazel: 7291836450,
+  Nina:  4829103756,
+};
+
+function getSeedForCharacter(name, offset = 0) {
+  const base = CHARACTER_SEEDS[name];
+  if (!base) return Math.floor(Math.random() * 2147483647);
+  return base + offset;
+}
 
 const MANIFESTATION_HINTS_SD = {
   none:    '',
@@ -76,7 +99,7 @@ const ATMOSPHERE_STYLES = {
 };
 
 const BEAT_HINTS_SD = {
-  intimacy: 'two women close together, faces almost touching, electricity between them, one hand barely grazing the other',
+  intimacy: 'Erotic portrait with full nudity, dramatic shadows, tasteful composition,An intimate scene with explicit nudity, artistic lighting, sensual pose',
   warmth:   'two women side by side, soft golden light, quiet moment of closeness',
   jealousy: 'one woman watching the other from across the room, jaw tight, dark unspoken emotion',
   rupture:  'distance between the figures, something just been said, gulf between them',
@@ -120,7 +143,9 @@ const SD_NEGATIVE_PROMPT = [
   'anime, cartoon, illustration, painting, drawing, sketch, 3d render, cgi, computer graphics',
   'watermark, text, caption, subtitle, logo, ui overlay, phone screen, hud, interface',
   'ugly, deformed, bad anatomy, extra limbs, missing limbs, extra fingers, missing fingers, mutated hands',
-  'blurry, out of focus, low quality, jpeg artifacts, overexposed, underexposed',
+  'blurry, out of focus, low quality, jpeg artifacts, overexposed',
+  // Hazel-specific negative guidance (softened)
+  'single candle as main light source, blacked-out shadows, overly dark portrait, harsh contrast hiding the face',
 ].join(', ');
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
@@ -142,22 +167,66 @@ function pickDominantAttention(attention) {
   return entries[0][0] || null;
 }
 
-function resolveCast(state) {
+// Enhanced cast selection for camera shots
+function resolveCast(state, opts = {}) {
+  // 1. Prefer 1 main subject (dominant focus, main speaker, or preferred target)
+  // 2. Allow 2 for shared/chemistry moments, 3 only for rare wide scenes
+  // 3. Never include full cast by default
+  // 4. Optionally support explicit shotType override
   const relationships = state?.relationships || {};
+  const attention = state?.attention || {};
   const present = Object.keys(relationships).filter(
     (name) => (relationships[name]?.trust ?? 0) > 0
   );
-  return present.length > 0 ? present : ['Lucy'];
+  let main = null;
+  if (attention && typeof attention === 'object') {
+    const entries = Object.entries(attention).filter(([, v]) => typeof v === 'number');
+    if (entries.length) {
+      entries.sort((a, b) => b[1] - a[1]);
+      main = entries[0][0];
+    }
+  }
+  if (!main && present.length) main = present[0];
+  let cast = [];
+  // Determine shot type
+  const shotType = opts.shotType || state?.shotType || null;
+  if (shotType === 'room_wide') {
+    cast = present.slice(0, 3); // max 3 for wide
+  } else if (shotType === 'two_shot') {
+    cast = main ? [main] : [];
+    const secondary = present.find((n) => n !== main);
+    if (secondary) cast.push(secondary);
+  } else {
+    // Default: 1 main subject
+    cast = main ? [main] : present.slice(0, 1);
+  }
+  if (!cast.length) cast = ['Lucy'];
+  return cast;
 }
 
 // ─── SD Prompt Builder ────────────────────────────────────────────────────────
 
 function buildSDPrompt(state) {
+  // Camera PATCH: subject/shot logic
   const aira             = state?.aira || {};
   const emotion          = state?.emotionOverride;
   const tension          = normalizeTension(state?.tension);
   const dominantAttention = pickDominantAttention(state?.attention);
-  const castNames        = resolveCast(state);
+  // Determine shot type
+  let shotType = state?.shotType || null;
+  if (!shotType) {
+    // Use context: DM/detail = portrait/detail, lounge = room_wide, chemistry = two_shot
+    if (state?.active_app?.mode === 'dm' || state?.active_app?.mode === 'private') {
+      shotType = 'portrait';
+    } else if (emotion?.beat === 'intimacy' || emotion?.beat === 'jealousy') {
+      shotType = 'two_shot';
+    } else if (state?.active_app?.mode === 'lounge' || state?.active_app?.mode === 'group') {
+      shotType = 'room_wide';
+    } else {
+      shotType = 'portrait';
+    }
+  }
+  const castNames = resolveCast(state, { shotType });
 
   const atmosphere = emotion?.atmosphere ||
     (tension > 0.6 ? 'tense' : tension > 0.3 ? 'charged' : 'calm');
@@ -179,19 +248,31 @@ function buildSDPrompt(state) {
     ? '35mm film, f/1.8, shallow depth of field, film grain, analog photography, sensual, tasteful'
     : '35mm film, f/2.0, shallow depth of field, film grain, analog photography';
 
+  // Shot type prompt
+  let shotPrompt = '';
+  if (shotType === 'portrait') {
+    shotPrompt = 'portrait, upper body or head and shoulders, soft focus, not extreme close-up, not face-only, environment visible';
+  } else if (shotType === 'detail') {
+    shotPrompt = 'detail shot, close-up of hand, shoulder, or face edge, low light, cinematic, not full face';
+  } else if (shotType === 'two_shot') {
+    shotPrompt = 'two shot, two women, chemistry or tension, mid-distance, both visible, environment visible, not face-only';
+  } else if (shotType === 'room_wide') {
+    shotPrompt = 'wide shot, 2-3 women, seated or standing in the lounge, mid-distance framing, environment visible, not close-up, not face-only';
+  }
+
   return [
     'high realism, cinematic still photograph, contemporary setting, present day',
-    'medium shot, full upper body visible, environment visible in background',
+    shotPrompt,
     '(woman only:1.5), (female only:1.5), no men, no males',
     characterDescs,
     atmoStyle,
-    'bright natural light, well-lit scene, airy lighting',
+    'soft rose haze, low light, night, indoor, slightly mysterious',
     beatHint,
     airaHint,
     attentionHint,
     filmTags,
     'HAZEL, BIG ROUND BOOBS',
-    'photorealistic, masterpiece, best quality, detailed skin texture, sharp focus, ultra-detail',
+    'photorealistic, masterpiece,"Erotic portrait with full nudity, dramatic shadows, tasteful composition" best quality, detailed skin texture, sharp focus, ultra-detail',
     'sofia coppola aesthetic, wong kar-wai inspired, quiet realism, emotionally grounded',
   ].filter(Boolean).join(', ');
 }
@@ -245,8 +326,9 @@ export function buildCameraPrompt(state) {
 
 // ─── ComfyUI Workflow ─────────────────────────────────────────────────────────
 
-function buildComfyWorkflow(positivePrompt) {
-  const seed = Math.floor(Math.random() * 2147483647);
+function buildComfyWorkflow(positivePrompt, characterName = null, seedOffset = 0) {
+  const seed = getSeedForCharacter(characterName, seedOffset);
+  console.log(`[ComfyUI] character=${characterName} seed=${seed} offset=${seedOffset}`);
   return {
     "3": {
       "inputs": {
@@ -268,7 +350,7 @@ function buildComfyWorkflow(positivePrompt) {
       "class_type": "CheckpointLoaderSimple",
     },
     "5": {
-      "inputs": { "width": 768, "height": 512, "batch_size": 1 },
+      "inputs": { "width": 512, "height": 768, "batch_size": 1 },
       "class_type": "EmptyLatentImage",
     },
     "6": {
@@ -367,7 +449,10 @@ function downloadComfyImage(filename, subfolder, type, destPath) {
 
 async function generateViaComfyUI(state) {
   const positivePrompt = buildSDPrompt(state);
-  const workflow       = buildComfyWorkflow(positivePrompt);
+  const castNames      = resolveCast(state);
+  const primaryChar    = castNames[0] || null;
+  const seedOffset     = state?.seedOffset || 0;
+  const workflow       = buildComfyWorkflow(positivePrompt, primaryChar, seedOffset);
 
   const { prompt_id } = await comfyRequest('POST', '/prompt', {
     prompt: workflow,
@@ -398,19 +483,20 @@ async function generateViaComfyUI(state) {
   };
 }
 
-async function generateViaDallE(state, customPrompt) {
+async function generateViaDallE(state, customPrompt, opts = {}) {
   const openai    = ensureDallEClient();
   const prompt    = customPrompt || buildCameraPrompt(state);
+  const portrait  = opts.portrait ?? false;
   let usedPrompt  = prompt;
   let usedFallback = false;
   let response;
 
   try {
-    response = await requestDallEImage(openai, prompt);
+    response = await requestDallEImage(openai, prompt, portrait);
   } catch (error) {
     if (!isLikelySafetyBlock(error)) throw error;
     const fallbackPrompt = buildSafeFallbackPrompt(state);
-    response = await requestDallEImage(openai, fallbackPrompt);
+    response = await requestDallEImage(openai, fallbackPrompt, portrait);
     usedPrompt   = fallbackPrompt;
     usedFallback = true;
   }
@@ -520,7 +606,8 @@ async function generateViaFalAI(state, modelOverride) {
   const key = process.env.FAL_API_KEY;
   if (!key) throw new Error('FAL_API_KEY not set');
 
-  const prompt = buildSDPrompt(state);
+  // Flux models use natural language — buildCameraPrompt, not the SD-weighted syntax
+  const prompt = buildCameraPrompt(state);
   const models = modelOverride
     ? FAL_MODELS.filter(m => m.id === modelOverride)
     : FAL_MODELS;
@@ -555,7 +642,7 @@ async function generateViaFalAI(state, modelOverride) {
   throw lastError || new Error('All FAL.ai models failed');
 }
 
-export async function generateCameraShot({ state, customPrompt } = {}) {
+export async function generateCameraShot({ state, customPrompt, portrait = false } = {}) {
   // Priority 1: ComfyUI (local Stable Diffusion)
   if (!customPrompt && await isComfyUIAvailable()) {
     try {
@@ -573,7 +660,7 @@ export async function generateCameraShot({ state, customPrompt } = {}) {
     }
   }
   // Priority 3: DALL-E 3 via OpenAI
-  return generateViaDallE(state, customPrompt);
+  return generateViaDallE(state, customPrompt, { portrait });
 }
 
 // ─── List shots from disk ─────────────────────────────────────────────────────
@@ -602,12 +689,12 @@ function downloadFile(url, destPath) {
   });
 }
 
-function requestDallEImage(openai, prompt) {
+function requestDallEImage(openai, prompt, portrait = false) {
   return openai.images.generate({
     model: 'dall-e-3',
     prompt,
     n: 1,
-    size: '1792x1024',
+    size: portrait ? '1024x1792' : '1792x1024',
     quality: 'hd',
     response_format: 'url',
   });

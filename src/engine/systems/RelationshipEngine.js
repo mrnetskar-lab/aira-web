@@ -34,16 +34,15 @@ export class RelationshipEngine {
         char.hidden.hurt += 0.08;
       }
 
-      // --- IGNORING (simple heuristic) ---
-      if (!text.includes(name.toLowerCase())) {
-        rel.jealousy += 0.02;
-        rel.longing += 0.01;
-        char.hidden.jealousy += 0.02;
+
+      // --- INTIMACY READINESS: requires higher trust + comfort + attraction ---
+      if (rel.trust > 0.72 && rel.comfort > 0.7 && rel.attraction > 0.62) {
+        rel.intimacyReadiness = Math.min(1, rel.intimacyReadiness + 0.012);
       }
 
-      // --- INTIMACY READINESS: requires trust + comfort + attraction ---
-      if (rel.trust > 0.6 && rel.comfort > 0.6 && rel.attraction > 0.5) {
-        rel.intimacyReadiness = Math.min(1, rel.intimacyReadiness + 0.02);
+      // --- INTIMACY READINESS decays slowly in lounge ---
+      if (rel.intimacyReadiness > 0.08) {
+        rel.intimacyReadiness = Math.max(0, rel.intimacyReadiness - 0.004);
       }
 
       // --- ROMANTIC TENSION decays slowly at low engagement ---

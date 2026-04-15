@@ -8,3 +8,28 @@ images/*.jpg
 images/*.jpeg
 images/*.webp
 images/*.safetensors
+
+# Logs
+server_error.log
+
+# Local chat history
+characters/*.history.json
+
+# Scratchpad / context notes
+context/
+
+# IDE
+.vscode/
+
+# Temp / archive
+client/archive/
+updated/
+demo_20/
+
+# Local scripts
+*.bat
+client/*.bat
+
+# Loose files
+"Nina memory-entry (JSON)"
+profile_pictures/

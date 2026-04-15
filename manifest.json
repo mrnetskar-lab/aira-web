@@ -1,11 +1,11 @@
 {
   "name": "AIRA",
   "short_name": "AIRA",
-  "description": "AI companion experience",
+  "description": "Live AI social lounge",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#000000",
-  "theme_color": "#8b5cf6",
+  "background_color": "#141118",
+  "theme_color": "#8E7CFF",
   "orientation": "portrait-primary",
   "icons": [
     {

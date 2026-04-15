@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inbox — AIRA</title>
+  <link rel="stylesheet" href="style-inbox.css" />
+</head>
+<body class="inbox-view">
+  
+  <!-- Desktop-first two-column layout -->
+  <div class="inbox-shell">
+    
+    <!-- Left rail: minimal nav -->
+    <aside class="inbox-rail">
+      <div class="rail-logo">☾</div>
+      <nav class="rail-list">
+        <a href="index.html" class="rail-item" title="Home">H</a>
+        <a href="index.html#lounge" class="rail-item" title="Lounge">L</a>
+        <a href="inbox.html" class="rail-item active" title="Inbox">I</a>
+        <a href="routes.html" class="rail-item" title="Stories">S</a>
+        <a href="discover.html" class="rail-item" title="Discover">D</a>
+      </nav>
+    </aside>
+
+    <!-- Thread list -->
+    <section class="inbox-threads">
+      <header class="inbox-threads__header">
+        <h1>Inbox</h1>
+        <button class="inbox-header-btn" id="composeBtn" aria-label="New message">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <path d="M16 2L8 10M16 2L11 16L8 10M16 2L2 7L8 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </header>
+      
+      <div class="thread-list" id="threadList">
+        <!-- Thread items injected here -->
+      </div>
+    </section>
+
+    <!-- Active conversation area -->
+    <section class="inbox-conversation" id="conversation">
+      <div class="conversation-empty">
+        <div class="conversation-empty__icon">💬</div>
+        <p class="conversation-empty__text">Select a conversation</p>
+      </div>
+      
+      <!-- Active thread view (hidden by default) -->
+      <div class="conversation-active" id="conversationActive" hidden>
+        <header class="conversation-header">
+          <div class="conversation-header__avatar" id="activeAvatar"></div>
+          <div class="conversation-header__info">
+            <h2 id="activeName">Lucy</h2>
+            <span class="conversation-header__status" id="activeStatus">Online</span>
+          </div>
+          <button class="conversation-header__action" id="openMomentBtn" title="Open moment from message">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <rect x="3" y="3" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/>
+              <circle cx="7.5" cy="7.5" r="1.5" fill="currentColor"/>
+              <path d="M17 13L13 9L8 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </header>
+
+        <div class="conversation-log" id="conversationLog">
+          <!-- Messages injected here -->
+        </div>
+
+        <!-- Image card inline preview (optional) -->
+        <div class="conversation-image-card" id="imageCard" hidden>
+          <img src="" alt="" id="imageCardImg" />
+          <div class="image-card-actions">
+            <button class="image-card-btn" id="imageOpenMoment">Open this moment</button>
+            <button class="image-card-btn image-card-btn--ghost" id="imageClose">Close</button>
+          </div>
+        </div>
+
+        <form class="conversation-composer" id="conversationForm">
+          <input 
+            type="text" 
+            class="conversation-composer__input" 
+            id="conversationInput" 
+            placeholder="Write something intimate…" 
+            autocomplete="off"
+            maxlength="500"
+          />
+          <button type="submit" class="conversation-composer__send" aria-label="Send">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path d="M18 2L9 11M18 2L12 18L9 11M18 2L2 8L9 11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </form>
+      </div>
+    </section>
+
+  </div>
+
+  <script type="module">
+    // Mock thread data
+    const THREADS = [
+      { 
+        id: 'lucy', 
+        name: 'Lucy', 
+        avatar: 'L', 
+        avatarBg: '#2e1f4a', 
+        avatarFg: '#c9a7ff',
+        lastMessage: 'Du forsvant.',
+        time: '2m ago',
+        unread: true,
+        status: 'Online'
+      },
+      { 
+        id: 'hazel', 
+        name: 'Hazel', 
+        avatar: 'H', 
+        avatarBg: '#1a2e38', 
+        avatarFg: '#8ec4e8',
+        lastMessage: 'I've been thinking about you.',
+        time: '14m ago',
+        unread: false,
+        status: 'Active 8m ago'
+      },
+      { 
+        id: 'nina', 
+        name: 'Nina', 
+        avatar: 'N', 
+        avatarBg: '#3a2210', 
+        avatarFg: '#d7a65f',
+        lastMessage: 'Remember that summer?',
+        time: '1h ago',
+        unread: false,
+        status: 'Online'
+      },
+    ];
+
+    const MOCK_MESSAGES = {
+      lucy: [
+        { text: 'Hei.', me: false, time: '4:32 PM' },
+        { text: 'Du forsvant.', me: false, time: '4:34 PM' },
+      ],
+      hazel: [
+        { text: 'Hey, you there?', me: false, time: '3:52 PM' },
+        { text: 'Yeah, just thinking.', me: true, time: '3:54 PM' },
+        { text: 'I've been thinking about you.', me: false, time: '3:58 PM' },
+      ],
+      nina: [
+        { text: 'Swipe right and it's you. Crazy.', me: false, time: '2:18 PM' },
+        { text: 'Right? Didn't expect this.', me: true, time: '2:22 PM' },
+        { text: 'Remember that summer?', me: false, time: '2:28 PM' },
+      ],
+    };
+
+    let activeThreadId = null;
+
+    function renderThreadList() {
+      const list = document.getElementById('threadList');
+      list.innerHTML = THREADS.map(thread => `
+        <div class="thread-item ${thread.unread ? 'thread-item--unread' : ''}" data-thread-id="${thread.id}">
+          <div class="thread-item__avatar" style="background:${thread.avatarBg};color:${thread.avatarFg}">${thread.avatar}</div>
+          <div class="thread-item__body">
+            <div class="thread-item__top">
+              <span class="thread-item__name">${thread.name}</span>
+              <span class="thread-item__time">${thread.time}</span>
+            </div>
+            <div class="thread-item__preview">${thread.lastMessage}</div>
+          </div>
+          ${thread.unread ? '<div class="thread-item__dot"></div>' : ''}
+        </div>
+      `).join('');
+
+      // Bind click handlers
+      document.querySelectorAll('.thread-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const id = item.dataset.threadId;
+          openThread(id);
+        });
+      });
+    }
+
+    function openThread(id) {
+      activeThreadId = id;
+      const thread = THREADS.find(t => t.id === id);
+      if (!thread) return;
+
+      // Mark as read
+      thread.unread = false;
+      renderThreadList();
+
+      // Update active state
+      document.querySelectorAll('.thread-item').forEach(item => {
+        item.classList.toggle('thread-item--active', item.dataset.threadId === id);
+      });
+
+      // Show conversation
+      document.querySelector('.conversation-empty').hidden = true;
+      const active = document.getElementById('conversationActive');
+      active.removeAttribute('hidden');
+
+      // Set header
+      const avatar = document.getElementById('activeAvatar');
+      avatar.textContent = thread.avatar;
+      avatar.style.background = thread.avatarBg;
+      avatar.style.color = thread.avatarFg;
+      document.getElementById('activeName').textContent = thread.name;
+      document.getElementById('activeStatus').textContent = thread.status;
+
+      // Render messages
+      renderMessages(id);
+    }
+
+    function renderMessages(threadId) {
+      const log = document.getElementById('conversationLog');
+      const messages = MOCK_MESSAGES[threadId] || [];
+      log.innerHTML = messages.map(msg => `
+        <div class="message-row message-row--${msg.me ? 'me' : 'them'}">
+          <div class="message-bubble message-bubble--${msg.me ? 'me' : 'them'}">${msg.text}</div>
+          <div class="message-time">${msg.time}</div>
+        </div>
+      `).join('');
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function sendMessage() {
+      const input = document.getElementById('conversationInput');
+      const text = input.value.trim();
+      if (!text || !activeThreadId) return;
+
+      // Add to mock store
+      if (!MOCK_MESSAGES[activeThreadId]) MOCK_MESSAGES[activeThreadId] = [];
+      MOCK_MESSAGES[activeThreadId].push({
+        text,
+        me: true,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      });
+
+      input.value = '';
+      renderMessages(activeThreadId);
+
+      // Simulate reply after delay
+      setTimeout(() => {
+        MOCK_MESSAGES[activeThreadId].push({
+          text: '...',
+          me: false,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        });
+        renderMessages(activeThreadId);
+      }, 1200);
+    }
+
+    // Event listeners
+    document.getElementById('conversationForm').addEventListener('submit', e => {
+      e.preventDefault();
+      sendMessage();
+    });
+
+    document.getElementById('openMomentBtn').addEventListener('click', () => {
+      const card = document.getElementById('imageCard');
+      const img = document.getElementById('imageCardImg');
+      img.src = 'https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=800&q=80';
+      card.removeAttribute('hidden');
+    });
+
+    document.getElementById('imageClose').addEventListener('click', () => {
+      document.getElementById('imageCard').setAttribute('hidden', '');
+    });
+
+    document.getElementById('composeBtn').addEventListener('click', () => {
+      alert('Compose new message (not implemented in this layer)');
+    });
+
+    // Initial render
+    renderThreadList();
+  </script>
+
+</body>
+</html>

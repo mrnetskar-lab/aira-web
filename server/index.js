@@ -1,15 +1,48 @@
+console.log('SERVER ENTRY');
 import express from 'express';
+console.log('import express OK');
 import fs from 'fs';
+console.log('import fs OK');
 import path from 'path';
+console.log('import path OK');
 import { fileURLToPath } from 'url';
+console.log('import fileURLToPath OK');
 import aiRouter from './routes/ai.js';
+console.log('import aiRouter OK');
 import cameraRouter from './routes/camera.js';
+console.log('import cameraRouter OK');
 import charactersRouter from './routes/characters.js';
+import memoryRouter from './routes/memory.js';
+console.log('import charactersRouter OK');
 import { engine } from './services/engineInstance.js';
+console.log('import engine OK');
 import { resolveSafeImagePath } from './utils/safeImagePath.js';
+console.log('import resolveSafeImagePath OK');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+// Global error handlers — capture uncaught errors and unhandled rejections
+// into a file so local runs produce a diagnosable log (server_error.log).
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL] uncaughtException', err);
+  try {
+    const logPath = path.resolve(__dirname, '../server_error.log');
+    fs.appendFileSync(logPath, `[${new Date().toISOString()}] uncaughtException: ${err && err.stack ? err.stack : String(err)}\n`);
+  } catch (e) {
+    // best-effort logging
+  }
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[FATAL] unhandledRejection', reason);
+  try {
+    const logPath = path.resolve(__dirname, '../server_error.log');
+    fs.appendFileSync(logPath, `[${new Date().toISOString()}] unhandledRejection: ${String(reason)}\n`);
+  } catch (e) {
+    // best-effort logging
+  }
+});
 const clientCandidates = [
   path.resolve(__dirname, '../client'),
   path.resolve(process.cwd(), 'client')
@@ -55,6 +88,7 @@ app.use((req, res, next) => {
 app.use('/api/ai', aiRouter);
 app.use('/api/camera', cameraRouter);
 app.use('/api/characters', charactersRouter);
+app.use('/api/memory', memoryRouter);
 
 // Hard guard: always serve JSON from this route even if router wiring changes.
 app.get('/api/ai/patches', (_req, res) => {
@@ -100,6 +134,18 @@ app.get('/images/:filename', (req, res) => {
 const galleryDir = path.resolve(__dirname, '../gallery');
 if (!fs.existsSync(galleryDir)) fs.mkdirSync(galleryDir, { recursive: true });
 app.use('/gallery', express.static(galleryDir));
+
+// Serve profile pictures
+const profilePicsDir = path.resolve(__dirname, '../profile_pictures');
+if (fs.existsSync(profilePicsDir)) {
+  app.use('/profile_pictures', express.static(profilePicsDir));
+}
+
+// Serve src/engine/stories so nina-room.html can import beats as ES modules
+const srcDir = path.resolve(__dirname, '../src');
+if (fs.existsSync(srcDir)) {
+  app.use('/src', express.static(srcDir));
+}
 
 app.use(express.static(clientDir));
 

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>__ROOM_TITLE__</title>
+  <link rel="stylesheet" href="../style-v2.css" />
+</head>
+<body class="room __ROOM_CLASS__">
+  <main class="room-shell" data-room-id="__ROOM_ID__">
+
+    <section class="room-stage">
+
+      <header class="room-header">
+        <a class="room-header__back" href="../lounge-v2.html">← Back</a>
+        <div class="room-header__main">
+          <p class="room-header__eyebrow">Private room</p>
+          <h1 class="room-header__title">__ROOM_TITLE__</h1>
+        </div>
+        <div class="room-header__meta">
+          <span class="meta-chip">Live</span>
+          <span class="meta-chip">Private</span>
+        </div>
+      </header>
+
+      <section class="room-presence">
+        <!-- Edit these three mood lines per room -->
+        <span>The room settles when the door closes.</span>
+        <span>Attention narrows here.</span>
+        <span>Something may open if you stay.</span>
+      </section>
+
+      <section class="room-thread" id="roomThread">
+        <!-- Starter exchange — edit speaker name and lines -->
+        <article class="stage-line stage-line--mist">
+          <span class="stage-line__name">Room</span>
+          <p>The room changes when the door closes.</p>
+        </article>
+
+        <article class="stage-line">
+          <span class="stage-line__name">Host</span>
+          <!-- Replace "Host" with the character name. Replace this line. -->
+          <p>You actually came.</p>
+        </article>
+      </section>
+
+      <footer class="room-composer">
+        <div class="room-composer__signal">
+          <span class="room-composer__signal-dot"></span>
+          <span id="roomSignalLabel">listening</span>
+        </div>
+        <form class="room-composer__form" id="roomComposer">
+          <input
+            id="roomInput"
+            class="room-composer__input"
+            type="text"
+            placeholder="Say something..."
+            maxlength="240"
+            autocomplete="off"
+          />
+          <button type="button" class="room-composer__cam" aria-label="Camera">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+              <circle cx="12" cy="13" r="4"/>
+            </svg>
+          </button>
+          <button type="submit" class="room-composer__send">Send</button>
+        </form>
+      </footer>
+
+    </section>
+
+    <aside class="room-side">
+      <!-- Card 1: room state — edit title + body -->
+      <section class="room-card">
+        <p class="room-card__eyebrow">Room state</p>
+        <h3 class="room-card__title">Private pull is active</h3>
+        <p class="room-card__text">
+          This room is quieter, closer, and more reactive than the lounge.
+        </p>
+      </section>
+
+      <!-- Card 2: route hint — edit title + body -->
+      <section class="room-card">
+        <p class="room-card__eyebrow">Route</p>
+        <h3 class="room-card__title">Stay a little longer</h3>
+        <p class="room-card__text">
+          A softer answer may deepen trust. A sharper one may change the mood.
+        </p>
+      </section>
+    </aside>
+
+  </main>
+
+  <!--
+    ROOM_REPLIES — define character reply lines for this room.
+    Speaker keys become the names shown in the thread.
+    "Room" lines are displayed in mist style (italic, soft colour).
+    This block must come BEFORE room-shell.js.
+  -->
+  <script>
+    window.ROOM_REPLIES = {
+      // Replace "Host" with the character name. Add 4–6 lines.
+      Host: [
+        "Replace this line.",
+        "And this one.",
+        "Keep going.",
+      ],
+      Room: [
+        "Something shifted.",
+        "The silence after that was its own answer.",
+      ],
+    };
+  </script>
+
+  <!-- DO NOT remove or rename this script tag. room-shell.js reads roomComposer / roomInput / roomThread. -->
+  <script src="../room-shell.js"></script>
+</body>
+</html>

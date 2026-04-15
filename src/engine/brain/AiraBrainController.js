@@ -139,8 +139,10 @@ export class AiraBrainController {
     const focus = context?.cast || {};
 
     // DM thread — always use the thread's character as the speaker
+    const activeType = context?.active_app?.type;
     const threadId = context?.active_app?.threadId;
-    if (context?.active_app?.type === 'messages' && threadId) {
+    const isDM = activeType === 'messages' || activeType === 'direct_chat';
+    if (isDM && threadId) {
       const mappedName = CHARACTER_NAME_BY_ID[threadId] || null;
       if (mappedName) {
         const matchById = candidates.find((brain) => brain.name === mappedName);
@@ -163,6 +165,21 @@ export class AiraBrainController {
       return candidates.find((brain) => brain.name === 'Angie') || candidates[0];
     }
 
+    if (/\b(hazel|c4)\b/.test(lowerInput)) {
+      return candidates.find((brain) => brain.name === 'Hazel') || candidates[0];
+    }
+
+    if (/\b(nina|c5)\b/.test(lowerInput)) {
+      return candidates.find((brain) => brain.name === 'Nina') || candidates[0];
+    }
+
+    // focusCharacter in context — used by private rooms to pin the speaker
+    const forcedFocus = context?.focusCharacter;
+    if (forcedFocus) {
+      const match = candidates.find((brain) => brain.name === forcedFocus);
+      if (match) return match;
+    }
+
     const focused = candidates.find((brain) => focus?.[brain.name]?.focus);
     if (focused) return focused;
 
@@ -173,7 +190,8 @@ export class AiraBrainController {
     if (!primary) return null;
 
     // No secondary speakers in private DM threads
-    if (context?.active_app?.type === 'messages') return null;
+    const dmType = context?.active_app?.type;
+    if (dmType === 'messages' || dmType === 'direct_chat') return null;
 
     const others = candidates.filter((brain) => brain.name !== primary.name);
     if (!others.length) return null;

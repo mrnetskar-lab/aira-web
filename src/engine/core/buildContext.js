@@ -39,12 +39,13 @@ export function buildContext({ input, state, memory, focus, brain }) {
       mode: 'free_chat',
       activeChallenge: null,
       lastEvent: state.lastEvent || null,
-      emotionalBeat: getEmotionalBeat(state.tension, input),
       protectedChoice: !!state.protectedChoice
     },
 
     aira: state.aira || null,
     investigation: state.investigation || null,
+    focusCharacter: state.focusCharacter || null,
+    beatContext:    state.beatContext    || null,
 
     active_app: state.continuity?.activeApp || { type: "chat", mode: "group", visibility: "public" },
 
@@ -106,23 +107,23 @@ function buildPersistentCast(agents, focus, state) {
   const result = {};
 
   for (const name of agents) {
+    // Prefer cast.hidden, fall back to relationship values — never use hardcoded constants
+    const rel = state.relationships?.[name] || {};
+    const hiddenFromRel = {
+      attraction: rel.attraction ?? 0.5,
+      jealousy:   rel.jealousy   ?? 0.2,
+      hurt:       rel.hurt       ?? 0.1,
+      trust:      rel.trust      ?? 0.5,
+    };
+
     result[name] = {
       visible: {
-        mood: state.tension > 0.6 ? 'tense' : 'calm',
-        expression: state.tension > 0.6 ? 'guarded' : 'soft'
+        mood:       state.tension > 0.6 ? 'tense' : 'calm',
+        expression: state.tension > 0.6 ? 'guarded' : 'soft',
       },
-
-      hidden: {
-        ...(state.cast?.[name]?.hidden || {
-          attraction: 0.3,
-          jealousy: 0.1,
-          hurt: 0,
-          trust: 0.5
-        })
-      },
-
+      hidden: { ...(state.cast?.[name]?.hidden || hiddenFromRel) },
       phase: 'curious',
-      focus: focus.getCurrent() === name
+      focus: focus.getCurrent() === name,
     };
   }
 

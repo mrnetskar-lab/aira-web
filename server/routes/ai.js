@@ -58,8 +58,10 @@ router.post('/run', async (req, res) => {
       });
     }
 
-    const activeApp = req.body?.context?.active_app || null;
-    const result = await engine.orchestrator.run(input, { activeApp });
+    const activeApp      = req.body?.context?.active_app    || null;
+    const focusCharacter = req.body?.context?.focusCharacter || null;
+    const beatContext    = req.body?.context?.beatContext    || null;
+    const result = await engine.orchestrator.run(input, { activeApp, focusCharacter, beatContext });
 
     // Keep World Chat and Messenger in sync by writing world turns into
     // the same per-character history files used by /api/characters/:id/chat.
@@ -100,8 +102,10 @@ router.post('/tune', (req, res) => {
 
 router.post('/tick', async (_req, res) => {
   try {
-    const response = await engine.orchestrator.tick();
-    return res.json({ ok: true, response: response || null });
+    const result = await engine.orchestrator.tick();
+    if (!result) return res.json({ ok: true, response: null, storyBeat: null });
+    const { storyBeat, ...response } = result;
+    return res.json({ ok: true, response, storyBeat: storyBeat || null });
   } catch (error) {
     console.error('Tick error:', error);
     return res.status(500).json({ ok: false, error: error.message });

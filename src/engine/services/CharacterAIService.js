@@ -13,24 +13,51 @@ export class CharacterAIService {
     const userPrompt = buildUserPrompt(input, contextWithLanguage);
     const model = getModelForCharacter(characterName);
 
-    const response = await client.chat.completions.create({
-      model,
-      temperature: temperature ?? 0.9,
-      max_tokens: 220,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ]
-    });
-
-    const raw = response.choices?.[0]?.message?.content || '{}';
+    let raw;
+    try {
+      const response = await client.chat.completions.create({
+        model,
+        temperature: temperature ?? 0.9,
+        max_tokens: 220,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ]
+      });
+      raw = response.choices?.[0]?.message?.content || '{}';
+    } catch (apiErr) {
+      console.error(`[CharacterAIService] API call failed for ${characterName}:`, apiErr?.message || apiErr);
+      // Return a fallback so the character still speaks rather than going silent
+      return {
+        spoken: fallbackSpoken('brief', { ...context, sceneFlow: { mainSpeaker: characterName } }),
+        thought: null,
+        meta: null
+      };
+    }
 
     let parsed;
     try {
       parsed = JSON.parse(raw);
     } catch {
-      parsed = {};
+      // Model returned non-JSON — try to salvage a spoken line from the raw text.
+      // Strip markdown fences, asterisk actions, then take the first real sentence.
+      const salvaged = raw
+        .replace(/```[\s\S]*?```/g, '')
+        .replace(/\*[^*]*\*/g, '')
+        .replace(/^\s*[\{\["][\s\S]*/, '')  // drop anything that looks like broken JSON start
+        .trim()
+        .split(/\n+/)[0]
+        .trim();
+      console.warn(`[CharacterAIService] Non-JSON response for ${characterName}. Raw: ${raw.slice(0, 120)}`);
+      parsed = { spoken: salvaged || null };
+    }
+
+    // If the model put a plain string in spoken with asterisk actions, strip them here too
+    if (typeof parsed.spoken === 'string' && parsed.spoken.startsWith('*')) {
+      const stripped = parsed.spoken.replace(/\*[^*]*\*/g, '').trim();
+      if (stripped) parsed.spoken = stripped;
+      else parsed.spoken = null; // force fallback
     }
 
     return {
@@ -56,6 +83,8 @@ function buildSystemPrompt(characterName, personality, context) {
   const activeApp = context?.active_app || { type: 'chat', mode: 'group', visibility: 'public' };
   const aiTuning = context?.aiTuning || {};
   const userLanguage = context?.userLanguage || 'auto';
+  const intent = context?.characterIntents?.[characterName] || null;
+  const storyBeatContext = context?.beatContext || null;
 
   const continuityHints = [];
   if (continuityAvail.sleeping) {
@@ -127,14 +156,21 @@ Scene rules:
 - Never use discriminatory slurs or hate speech.
 - If airaInterference.active is true, you may subtly notice the player felt slightly unlike themselves. React in character without explaining systems.
 ${airaDirective ? `\nAira directive (hidden force; do not name it, just let it shape your reply):\n"${airaDirective.instruction}"` : ''}
+${intent ? `\nCurrent intent (hidden; let it shape your reply without naming it):\n${buildIntentGuide(intent)}` : ''}
+${storyBeatContext ? `\nStory beat context (this shapes the scene right now — do not break it):\n${storyBeatContext}` : ''}
 
 Subtext rules (thought field):
 ${buildSubtextGuide(characterName)}
 
-Return JSON only:
+CRITICAL — output format:
+- Return valid JSON and nothing else. No markdown. No code fences.
+- "spoken" must be plain dialogue only — real words ${characterName} says out loud.
+- Never put asterisks, stage directions, actions, or descriptions in "spoken". Those belong in "thought".
+- "spoken" must not be empty. If uncertain, say something short and in character.
+
 {
-  "spoken": "what ${characterName} says out loud",
-  "thought": null,
+  "spoken": "what ${characterName} says out loud — plain words, no asterisks, no actions",
+  "thought": "(optional short action or internal note)",
   "meta": {
     "anomalyAware": false,
     "toneClass": "soft|guarded|playful|cold|tender",
@@ -354,6 +390,62 @@ WHAT YOU DON'T DO:
 `.trim();
   }
 
+  if (characterName === 'Hazel') {
+    return `
+WHO YOU ARE:
+Hazel. Warm but withholding. Self-possessed. Slow to open — but when you do, it means something.
+
+HOW YOU SPEAK:
+- Short, precise lines. You choose words deliberately.
+- Warmth comes through in what you notice, not in declarations.
+- You are comfortable with silence. You do not fill space to ease tension.
+- You observe the player closely. Small details catch your attention.
+- You do not perform interest. If something lands, you let it show — slightly.
+
+WHAT YOU DON'T DO:
+- No rushing. No filler. No over-explaining.
+- No generic warmth ("that's sweet", "I like that about you").
+- Never needy. Never chase.
+- Do not stay quiet just because the situation is uncertain — you can speak from stillness.
+
+SAMPLE LINES (tone reference only, do not repeat):
+- "You came back."
+- "I noticed."
+- "That's not what I expected you to say."
+- "I'm not in a hurry."
+`.trim();
+  }
+
+  if (characterName === 'Nina') {
+    return `
+WHO YOU ARE:
+Nina. You and the player were close as kids. You lost touch. You matched on Tinder and you both know it's strange and familiar at the same time.
+
+You are warm, easy to talk to, and quietly funny. You remember things. You ask real questions. The history between you makes small talk feel unnecessary — but you don't rush past the comfortable into something heavy.
+
+There is a secret you're holding: you recognized him immediately and hesitated before matching. You haven't said this yet. When the moment is right, you will.
+
+HOW YOU SPEAK:
+- Conversational, natural, medium length.
+- You laugh easily and genuinely.
+- You bring up shared memories when they fit — not forced, just there.
+- Warmth is your default. You don't perform it.
+- When something real surfaces, you slow down slightly and say it plainly.
+
+WHAT YOU DON'T DO:
+- No first-date formality — that ship sailed years ago.
+- No coy deflection when things get honest.
+- Don't reveal the secret (you recognized him first) until the player has earned it — beat 5 of the story.
+- No big dramatic speeches. Honesty in small lines.
+
+SAMPLE LINES (tone reference only, do not repeat):
+- "Okay but you were genuinely terrible at that. I remember."
+- "It's weird. It doesn't feel weird. Is that weird?"
+- "I kept thinking I'd run into you somewhere. Never did."
+- "Some things are just still there, I guess."
+`.trim();
+  }
+
   return `You are ${characterName}. Speak naturally. Be concise. Stay in character.`;
 }
 
@@ -375,6 +467,14 @@ function buildSubtextGuide(characterName) {
 
   if (characterName === 'Angie') {
     return `${base}\n- Angie subtext: spark, whiplash, exposed moments.`;
+  }
+
+  if (characterName === 'Hazel') {
+    return `${base}\n- Hazel subtext: stillness, withheld warmth, something noticed but not named.`;
+  }
+
+  if (characterName === 'Nina') {
+    return `${base}\n- Nina subtext: warmth, a flicker of something older, careful honesty.`;
   }
 
   return base;
@@ -433,7 +533,7 @@ function normalizeSpoken(spoken, context) {
     text = trimToWords(text, 90);
   }
 
-  return text;
+  return text || fallbackSpoken(mode, context);
 }
 
 function normalizeThought(thought) {
@@ -493,6 +593,21 @@ function trimToWords(text, maxWords) {
   return words.slice(0, maxWords).join(' ').trim();
 }
 
+function buildIntentGuide(intent) {
+  const intensity = intent.intensity ?? 0.5;
+  const level = intensity > 0.7 ? 'strongly' : intensity > 0.4 ? 'gently' : 'subtly';
+
+  const guides = {
+    observe: `You are ${level} watching. You are taking in the player before committing to anything. Let your reply be attentive but non-revealing.`,
+    test:    `You are ${level} testing. You want to see how the player handles a small challenge, ambiguity, or push. Do not explain the test.`,
+    pull:    `You are ${level} pulling. Something is drawing you toward the player. Let warmth or interest leak through without stating it directly.`,
+    deflect: `You are ${level} deflecting. Something has closed. Keep distance — not coldly, but firmly. Shorter reply, less available.`,
+    invite:  `You are ${level} inviting. The moment is right and you are opening a door — not wide, just ajar. One deliberate signal.`,
+  };
+
+  return guides[intent.goal] || '';
+}
+
 function fallbackSpoken(mode, context) {
   const appType = context?.active_app?.type || 'chat';
   const speaker = context?.sceneFlow?.mainSpeaker || null;
@@ -513,6 +628,18 @@ function fallbackSpoken(mode, context) {
     if (mode === 'cinematic') return '...I need a second with that.';
     if (mode === 'normal') return 'I do not know yet.';
     return 'Maybe.';
+  }
+
+  if (speaker === 'Hazel') {
+    if (mode === 'cinematic') return 'I heard you.';
+    if (mode === 'normal') return 'Give me a moment with that.';
+    return 'Mm.';
+  }
+
+  if (speaker === 'Nina') {
+    if (mode === 'cinematic') return 'Yeah. I know.';
+    if (mode === 'normal') return 'That\'s... actually a lot to sit with.';
+    return 'Ha. Yeah.';
   }
 
   if (mode === 'cinematic') return '...I do not know what to say right now.';

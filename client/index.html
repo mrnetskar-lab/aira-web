@@ -1,412 +1,125 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, viewport-fit=cover"
-    />
-    <title>AIRA</title>
-    <meta
-      name="description"
-      content="AIRA Web — Messenger and World Chat."
-    />
-    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
-    <meta http-equiv="Pragma" content="no-cache" />
-    <meta http-equiv="Expires" content="0" />
-    <meta name="build" content="20260413-c" />
-    <link rel="stylesheet" href="./style.css?v=20260413-c" />
-  </head>
-  <body>
-    <div class="app-shell">
-      <main class="screen-stack">
-        <section id="chatView" class="view view--active" aria-label="World Chat Main Stage">
-          <div class="chat-view chat-view--world">
-            <header class="topbar topbar--minimal">
-              <button
-                id="backToHomeBtn"
-                class="arrow-button"
-                type="button"
-                aria-label="Back"
-              >
-                <span aria-hidden="true">&#8592;</span>
-              </button>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>V2 Lounge</title>
+  <link rel="stylesheet" href="./style-v2.css" />
+</head>
+<body>
+  <main class="v2-shell">
+    <section id="homeView" class="v2-home" aria-label="Homepage">
+      <header class="v2-topbar">
+        <a href="#" class="v2-logo" aria-label="Brand">
+          <span class="v2-logo__mark" aria-hidden="true"></span>
+          <span class="v2-logo__text">VELA</span>
+        </a>
+        <nav class="v2-nav" aria-label="Primary">
+          <a href="#how">How it works</a>
+          <a href="#mood">Mood</a>
+          <a href="#entry">Enter</a>
+        </nav>
+        <div class="v2-topbar__actions">
+          <button class="btn btn--ghost" type="button">Sign in</button>
+          <button id="enterBtn" class="btn btn--primary" type="button">Enter</button>
+        </div>
+      </header>
+      <section class="hero" id="entry">
+        <div class="hero__copy">
+          <p class="hero__kicker">Live adult social lounge</p>
 
-              <div class="topbar-brand" aria-label="World Chat">
-                <span class="topbar-brand__ring" aria-hidden="true"></span>
-                <span class="topbar-brand__text">World Chat</span>
+          <h1>
+            Enter while
+            the room
+            is still
+            warm.
+          </h1>
+
+          <p class="hero__text">
+            A live space for tension, atmosphere, and slow private pull.
+            Step in before the room settles around someone else.
+          </p>
+
+          <div class="hero__cta">
+            <button id="enterBtn2" class="btn btn--primary btn--lg" type="button">
+              Enter the lounge
+            </button>
+            <button class="btn btn--secondary btn--lg" type="button">
+              See how it feels
+            </button>
+          </div>
+
+          <div class="hero__proof" aria-label="Live signals">
+            <span>28 inside now</span>
+            <span>After Hours active</span>
+            <span>Private pull opens later</span>
+          </div>
+        </div>
+        <div class="hero__visual" id="mood">
+          <article class="lounge-card" aria-label="Live room preview">
+            <div class="lounge-card__top">
+              <div>
+                <p class="lounge-card__eyebrow">Tonight</p>
+                <h2>After Hours</h2>
               </div>
-
-              <button
-                id="serverHeartbeat"
-                class="topbar-heartbeat is-unknown"
-                type="button"
-                aria-live="polite"
-                aria-label="Server status unknown"
-                title="Server status: checking"
-              >
-                <span class="topbar-heartbeat__dot" aria-hidden="true"></span>
-                <span class="sr-only">Server status indicator</span>
-              </button>
-            </header>
-
-            <div
-              id="worldPresenceState"
-              class="world-presence-state"
-              aria-live="polite"
-              hidden
-            >
-              You stepped out of the room.
+              <span class="lounge-card__live">open now</span>
             </div>
 
-            <div id="chatMessages" class="chat-messages" aria-live="polite">
-              <div class="message-row message-row--system">
-                <div class="system-note">
-                  The room is quiet. Start with something small.
-                </div>
-              </div>
+            <div class="lounge-card__presence">
+              <span>Lucy is here</span>
+              <span>Sam just answered</span>
+              <span>The tone shifted</span>
             </div>
 
-            <button
-              id="sceneProgressBtn"
-              class="scene-progress-btn"
-              type="button"
-              aria-label="Let the scene progress"
-              title="Let the scene progress"
-            >Let Scene Progress</button>
+            <div class="lounge-feed">
+              <article class="feed-line">
+                <span class="feed-line__name">Lucy</span>
+                <p>You came in quietly.</p>
+              </article>
 
-            <div id="quickPromptBar" class="quick-prompt-bar" aria-label="Quick prompts"></div>
+              <article class="feed-line">
+                <span class="feed-line__name">Sam</span>
+                <p>I noticed anyway.</p>
+              </article>
 
-            <form id="chatForm" class="composer" autocomplete="off">
-              <label class="sr-only" for="chatInput">Message</label>
-              <textarea
-                id="chatInput"
-                class="composer__input"
-                rows="1"
-                maxlength="1200"
-                placeholder="Say something..."
-              ></textarea>
-              <button
-                id="voiceToggleBtn"
-                class="composer__voice"
-                type="button"
-                aria-pressed="false"
-                aria-label="Toggle text-to-speech"
-                title="TTS off"
-              >TTS</button>
-              <button id="sendBtn" class="composer__send" type="submit" aria-label="Send message">
-                <span aria-hidden="true">&#8594;</span>
-                <span class="sr-only">Send</span>
-              </button>
-            </form>
+              <article class="feed-line feed-line--mist">
+                <span class="feed-line__name">Room</span>
+                <p>The room leans toward whoever holds the attention longest.</p>
+              </article>
+            </div>
 
+            <div class="lounge-card__footer">
+              <span>slow heat</span>
+              <span>low lights</span>
+              <span>1 private pull available</span>
+            </div>
+          </article>
+        </div>
+      </section>
+        <!-- Product Map Expansion -->
+        <section class="product-map" aria-label="Product Map" style="margin-top: 64px;">
+          <h2 class="product-map__title">What is AIRA becoming?</h2>
+          <div class="product-map__sections">
+            <section class="product-map__section">
+              <h3>Live Lounge</h3>
+              <p class="product-map__desc">A social, public space for slow tension and atmosphere. Drop in, drift, or pull someone aside for a private moment.</p>
+            </section>
+            <section class="product-map__section">
+              <h3>Private Rooms</h3>
+              <p class="product-map__desc">Character-specific spaces—like Hazel's room—where the mood is more intimate and focused. For deeper, one-on-one connection.</p>
+            </section>
+            <section class="product-map__section">
+              <h3>Story Routes</h3>
+              <p class="product-map__desc">Authored paths (like Nina / Second Time Around). Chapter-based, emotional, and replayable. Each route is a journey you can return to.</p>
+            </section>
+            <section class="product-map__section">
+              <h3>Inbox / DMs</h3>
+              <p class="product-map__desc">Where private continuity lives. Images, messages, and story follow-ups land here—so you can pick up where you left off.</p>
+            </section>
           </div>
         </section>
-
-        <section
-          id="phoneView"
-          class="phone-view"
-          aria-label="Phone"
-          aria-hidden="true"
-        >
-          <div id="phoneScrim" class="phone-view__scrim"></div>
-
-          <div id="phoneSheet" class="phone-sheet">
-            <div
-              id="phoneGrabber"
-              class="phone-sheet__grabber"
-              aria-hidden="true"
-            >
-              <span class="phone-sheet__grabber-bar"></span>
-            </div>
-
-            <div id="phoneHome" class="phone-home" aria-label="Phone home">
-              <div class="phone-home__wallpaper"></div>
-              <div class="phone-home__veil"></div>
-
-              <div class="phone-home__content">
-
-                <div class="phone-home__hero">
-                  <div class="phone-home__hero-card">
-                    <div class="phone-home__hero-label">AIRA</div>
-                    <div class="phone-home__hero-title">Phone</div>
-                    <div class="phone-home__hero-text">
-                      You stepped out of the room.
-                    </div>
-                  </div>
-                </div>
-
-                <div class="phone-home__apps">
-                  <button
-                    class="phone-app-icon"
-                    type="button"
-                    data-phone-app="messages"
-                    aria-label="Open Messenger"
-                  >
-                    <span class="phone-app-icon__glyph phone-app-icon__glyph--ring" aria-hidden="true"></span>
-                    <span class="phone-app-icon__label">Messenger</span>
-                  </button>
-
-                  <button
-                    class="phone-app-icon"
-                    type="button"
-                    data-phone-app="notes"
-                    aria-label="Notes"
-                  >
-                    <span class="phone-app-icon__glyph phone-app-icon__glyph--soft" aria-hidden="true"></span>
-                    <span class="phone-app-icon__label">Notes</span>
-                  </button>
-
-                  <button
-                    class="phone-app-icon"
-                    type="button"
-                    data-phone-app="calls"
-                    aria-label="Calls"
-                  >
-                    <span class="phone-app-icon__glyph phone-app-icon__glyph--soft" aria-hidden="true"></span>
-                    <span class="phone-app-icon__label">Calls</span>
-                  </button>
-
-                  <button
-                    class="phone-app-icon"
-                    type="button"
-                    data-phone-app="void"
-                    aria-label="Void"
-                  >
-                    <span class="phone-app-icon__glyph phone-app-icon__glyph--soft" aria-hidden="true"></span>
-                    <span class="phone-app-icon__label">Void</span>
-                  </button>
-
-                  <button
-                    class="phone-app-icon"
-                    type="button"
-                    data-phone-app="gallery"
-                    aria-label="Photos"
-                  >
-                    <span class="phone-app-icon__glyph phone-app-icon__glyph--gallery" aria-hidden="true"></span>
-                    <span class="phone-app-icon__label">Photos</span>
-                  </button>
-
-                  <button
-                    class="phone-app-icon"
-                    type="button"
-                    data-phone-app="snap"
-                    aria-label="Snap Back"
-                  >
-                    <span class="phone-app-icon__glyph phone-app-icon__glyph--snap" aria-hidden="true"></span>
-                    <span class="phone-app-icon__label">Snap Back</span>
-                  </button>
-                </div>
-
-                <div class="phone-dock" aria-label="Phone dock">
-                  <button
-                    class="phone-dock__app"
-                    type="button"
-                    data-phone-app="messages"
-                    aria-label="Open Messenger"
-                  >
-                    <span class="phone-dock__icon" aria-hidden="true">
-                      <span class="phone-dock__ring"></span>
-                    </span>
-                  </button>
-
-                  <button
-                    class="phone-dock__app"
-                    type="button"
-                    data-phone-app="notes"
-                    aria-label="Notes"
-                  >
-                    <span class="phone-dock__icon phone-dock__icon--soft" aria-hidden="true"></span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div
-              id="phoneAppLayer"
-              class="phone-app-layer"
-              aria-label="Phone app"
-              hidden
-            >
-              <!-- ─── Snap Back App ─────────────────────────────────────── -->
-              <section
-                id="phoneSnapApp"
-                class="phone-app-screen phone-app-screen--snap"
-                aria-label="Snap Back"
-                hidden
-              >
-                <button
-                  id="phoneSnapBackBtn"
-                  class="phone-snap__back"
-                  type="button"
-                  aria-label="Back"
-                >
-                  <span aria-hidden="true">&#8592;</span>
-                </button>
-
-                <div id="phoneSnapViewfinder" class="phone-snap__viewfinder">
-                  <div id="phoneSnapIdle" class="phone-snap__idle">
-                    <div class="phone-snap__idle-icon" aria-hidden="true"></div>
-                    <div class="phone-snap__idle-hint">Tap the shutter</div>
-                  </div>
-
-                  <div id="phoneSnapSpinner" class="phone-snap__spinner hidden" aria-live="polite">
-                    <div class="phone-snap__spinner-ring"></div>
-                    <div class="phone-snap__spinner-label">Capturing…</div>
-                  </div>
-
-                  <img
-                    id="phoneSnapResult"
-                    class="phone-snap__result hidden"
-                    src=""
-                    alt="Captured scene"
-                  />
-                </div>
-
-                <div class="phone-snap__controls">
-                  <button
-                    id="phoneSnapSaveBtn"
-                    class="phone-snap__action phone-snap__action--save hidden"
-                    type="button"
-                    aria-label="Save to Photos"
-                  >Save</button>
-
-                  <button
-                    id="phoneSnapShutterBtn"
-                    class="phone-snap__shutter"
-                    type="button"
-                    aria-label="Capture scene"
-                  >
-                    <span class="phone-snap__shutter-inner" aria-hidden="true"></span>
-                  </button>
-
-                  <button
-                    id="phoneSnapRetakeBtn"
-                    class="phone-snap__action phone-snap__action--retake hidden"
-                    type="button"
-                    aria-label="New shot"
-                  >New shot</button>
-                </div>
-              </section>
-
-              <section
-                id="phoneGalleryApp"
-                class="phone-app-screen phone-app-screen--gallery"
-                aria-label="Photos"
-                hidden
-              >
-                <header class="phone-app-topbar">
-                  <button
-                    id="phoneGalleryBackBtn"
-                    class="phone-app-back"
-                    type="button"
-                    aria-label="Back"
-                  >
-                    <span aria-hidden="true">&#8592;</span>
-                    <span class="phone-app-back__label">Back</span>
-                  </button>
-                  <div class="phone-app-topbar__title">Photos</div>
-                  <button
-                    id="phoneGalleryCaptureBtn"
-                    class="phone-gallery-capture-btn"
-                    type="button"
-                    aria-label="Capture scene"
-                    title="Generate a scene photo"
-                  >
-                    <span class="phone-gallery-capture-btn__icon" aria-hidden="true"></span>
-                  </button>
-                </header>
-                <div id="phoneGalleryGrid" class="phone-gallery-grid"></div>
-                <div id="phoneGalleryGenerating" class="phone-gallery-generating hidden" aria-live="polite" aria-label="Generating photo">
-                  <div class="phone-gallery-generating__ring"></div>
-                  <div class="phone-gallery-generating__label">Capturing scene…</div>
-                </div>
-                <div id="phoneGalleryLightbox" class="phone-gallery-lightbox hidden">
-                  <button id="phoneGalleryLightboxClose" class="phone-gallery-lightbox__close" aria-label="Close">&#x2715;</button>
-                  <img id="phoneGalleryLightboxImg" src="" alt="" />
-                  <button id="phoneGalleryLightboxDelete" class="phone-gallery-lightbox__delete" aria-label="Delete photo">Delete</button>
-                </div>
-              </section>
-
-              <section
-                id="phoneMessagesApp"
-                class="phone-app-screen phone-app-screen--messages"
-                aria-label="Messenger"
-                hidden
-              >
-                <header class="phone-app-topbar">
-                  <button
-                    id="phoneMessagesBackBtn"
-                    class="phone-app-back"
-                    type="button"
-                    aria-label="Back"
-                  >
-                    <span aria-hidden="true">&#8592;</span>
-                    <span class="phone-app-back__label">Back</span>
-                  </button>
-
-                  <div class="phone-app-topbar__title">Messenger</div>
-
-                  <div class="phone-app-topbar__spacer" aria-hidden="true"></div>
-                </header>
-
-                <div id="phoneMessagesList" class="phone-messages-list"></div>
-
-                <div id="phoneMessagesThread" class="phone-messages-thread hidden">
-                  <header class="phone-thread-topbar">
-                    <button
-                      id="phoneThreadBackBtn"
-                      class="phone-app-back"
-                      type="button"
-                      aria-label="Back to inbox"
-                    >
-                      <span aria-hidden="true">&#8592;</span>
-                      <span class="phone-app-back__label">Back</span>
-                    </button>
-
-                    <div class="phone-thread-title-wrap">
-                      <div class="phone-thread-avatar" aria-hidden="true">
-                        <span class="phone-thread-avatar__glyph"></span>
-                      </div>
-                      <div id="phoneMessagesTitle" class="phone-thread-title"></div>
-                      <div class="phone-thread-subtitle">Text Message</div>
-                    </div>
-
-                    <div class="phone-app-topbar__spacer" aria-hidden="true"></div>
-                  </header>
-
-                  <div id="phoneMessagesLog" class="phone-messages-log" aria-live="polite"></div>
-
-                  <form id="phoneMessagesForm" class="phone-messages-composer" autocomplete="off">
-                    <input
-                      id="phoneMessagesInput"
-                      class="phone-messages-input"
-                      type="text"
-                      placeholder="Message..."
-                      maxlength="600"
-                      autocomplete="off"
-                    />
-                    <button class="phone-messages-send" type="submit">Send</button>
-                  </form>
-                </div>
-              </section>
-            </div>
-          </div>
-        </section>
-      </main>
-
-      <div
-        id="phoneHandle"
-        class="phone-handle"
-        role="button"
-        aria-label="Open phone"
-        aria-expanded="false"
-        tabindex="0"
-      >
-        <span class="phone-handle__bar" aria-hidden="true"></span>
-      </div>
-    </div>
-
-    <script type="module" src="./app.js?v=20260413-m"></script>
-  </body>
+    </section>
+  </main>
+  <script src="./app-v2.js"></script>
+</body>
 </html>

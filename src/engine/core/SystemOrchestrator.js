@@ -48,49 +48,49 @@ export class SystemOrchestrator {
 
     const relByName = {
       Lucy: {
-        trust: 0.91,
-        attraction: 0.9,
-        comfort: 0.9,
-        jealousy: 0.62,
+        trust: 0.68,
+        attraction: 0.62,
+        comfort: 0.65,
+        jealousy: 0.52,
         hurt: 0.32,
-        attachment: 0.88,
-        interest: 0.93,
-        romanticTension: 0.89,
-        exclusivityPressure: 0.8,
+        attachment: 0.66,
+        interest: 0.71,
+        romanticTension: 0.41,
+        exclusivityPressure: 0.6,
         betrayalSensitivity: 0.78,
-        intimacyReadiness: 0.9,
+        intimacyReadiness: 0.28,
         avoidance: 0.18,
-        longing: 0.85
+        longing: 0.55
       },
       Sam: {
-        trust: 0.86,
-        attraction: 0.88,
-        comfort: 0.84,
-        jealousy: 0.74,
+        trust: 0.61,
+        attraction: 0.59,
+        comfort: 0.62,
+        jealousy: 0.54,
         hurt: 0.42,
-        attachment: 0.82,
-        interest: 0.9,
-        romanticTension: 0.91,
-        exclusivityPressure: 0.84,
+        attachment: 0.62,
+        interest: 0.68,
+        romanticTension: 0.36,
+        exclusivityPressure: 0.54,
         betrayalSensitivity: 0.87,
-        intimacyReadiness: 0.85,
+        intimacyReadiness: 0.21,
         avoidance: 0.3,
-        longing: 0.81
+        longing: 0.51
       },
       Angie: {
-        trust: 0.93,
-        attraction: 0.9,
-        comfort: 0.91,
-        jealousy: 0.66,
+        trust: 0.66,
+        attraction: 0.61,
+        comfort: 0.67,
+        jealousy: 0.56,
         hurt: 0.34,
-        attachment: 0.88,
-        interest: 0.92,
-        romanticTension: 0.87,
-        exclusivityPressure: 0.81,
+        attachment: 0.68,
+        interest: 0.69,
+        romanticTension: 0.38,
+        exclusivityPressure: 0.51,
         betrayalSensitivity: 0.79,
-        intimacyReadiness: 0.9,
+        intimacyReadiness: 0.23,
         avoidance: 0.2,
-        longing: 0.84
+        longing: 0.53
       }
     };
 
@@ -107,19 +107,19 @@ export class SystemOrchestrator {
       relationships: Object.fromEntries(
         agents.map((name) => [name, {
           ...(relByName[name] || {
-            trust: 0.88,
-            attraction: 0.86,
-            comfort: 0.85,
-            jealousy: 0.58,
+            trust: 0.58,
+            attraction: 0.54,
+            comfort: 0.57,
+            jealousy: 0.48,
             hurt: 0.28,
-            attachment: 0.82,
-            interest: 0.88,
-            romanticTension: 0.84,
-            exclusivityPressure: 0.76,
+            attachment: 0.52,
+            interest: 0.59,
+            romanticTension: 0.21,
+            exclusivityPressure: 0.36,
             betrayalSensitivity: 0.74,
-            intimacyReadiness: 0.83,
+            intimacyReadiness: 0.13,
             avoidance: 0.2,
-            longing: 0.78
+            longing: 0.38
           })
         }])
       ),
@@ -134,7 +134,31 @@ export class SystemOrchestrator {
         }])
       ),
       continuity: buildInitialContinuityState(),
+      // Scene state
+      scene: {
+        type: 'private',
+        phase: 'open', // open | rising | peak | resolve
+        focusCharacter: 'Hazel',
+      },
     };
+  }
+
+
+  // Called on every /api/ai POST
+  setActiveApp(app) {
+    this.state.continuity.activeApp = app;
+  }
+
+  // Basic scene phase progression
+  updateScenePhase({ interactionCount, emotionalSignal }) {
+    if (!this.state.scene) return;
+    if (emotionalSignal > 0.7) {
+      this.state.scene.phase = 'peak';
+    } else if (interactionCount > 3) {
+      this.state.scene.phase = 'rising';
+    } else {
+      this.state.scene.phase = 'open';
+    }
   }
 
   async run(input, options = {}) {
@@ -142,8 +166,21 @@ export class SystemOrchestrator {
     this.state.turnCount += 1;
 
     if (options.activeApp) {
-      this.state.continuity = { ...this.state.continuity, activeApp: options.activeApp };
+      this.setActiveApp(options.activeApp);
     }
+
+    if (options.focusCharacter) {
+      this.state.focusCharacter = options.focusCharacter;
+    } else {
+      this.state.focusCharacter = null;
+    }
+
+    this.state.beatContext = options.beatContext || null;
+
+    // Simple phase progression (demo: count + random emotion)
+    const interactionCount = this.state.turnCount;
+    const emotionalSignal = Math.random(); // Replace with real signal if available
+    this.updateScenePhase({ interactionCount, emotionalSignal });
 
     // 1. Increment turn clock + update continuity
     this.continuity.update({ state: this.state });
@@ -162,7 +199,8 @@ export class SystemOrchestrator {
       state: this.state,
       memory: this.memory,
       focus: this.focus,
-      brain: this.brain
+      brain: this.brain,
+      scene: this.state.scene
     });
 
     this.relationshipEngine.update({
@@ -199,7 +237,8 @@ export class SystemOrchestrator {
       state: this.state,
       memory: this.memory,
       focus: this.focus,
-      brain: this.brain
+      brain: this.brain,
+      scene: this.state.scene
     });
 
     context.airaInterference = {
@@ -216,6 +255,9 @@ export class SystemOrchestrator {
     if (airaDirective) {
       context.airaDirective = airaDirective;
     }
+
+    // Character intent — derived per character, injected into context before brain runs
+    context.characterIntents = deriveCharacterIntents(this.state);
 
     let responses = await this.brain.process(processedInput, context);
 
@@ -240,7 +282,9 @@ export class SystemOrchestrator {
 
     this.avatarManager.reactToDialogue(responses, this.state);
 
-    const gmLine = this.gm.tick(this.state, responses);
+    const gmResult = this.gm.tick(this.state, responses);
+    const gmLine   = typeof gmResult === 'string' ? gmResult : (gmResult?.log ?? '');
+    const storyBeat = typeof gmResult === 'object' ? (gmResult?.storyBeat ?? null) : null;
 
     this.observer.analyze(input, responses, this.state, interference);
 
@@ -267,6 +311,7 @@ export class SystemOrchestrator {
     return {
       responses,
       gmLine,
+      storyBeat,
       interference,
       continuity: continuitySnapshot,
     };
@@ -303,11 +348,21 @@ export class SystemOrchestrator {
   }
 
   async tick() {
+    // Enable Story Mode for this tick so Aira may emit a scene beat
+    const prevMode = this.gm.mode;
+    this.gm.setMode('story');
+
     const speaker = this._pickSpontaneousSpeaker();
-    if (!speaker) return null;
+    if (!speaker) {
+      this.gm.setMode(prevMode);
+      return null;
+    }
 
     const brain = this.brain.getBrain(speaker);
-    if (!brain) return null;
+    if (!brain) {
+      this.gm.setMode(prevMode);
+      return null;
+    }
 
     const context = buildContext({
       input: '',
@@ -331,7 +386,10 @@ export class SystemOrchestrator {
       context
     });
 
-    if (!result?.spoken) return null;
+    if (!result?.spoken) {
+      this.gm.setMode(prevMode);
+      return null;
+    }
 
     const response = {
       agent: speaker,
@@ -351,7 +409,14 @@ export class SystemOrchestrator {
 
     this.focus.setFocus(speaker);
 
-    return withLayer;
+    // Get story beat from GM (Story Mode is active for this tick)
+    const gmResult = this.gm.tick(this.state, [withLayer]);
+    const storyBeat = gmResult?.storyBeat ?? null;
+
+    // Restore previous mode
+    this.gm.setMode(prevMode);
+
+    return { ...withLayer, storyBeat };
   }
 
   _pickSpontaneousSpeaker() {
@@ -417,4 +482,67 @@ export class SystemOrchestrator {
       avgScore: 0
     };
   }
+}
+
+// ── Character intent derivation ───────────────────────────────────────────────
+// Returns { [characterName]: { goal, intensity } } for each character in state.
+// Goal is one of: 'observe' | 'test' | 'pull' | 'deflect' | 'invite'
+// Derived from chemistry signals, avoidance, scene phase, and turn count.
+// Injected into prompt context — never exposed in UI.
+
+function deriveCharacterIntents(state) {
+  const relationships = state?.relationships || {};
+  const phase = state?.scene?.phase || 'open';
+  const turnCount = state?.turnCount || 0;
+  const intents = {};
+
+  for (const [name, rel] of Object.entries(relationships)) {
+    intents[name] = deriveOneIntent(rel, phase, turnCount);
+  }
+
+  return intents;
+}
+
+function deriveOneIntent(rel, phase, turnCount) {
+  const attraction       = rel?.attraction        ?? 0.5;
+  const romanticTension  = rel?.romanticTension   ?? 0.3;
+  const intimacyReady    = rel?.intimacyReadiness ?? 0.3;
+  const avoidance        = rel?.avoidance         ?? 0.2;
+  const trust            = rel?.trust             ?? 0.5;
+  const hurt             = rel?.hurt              ?? 0.1;
+
+  // Deflect first — high avoidance or hurt overrides everything
+  if (avoidance > 0.6 || hurt > 0.55) {
+    return { goal: 'deflect', intensity: Math.min(1, avoidance + hurt * 0.4) };
+  }
+
+  // Chemistry score: how much pull is building
+  const chem = romanticTension * 0.4 + attraction * 0.35 + intimacyReady * 0.25;
+
+  // Early scene / low trust — observe or test
+  if (turnCount <= 2 || trust < 0.45) {
+    const goal = trust < 0.4 ? 'test' : 'observe';
+    return { goal, intensity: 0.3 + (1 - trust) * 0.3 };
+  }
+
+  // Scene phase drives the shift from test → pull → invite
+  if (phase === 'open') {
+    if (chem < 0.4) return { goal: 'observe', intensity: 0.3 + chem * 0.4 };
+    return { goal: 'test', intensity: 0.4 + chem * 0.3 };
+  }
+
+  if (phase === 'rising') {
+    if (chem < 0.5) return { goal: 'test', intensity: 0.5 };
+    return { goal: 'pull', intensity: 0.5 + chem * 0.3 };
+  }
+
+  if (phase === 'peak') {
+    if (intimacyReady > 0.65 && chem > 0.6) {
+      return { goal: 'invite', intensity: 0.7 + intimacyReady * 0.3 };
+    }
+    return { goal: 'pull', intensity: 0.7 + chem * 0.2 };
+  }
+
+  // Fallback
+  return { goal: 'observe', intensity: 0.3 };
 }

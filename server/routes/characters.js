@@ -40,6 +40,79 @@ function saveHistory(id, history) {
   fs.writeFileSync(p, JSON.stringify(history.slice(-200), null, 2), 'utf-8');
 }
 
+// GET /api/characters — list all characters
+// System/GM characters that must never appear in visible social surfaces.
+const SYSTEM_CHARACTER_IDS = new Set(['aira', 'c4']);
+
+router.get('/', (_req, res) => {
+  try {
+    const files = fs.readdirSync(CHARS_DIR)
+      .filter(f => f.endsWith('.json') && !f.includes('.history'));
+    const characters = files.map(f => {
+      const id = f.replace('.json', '');
+      if (SYSTEM_CHARACTER_IDS.has(id)) return null; // never expose system entities
+      try { return { id, ...JSON.parse(fs.readFileSync(path.join(CHARS_DIR, f), 'utf-8')) }; }
+      catch { return null; }
+    }).filter(Boolean);
+    res.json({ ok: true, characters });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// POST /api/characters — create new character
+router.post('/', (req, res) => {
+  try {
+    const { name, bio, personality, system_prompt, color } = req.body || {};
+    if (!name || !name.trim()) return res.status(400).json({ ok: false, error: 'name required' });
+
+    const id = name.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+    const filePath = path.join(CHARS_DIR, `${id}.json`);
+
+    const char = {
+      id,
+      name: name.trim(),
+      bio: (bio || '').trim(),
+      personality: (personality || '').trim(),
+      system_prompt: (system_prompt || `Du er ${name.trim()}. Svar naturlig og kortfattet.`).trim(),
+      color: color || '#6b7280',
+      created_at: new Date().toISOString(),
+    };
+
+    fs.writeFileSync(filePath, JSON.stringify(char, null, 2), 'utf-8');
+    res.json({ ok: true, character: char });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// PUT /api/characters/:id — update character
+router.put('/:id', (req, res) => {
+  try {
+    const existing = loadCharacter(req.params.id);
+    if (!existing) return res.status(404).json({ ok: false, error: 'Not found' });
+
+    const updated = { ...existing, ...req.body, id: req.params.id };
+    const filePath = path.join(CHARS_DIR, `${req.params.id}.json`);
+    fs.writeFileSync(filePath, JSON.stringify(updated, null, 2), 'utf-8');
+    res.json({ ok: true, character: updated });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// DELETE /api/characters/:id — delete character
+router.delete('/:id', (req, res) => {
+  const id = req.params.id;
+  const reserved = ['lucy', 'sam', 'angie', 'aira'];
+  if (reserved.includes(id)) return res.status(403).json({ ok: false, error: 'Cannot delete core character' });
+
+  const filePath = path.join(CHARS_DIR, `${id}.json`);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ ok: false, error: 'Not found' });
+  fs.unlinkSync(filePath);
+  res.json({ ok: true });
+});
+
 // POST /api/characters/:id/chat
 router.post('/:id/chat', async (req, res) => {
   try {

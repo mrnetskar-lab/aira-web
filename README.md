@@ -199,6 +199,23 @@ Lucy: Come on, you know what they meant.
 
 ## Setup
 
+**Active path:** `client/`
+
+### How to add a new room (minimal)
+1. Create `client/<room-name>.html` by copying an existing `room-*.html` (for example `hazel-room.html`).
+2. Ensure the chat area uses the shared room contract:
+  - thread container: class `room-thread`
+  - composer form: id `roomComposer`
+  - input: id `roomInput`
+  - include a camera button `type="button"` and a send button inside the form
+  - optionally include `window.ROOM_REPLIES` for local reply testing
+3. Load `app-v2.js` at the end of the page so the shared UI logic binds automatically.
+
+### Safe to edit / Do not touch
+- Safe to edit: `client/*.html` (room pages), `client/style-v2.css`, and `client/characters/*.md` for character guidance.
+- Do not edit: `server/*` runtime glue unless you know Node and the backend contract. Avoid editing files in `archive/` or other legacy folders.
+- If you're unsure: branch and test locally — don't push directly to `master`.
+
 ```bash
 # Install
 npm install
