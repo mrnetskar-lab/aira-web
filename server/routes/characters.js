@@ -42,7 +42,7 @@ function saveHistory(id, history) {
 
 // GET /api/characters — list all characters
 // System/GM characters that must never appear in visible social surfaces.
-const SYSTEM_CHARACTER_IDS = new Set(['aira', 'c4']);
+const SYSTEM_CHARACTER_IDS = new Set(['aira']);
 
 router.get('/', (_req, res) => {
   try {
@@ -104,7 +104,7 @@ router.put('/:id', (req, res) => {
 // DELETE /api/characters/:id — delete character
 router.delete('/:id', (req, res) => {
   const id = req.params.id;
-  const reserved = ['lucy', 'sam', 'angie', 'aira'];
+  const reserved = ['lucy', 'sam', 'angie', 'hazel', 'nina', 'aira'];
   if (reserved.includes(id)) return res.status(403).json({ ok: false, error: 'Cannot delete core character' });
 
   const filePath = path.join(CHARS_DIR, `${id}.json`);

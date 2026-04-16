@@ -54,6 +54,8 @@ const CHARACTER_MODELS = {
   Lucy:  process.env.LUCY_MODEL  || null,
   Sam:   process.env.SAM_MODEL   || null,
   Angie: process.env.ANGIE_MODEL || null,
+  Hazel: process.env.HAZEL_MODEL || null,
+  Nina:  process.env.NINA_MODEL  || null,
 };
 
 function resolveProvider() {
