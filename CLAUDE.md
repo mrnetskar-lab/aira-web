@@ -34,7 +34,9 @@ characters/            — Karakterprofiler
 - Brief: 4–18 ord | Normal: 1–3 setninger | Cinematic: opptil 5 setninger
 
 ## Utvikling
+```bash
 npm install && npm run dev   # localhost:3000
+```
 Dev-panel: trykk § i nettleseren
 
 ## Deploy
@@ -47,8 +49,10 @@ Nødvendig env: OPENAI_API_KEY (settes i Railway dashboard)
 - Google Drive MCP er konfigurert
 
 ## Nyttige kommandoer
+```bash
 railway status / logs / redeploy
 curl https://aira-web-production.up.railway.app/api/characters
+```
 
 ## Neste steg
 - Visuell AIRA-rendering
