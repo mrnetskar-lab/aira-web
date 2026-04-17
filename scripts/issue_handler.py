@@ -1,7 +1,7 @@
 import os, json, requests
 
 token = os.environ["GITHUB_TOKEN"]
-event = json.load(open(os.environ["GITHUB_EVENT_PATH"]))
+event = json.load(open(os.environ.get("GITHUB_EVENT_PATH", "")))
 issue = event.get("issue", {})
 repo = event.get("repository", {})
 if not issue or not repo:
@@ -12,13 +12,9 @@ name = repo["name"]
 number = issue["number"]
 
 comment = (
-    "Hi -- this repo has a Copilot/Claude assistant integration.
-
-"
-    "To request action, add a comment starting with `copilot:` (e.g. `copilot: create-pr`).
-
-"
-    "If COPILOT_API_URL and COPILOT_API_TOKEN are set, this issue will also be forwarded automatically."
+    "Hi -- this repo has a Copilot/Claude assistant integration.\n\n"
+    "To request action, add a comment starting with `copilot:`\n\n"
+    "If COPILOT_API_URL and COPILOT_API_TOKEN are set, this issue will be forwarded automatically."
 )
 
 r = requests.post(
