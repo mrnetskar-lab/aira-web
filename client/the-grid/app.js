@@ -1016,12 +1016,14 @@ focusThread(activeThread);
 if (window.location.hash.replace("#", "") === "inbox") {
   hydrateThread(activeThread, false);
 }
-showInvite(inviteIndex);
+window.setTimeout(() => showInvite(inviteIndex), 8000);
 
 // Feed interval disabled — saves API budget, feed is off
 // window.setInterval(appendFeedEvent, 7000);
 window.setInterval(cycleStats, 9000);
 window.setInterval(() => {
-  inviteIndex += 1;
-  showInvite(inviteIndex);
+  if (activeToasts.size === 0) {
+    inviteIndex += 1;
+    showInvite(inviteIndex);
+  }
 }, 30000);
