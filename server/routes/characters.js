@@ -8,7 +8,6 @@ import { engine } from '../services/engineInstance.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CHARS_DIR = path.resolve(__dirname, '../../characters');
-const HIST_DIR  = path.resolve(__dirname, '../../characters');
 
 const router = express.Router();
 const aiService = new CharacterAIService();
@@ -30,18 +29,77 @@ function loadCharacter(id) {
 }
 
 function loadHistory(id) {
-  const p = path.join(HIST_DIR, `${id}.history.json`);
+  const p = path.join(CHARS_DIR, `${id}.history.json`);
   if (!fs.existsSync(p)) return [];
   try { return JSON.parse(fs.readFileSync(p, 'utf-8')); } catch { return []; }
 }
 
 function saveHistory(id, history) {
-  const p = path.join(HIST_DIR, `${id}.history.json`);
+  const p = path.join(CHARS_DIR, `${id}.history.json`);
   fs.writeFileSync(p, JSON.stringify(history.slice(-200), null, 2), 'utf-8');
 }
 
+// Shared chat logic — exported so /api/chat can call directly without HTTP round-trip
+export async function handleCharacterChat(id, text) {
+  const char = loadCharacter(id);
+  if (!char) return { ok: false, error: 'Character not found', status: 404 };
+  if (!text) return { ok: false, error: 'text required', status: 400 };
+
+  const history = loadHistory(id);
+  const characterName = CHARACTER_NAME_BY_ID[id] || char.name || id;
+  const personality = CHARACTER_PROFILES[characterName] || {};
+  const memory = history.slice(-10).map((h) => ({
+    role: h.role === 'assistant' ? characterName : 'user',
+    text: String(h.content || '')
+  }));
+
+  let ai;
+  try {
+    ai = await withTimeout(
+      aiService.generate({
+        characterName,
+        personality,
+        input: text,
+        temperature: 0.85,
+        context: {
+          active_app: { type: 'messages', mode: 'dm', visibility: 'private' },
+          conversation: { responseMode: 'brief', topic: 'direct-message' },
+          sceneFlow: {
+            role: 'primary',
+            mainSpeaker: characterName,
+            followUpSpeaker: null,
+            instruction: 'Answer as a private DM message.'
+          },
+          memory
+        }
+      }),
+      20000
+    );
+  } catch (aiError) {
+    console.warn('Character AI fallback used:', aiError.message);
+    ai = { thought: null, spoken: 'Jeg er her. Svarte tregt akkurat nå, men vi kan fortsette.' };
+  }
+
+  const thought = String(ai?.thought || '').replace(/^\(|\)$/g, '').trim();
+  const spoken = String(ai?.spoken || '').trim();
+  const reply = (thought && spoken ? `*${thought}* ${spoken}` : spoken || '...').trim();
+
+  const now = new Date().toISOString();
+  history.push({ role: 'user', content: text, time: now });
+  history.push({ role: 'assistant', content: reply, time: now });
+  saveHistory(id, history);
+
+  try {
+    engine.memory.store({ role: 'user', text, time: Date.now(), weight: 1 });
+    engine.memory.store({ role: characterName, text: spoken || reply, thought: thought || null, time: Date.now(), weight: 1 });
+  } catch (syncError) {
+    console.warn('Memory mirror failed (non-blocking):', syncError.message);
+  }
+
+  return { ok: true, reply, character: char.name };
+}
+
 // GET /api/characters — list all characters
-// System/GM characters that must never appear in visible social surfaces.
 const SYSTEM_CHARACTER_IDS = new Set(['aira']);
 
 router.get('/', (_req, res) => {
@@ -50,7 +108,7 @@ router.get('/', (_req, res) => {
       .filter(f => f.endsWith('.json') && !f.includes('.history'));
     const characters = files.map(f => {
       const id = f.replace('.json', '');
-      if (SYSTEM_CHARACTER_IDS.has(id)) return null; // never expose system entities
+      if (SYSTEM_CHARACTER_IDS.has(id)) return null;
       try { return { id, ...JSON.parse(fs.readFileSync(path.join(CHARS_DIR, f), 'utf-8')) }; }
       catch { return null; }
     }).filter(Boolean);
@@ -123,7 +181,7 @@ router.put('/:id', (req, res) => {
 // DELETE /api/characters/:id — delete character
 router.delete('/:id', (req, res) => {
   const id = req.params.id;
-  const reserved = ['lucy', 'sam', 'angie', 'hazel', 'nina', 'aira'];
+  const reserved = ['lucy', 'sam', 'angie', 'hazel', 'nina', 'aira', 'iris', 'vale'];
   if (reserved.includes(id)) return res.status(403).json({ ok: false, error: 'Cannot delete core character' });
 
   const filePath = path.join(CHARS_DIR, `${id}.json`);
@@ -135,81 +193,12 @@ router.delete('/:id', (req, res) => {
 // POST /api/characters/:id/chat
 router.post('/:id/chat', async (req, res) => {
   try {
-    const char = loadCharacter(req.params.id);
-    if (!char) return res.status(404).json({ ok: false, error: 'Character not found' });
-
     const text = (req.body?.text || '').trim();
-    if (!text) return res.status(400).json({ ok: false, error: 'text required' });
-
-    const history = loadHistory(req.params.id);
-    const characterName = CHARACTER_NAME_BY_ID[req.params.id] || char.name || req.params.id;
-    const personality = CHARACTER_PROFILES[characterName] || {};
-    const memory = history.slice(-10).map((h) => ({
-      role: h.role === 'assistant' ? characterName : 'user',
-      text: String(h.content || '')
-    }));
-
-    let ai;
-    try {
-      ai = await withTimeout(
-        aiService.generate({
-          characterName,
-          personality,
-          input: text,
-          temperature: 0.85,
-          context: {
-            active_app: { type: 'messages', mode: 'dm', visibility: 'private' },
-            conversation: { responseMode: 'brief', topic: 'direct-message' },
-            sceneFlow: {
-              role: 'primary',
-              mainSpeaker: characterName,
-              followUpSpeaker: null,
-              instruction: 'Answer as a private DM message.'
-            },
-            memory
-          }
-        }),
-        20000
-      );
-    } catch (aiError) {
-      console.warn('Character AI fallback used:', aiError.message);
-      ai = {
-        thought: null,
-        spoken: 'Jeg er her. Svarte tregt akkurat na, men vi kan fortsette.'
-      };
-    }
-
-    const thought = String(ai?.thought || '').replace(/^\(|\)$/g, '').trim();
-    const spoken = String(ai?.spoken || '').trim();
-    const reply = (thought && spoken ? `*${thought}* ${spoken}` : spoken || '...').trim();
-
-    history.push({ role: 'user', content: text });
-    history.push({ role: 'assistant', content: reply });
-    saveHistory(req.params.id, history);
-
-    // Mirror DM turns into the shared engine memory used by World Chat.
-    try {
-      engine.memory.store({
-        role: 'user',
-        text,
-        time: Date.now(),
-        weight: 1,
-      });
-      engine.memory.store({
-        role: characterName,
-        text: spoken || reply,
-        thought: thought || null,
-        time: Date.now(),
-        weight: 1,
-      });
-    } catch (syncError) {
-      console.warn('Memory mirror failed (non-blocking):', syncError.message);
-    }
-
-    return res.json({ ok: true, reply, character: char.name });
+    const result = await handleCharacterChat(req.params.id, text);
+    res.status(result.status || 200).json(result);
   } catch (error) {
     console.error('Character chat route error:', error);
-    return res.status(500).json({ ok: false, error: error.message || 'Character chat failed' });
+    res.status(500).json({ ok: false, error: error.message || 'Character chat failed' });
   }
 });
 

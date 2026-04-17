@@ -270,9 +270,22 @@ function bootFromHash() {
 
 navButtons.forEach(button => {
   button.addEventListener("click", () => {
-    if (button.dataset.nav) {
-      setActivePage(button.dataset.nav);
+    const navTarget = button.dataset.nav;
+    const room = button.dataset.room;
+    if (!navTarget) return;
+
+    // If the button references a room (e.g., story routes 'Continue'),
+    // set the active thread first, then navigate.
+    if (room) {
+      if (threadState[room]) {
+        focusThread(room);
+        hydrateThread(room, false);
+      }
+      setActivePage(navTarget);
+      return;
     }
+
+    setActivePage(navTarget);
   });
 });
 
@@ -848,6 +861,16 @@ function cycleStats() {
   stats.rooms.textContent = String(2 + Math.floor(Math.random() * 5));
 }
 
+document.querySelectorAll("[data-room][data-nav]").forEach(button => {
+  button.addEventListener("click", () => {
+    const roomKey = button.dataset.room;
+    if (roomKey && threadState[roomKey]) {
+      focusThread(roomKey);
+      hydrateThread(roomKey, false);
+    }
+  });
+});
+
 roomCards.forEach(card => {
   const roomKey = card.dataset.room;
   const button = card.querySelector(".btn");
@@ -869,7 +892,10 @@ Object.keys(characterDirectory).forEach(roomKey => {
 });
 
 focusThread(activeThread);
-hydrateThread(activeThread, false);
+// Only hydrate the active thread on boot — others load lazily on click
+if (window.location.hash.replace("#", "") === "inbox") {
+  hydrateThread(activeThread, false);
+}
 showInvite(inviteIndex);
 
 window.setInterval(appendFeedEvent, 7000);

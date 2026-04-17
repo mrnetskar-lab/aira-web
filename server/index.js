@@ -11,7 +11,7 @@ import aiRouter from './routes/ai.js';
 console.log('import aiRouter OK');
 import cameraRouter from './routes/camera.js';
 console.log('import cameraRouter OK');
-import charactersRouter from './routes/characters.js';
+import charactersRouter, { handleCharacterChat } from './routes/characters.js';
 import memoryRouter from './routes/memory.js';
 import claudeRouter from './routes/claude.js';
 console.log('import claudeRouter OK');
@@ -101,18 +101,9 @@ app.post('/api/chat', async (req, res) => {
   const text = (req.body?.message || req.body?.text || '').trim();
   if (!text) return res.status(400).json({ ok: false, error: 'message required' });
 
-  // Forward to the characters chat handler
-  req.params = { id: character };
-  req.body = { ...req.body, text };
-
   try {
-    const response = await fetch(`http://localhost:${process.env.PORT || 3000}/api/characters/${character}/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
-    });
-    const data = await response.json();
-    res.status(response.status).json(data);
+    const result = await handleCharacterChat(character, text);
+    res.status(result.status || 200).json(result);
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }
