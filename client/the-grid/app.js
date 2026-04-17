@@ -84,7 +84,8 @@ const inviteToastStack  = document.getElementById("inviteToastStack");
 const inviteStatusPill  = document.getElementById("inviteStatusPill");
 
 const roomCards    = document.querySelectorAll(".room-card");
-const threadList   = document.querySelector(".thread-list");
+// support both old and new inbox markup variants
+const threadList   = document.querySelector(".thread-list") || document.getElementById('nodeRailList') || document.querySelector('.node-rail-list');
 const dmThread     = document.getElementById("dmThread");
 const dmName       = document.getElementById("dmName");
 const dmStatus     = document.getElementById("dmStatus");
@@ -333,7 +334,7 @@ menuToggle?.addEventListener("click", () => {
 
 // ── Thread list helpers ───────────────────────────────────
 function ensureThreadButton(roomKey) {
-  let button = threadList?.querySelector(`.thread-item[data-thread="${roomKey}"]`);
+  let button = threadList?.querySelector(`[data-thread="${roomKey}"]`);
   if (button) return button;
 
   const character = characterDirectory[roomKey];
@@ -352,12 +353,19 @@ function ensureThreadButton(roomKey) {
     <div class="thread-meta"><span>now</span></div>
   `;
   threadList.appendChild(button);
+  // keep index attributes in sync for keyboard navigation
+  reindexThreadList();
   return button;
 }
 
+function reindexThreadList() {
+  const items = Array.from(document.querySelectorAll('.thread-item, .node-strip'));
+  items.forEach((it, idx) => it.dataset.index = String(idx + 1));
+}
+
 function setThreadActive(roomKey) {
-  document.querySelectorAll(".thread-item").forEach(item => {
-    item.classList.toggle("active", item.dataset.thread === roomKey);
+  document.querySelectorAll('.thread-item, .node-strip').forEach(item => {
+    item.classList.toggle('active', item.dataset.thread === roomKey);
   });
 }
 
@@ -383,6 +391,47 @@ function updateThreadPreview(roomKey, previewText, timeText = "now") {
   if (time)    time.textContent    = timeText;
 }
 
+// ── Thread rail helpers: visibility, selection, mobile drawers
+function ensureThreadVisible(roomKey) {
+  const btn = threadList?.querySelector(`[data-thread="${roomKey}"]`);
+  if (!btn || !threadList) return;
+  const rect = btn.getBoundingClientRect();
+  const parentRect = threadList.getBoundingClientRect();
+  if (rect.top < parentRect.top || rect.bottom > parentRect.bottom) {
+    const offset = btn.offsetTop - threadList.clientHeight / 2 + btn.offsetHeight / 2;
+    threadList.scrollTo({ top: Math.max(0, offset), behavior: 'smooth' });
+  }
+}
+
+function selectThreadByIndex(index) {
+  const item = document.querySelector(`[data-index="${index}"]`);
+  if (item && item.dataset.thread) {
+    const roomKey = item.dataset.thread;
+    setActivePage('inbox');
+    focusThread(roomKey);
+    hydrateThread(roomKey, false);
+  }
+}
+
+function closeInboxDrawers() {
+  const layout = document.querySelector('.inbox-layout');
+  if (!layout) return;
+  layout.classList.remove('rail-open');
+  layout.classList.remove('dossier-open');
+}
+
+function toggleRailDrawer() {
+  const layout = document.querySelector('.inbox-layout');
+  if (!layout) return;
+  layout.classList.toggle('rail-open');
+}
+
+function toggleDossierDrawer() {
+  const layout = document.querySelector('.inbox-layout');
+  if (!layout) return;
+  layout.classList.toggle('dossier-open');
+}
+
 // ── Render DM thread ──────────────────────────────────────
 function renderDmThread(roomKey) {
   const thread = threadState[roomKey];
@@ -395,6 +444,9 @@ function renderDmThread(roomKey) {
     dmAvatar.className   = `avatar avatar-${roomKey}`;
   }
 
+  // preserve scroll position behaviour: only auto-scroll if user is near bottom
+  const wasNearBottom = dmThread.scrollHeight - (dmThread.scrollTop + dmThread.clientHeight) < 96;
+
   dmThread.innerHTML = "";
   thread.messages.forEach(message => {
     const bubble = document.createElement("div");
@@ -406,7 +458,13 @@ function renderDmThread(roomKey) {
     }
     dmThread.appendChild(bubble);
   });
-  dmThread.scrollTop = dmThread.scrollHeight;
+  // Auto-scroll only when user was near bottom or we just sent a message
+  const shouldScroll = wasNearBottom || thread._justSent;
+  if (shouldScroll) {
+    dmThread.scrollTop = dmThread.scrollHeight;
+  }
+  // reset justSent after render
+  if (thread._justSent) thread._justSent = false;
 }
 
 // ── Profile panel ─────────────────────────────────────────
@@ -682,13 +740,17 @@ async function openRoom(roomKey, triggerButton = null) {
 
 // ── Thread list click ─────────────────────────────────────
 threadList?.addEventListener("click", event => {
-  const button = event.target.closest(".thread-item");
+  const button = event.target.closest('.thread-item, .node-strip');
   if (!button) return;
   const roomKey = button.dataset.thread;
   if (!roomKey || !threadState[roomKey]) return;
   setActivePage("inbox");
   focusThread(roomKey);
+  ensureThreadVisible(roomKey);
   hydrateThread(roomKey, false);
+
+  // close mobile drawers when selecting a thread
+  if (window.innerWidth <= 760) closeInboxDrawers();
 });
 
 // ── DM form submit ────────────────────────────────────────
@@ -701,6 +763,8 @@ dmForm?.addEventListener("submit", async event => {
   const outgoing = { side: "outgoing", author: "You", text, time: nowClock() };
 
   thread.messages.push(outgoing);
+  // mark that we just sent a message so renderDmThread can decide to auto-scroll
+  thread._justSent = true;
   updateThreadPreview(activeThread, text, outgoing.time);
   renderDmThread(activeThread);
   dmInput.value = "";
@@ -759,6 +823,7 @@ function checkChemistry(roomKey) {
 
 // ── Camera ────────────────────────────────────────────────
 cameraBtn?.addEventListener("click", async () => {
+  // Capture an image and show a local preview with Send / Cancel controls
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ video: true });
     const video  = document.createElement("video");
@@ -771,27 +836,81 @@ cameraBtn?.addEventListener("click", async () => {
     canvas.getContext("2d").drawImage(video, 0, 0, 640, 480);
     stream.getTracks().forEach(t => t.stop());
 
-    const imageBase64 = canvas.toDataURL("image/jpeg", 0.85).split(",")[1];
-    const char        = characterDirectory[activeThread];
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+    const imageBase64 = dataUrl.split(",")[1];
 
-    const res  = await fetch("/api/camera/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        prompt: `${char?.name || activeThread} reacts to what they see in the image`,
-        imageBase64,
-        character: activeThread,
-      }),
+    // create inline preview UI in the compose area
+    const compose = document.querySelector('.chat-compose');
+    if (!compose) return;
+
+    // remove any existing preview
+    const existing = document.getElementById('mediaPreview');
+    if (existing) existing.remove();
+
+    const preview = document.createElement('div');
+    preview.id = 'mediaPreview';
+    preview.className = 'media-preview';
+    preview.innerHTML = `
+      <img src="${escapeHtml(dataUrl)}" alt="preview" class="media-preview-img" />
+      <div class="media-preview-actions">
+        <button class="btn btn-small" id="mediaSendBtn">Send</button>
+        <button class="btn btn-small" id="mediaCancelBtn">Cancel</button>
+      </div>
+    `;
+    compose.insertBefore(preview, compose.firstChild);
+
+    const cancelBtn = preview.querySelector('#mediaCancelBtn');
+    const sendBtn = preview.querySelector('#mediaSendBtn');
+
+    cancelBtn?.addEventListener('click', () => {
+      preview.remove();
     });
-    const data     = await res.json();
-    const imageUrl = data?.imageUrl || (data?.shot && data.shot.path) || null;
-    if (imageUrl) {
+
+    sendBtn?.addEventListener('click', async () => {
+      sendBtn.disabled = true;
+      sendBtn.textContent = 'Sending…';
+      const char = characterDirectory[activeThread];
       const thread = threadState[activeThread];
-      thread.messages.push({ side: "incoming", author: char?.name || activeThread, text: "", imageUrl, time: nowClock() });
+
+      // optimistic outgoing preview
+      const outgoing = { side: 'outgoing', author: 'You', text: '📷 image', time: nowClock() };
+      thread.messages.push(outgoing);
+      thread._justSent = true;
+      updateThreadPreview(activeThread, '📷 image', outgoing.time);
       renderDmThread(activeThread);
-    }
+
+      try {
+        const res = await fetch('/api/camera/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: `${char?.name || activeThread} reacts to what they see in the image`, imageBase64, character: activeThread }),
+        });
+        const data = await res.json();
+        const imageUrl = data?.imageUrl || (data?.shot && data.shot.path) || null;
+        if (imageUrl) {
+          // push incoming reaction image
+          thread.messages.push({ side: 'incoming', author: char?.name || activeThread, text: '', imageUrl, time: nowClock() });
+          updateThreadPreview(activeThread, '📷 image', nowClock());
+          setThreadUnread(activeThread, false);
+          renderDmThread(activeThread);
+        } else {
+          // fallback: show text reply
+          thread.messages.push({ side: 'incoming', author: char?.name || activeThread, text: getFallbackReply(activeThread), time: nowClock() });
+          updateThreadPreview(activeThread, getFallbackReply(activeThread), nowClock());
+          renderDmThread(activeThread);
+        }
+      } catch (err) {
+        console.warn('Camera send error:', err);
+        thread.messages.push({ side: 'incoming', author: char?.name || activeThread, text: getFallbackReply(activeThread), time: nowClock() });
+        updateThreadPreview(activeThread, getFallbackReply(activeThread), nowClock());
+        renderDmThread(activeThread);
+      } finally {
+        preview.remove();
+      }
+    });
+
   } catch (err) {
-    console.warn("Camera error:", err);
+    console.warn('Camera error:', err);
   }
 });
 

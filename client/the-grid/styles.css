@@ -1004,37 +1004,63 @@ h3 {
 }
 
 .chat-bubble {
-  max-width: min(78%, 420px);
-  padding: 0.6rem 0.85rem;
+  position: relative;
+  max-width: min(78%, 520px);
+  padding: 0.6rem 0.9rem;
   border-radius: 12px;
-  font-size: 0.875rem;
-  line-height: 1.5;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  background: linear-gradient(180deg, rgba(6,6,12,0.72), rgba(8,8,18,0.6));
+  color: var(--text);
+  border: 1px solid rgba(255,255,255,0.04);
+  overflow: visible;
+}
+
+.chat-bubble::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(255,0,204,0.12), rgba(0,245,255,0.12));
+  filter: blur(14px);
+  opacity: 0.9;
+  z-index: -1;
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
 }
 
 .chat-bubble.incoming {
   align-self: flex-start;
-  background: rgba(255, 255, 255, 0.055);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-bottom-left-radius: 3px;
+  background: linear-gradient(180deg, rgba(10,10,18,0.7), rgba(6,6,12,0.5));
+  border: 1px solid rgba(255,255,255,0.04);
+}
+.chat-bubble.incoming::after {
+  background: linear-gradient(90deg, rgba(139,53,255,0.06), rgba(0,245,255,0.12));
+  filter: blur(12px);
+  opacity: 0.6;
 }
 
 .chat-bubble.outgoing {
   align-self: flex-end;
-  background: linear-gradient(135deg, rgba(139, 53, 255, 0.85), rgba(0, 245, 255, 0.2));
-  border: 1px solid rgba(0, 245, 255, 0.2);
-  border-bottom-right-radius: 3px;
+  background: linear-gradient(180deg, rgba(12,6,24,0.9), rgba(6,0,20,0.9));
+  border: 1px solid rgba(255,255,255,0.06);
   color: #fff;
 }
+.chat-bubble.outgoing::after {
+  background: linear-gradient(90deg, rgba(255,0,204,0.22), rgba(0,245,255,0.18));
+  filter: blur(16px);
+  opacity: 1;
+}
 
-.chat-bubble p { margin: 0 0 0.15rem; }
-.chat-bubble p em, .chat-bubble p i { opacity: 0.55; font-style: italic; }
+.chat-bubble p { margin: 0 0 0.12rem; }
+.chat-bubble p em, .chat-bubble p i { opacity: 0.6; font-style: italic; }
 .chat-author { display: none; }
 
 .chat-bubble time {
   display: block;
-  font-size: 0.62rem;
-  opacity: 0.4;
-  margin-top: 0.2rem;
+  font-size: 0.66rem;
+  opacity: 0.45;
+  margin-top: 0.18rem;
   text-align: right;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   letter-spacing: 0.04em;
@@ -1042,7 +1068,23 @@ h3 {
 
 .chat-bubble.incoming time { text-align: left; }
 
-/* Compose */
+/* small triangular tail for incoming/outgoing */
+.chat-bubble::before {
+  content: "";
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: inherit;
+  transform: rotate(45deg);
+  bottom: 8px;
+  left: -6px;
+  border-radius: 2px;
+  box-shadow: none;
+  z-index: 0;
+}
+.chat-bubble.outgoing::before { right: -6px; left: auto; }
+
+/* Compose (transmit) neon controls */
 .chat-compose {
   border-top: 1px solid var(--border);
   padding: 0.6rem 0.85rem;
@@ -1053,13 +1095,51 @@ h3 {
 .chat-compose form {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  background: rgba(0, 245, 255, 0.03);
-  border: 1px solid rgba(0, 245, 255, 0.15);
-  border-radius: 8px;
-  padding: 0.45rem 0.55rem;
+  gap: 0.5rem;
+  background: rgba(0, 0, 0, 0.38);
+  border: 1px solid rgba(255,255,255,0.04);
+  border-radius: 14px;
+  padding: 0.5rem 0.65rem;
 }
 
+.chat-compose .tb-input,
+#dmInput {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.tb-action, #cameraBtn {
+  width: 40px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.04);
+  color: var(--muted);
+}
+
+.tb-action:hover, #cameraBtn:hover { color: var(--text); border-color: rgba(0,245,255,0.18); }
+
+.tb-send {
+  background: linear-gradient(90deg, rgba(255,0,204,0.95), rgba(0,245,255,0.9));
+  color: #021017;
+  border-radius: 10px;
+  padding: 0.4rem 0.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 30px rgba(0, 245, 255, 0.12), 0 0 18px rgba(255,0,204,0.08);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.tb-send:hover { transform: translateY(-1px); opacity: 0.95; }
+
+/* Compose: input placeholder + action styles (merged) */
 .chat-compose input {
   flex: 1;
   min-width: 0;
@@ -1070,7 +1150,6 @@ h3 {
   font-size: 0.875rem;
   padding: 0;
 }
-
 .chat-compose input::placeholder { color: var(--muted); opacity: 0.6; font-style: italic; }
 .chat-compose input:focus { outline: none; }
 
@@ -1097,7 +1176,7 @@ h3 {
   padding: 0.38rem;
   width: 30px;
   height: 30px;
-  border-radius: 6px;
+}
 }
 
 .compose-send:hover { box-shadow: 0 0 14px rgba(0, 245, 255, 0.5); }
@@ -1528,4 +1607,148 @@ h3 {
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+
+/* ===== Inbox responsive drawers & media preview ===== */
+.media-preview {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.6rem;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.04);
+  margin-bottom: 0.6rem;
+}
+.media-preview-img {
+  width: 120px;
+  height: 84px;
+  object-fit: cover;
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+}
+.media-preview-actions { display:flex; gap:0.5rem; align-items:center; }
+
+/* Small-screen inbox drawers */
+@media (max-width: 760px) {
+  .inbox-layout { position: relative; }
+
+  .inbox-layout .thread-list,
+  .inbox-layout .character-profile-panel {
+    display: none; /* hidden by default on small screens */
+  }
+
+  .inbox-layout.rail-open .thread-list {
+    display: block;
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: min(84%, 320px);
+    z-index: 120;
+    padding: 0.8rem;
+    background: linear-gradient(180deg, rgba(10,10,18,0.96), rgba(8,8,16,0.98));
+    border-right: 1px solid rgba(255,255,255,0.06);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+    overflow-y: auto;
+    transform: translateX(0);
+  }
+
+  .inbox-layout.dossier-open .character-profile-panel {
+    display: block;
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: min(84%, 360px);
+    z-index: 120;
+    padding: 0.8rem;
+    background: linear-gradient(180deg, rgba(10,10,18,0.96), rgba(8,8,16,0.98));
+    border-left: 1px solid rgba(255,255,255,0.06);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+    overflow-y: auto;
+  }
+
+  /* backdrop when drawers open */
+  .inbox-layout.rail-open::before,
+  .inbox-layout.dossier-open::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    z-index: 110;
+    pointer-events: auto;
+  }
+}
+
+/* ===== Inbox responsive drawers & media preview ===== */
+.media-preview {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.6rem;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.04);
+  margin-bottom: 0.6rem;
+}
+.media-preview-img {
+  width: 120px;
+  height: 84px;
+  object-fit: cover;
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+}
+.media-preview-actions { display:flex; gap:0.5rem; align-items:center; }
+
+/* Small-screen inbox drawers */
+@media (max-width: 760px) {
+  .inbox-layout { position: relative; }
+
+  .inbox-layout .thread-list,
+  .inbox-layout .character-profile-panel {
+    display: none; /* hidden by default on small screens */
+  }
+
+  .inbox-layout.rail-open .thread-list {
+    display: block;
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: min(84%, 320px);
+    z-index: 120;
+    padding: 0.8rem;
+    background: linear-gradient(180deg, rgba(10,10,18,0.96), rgba(8,8,16,0.98));
+    border-right: 1px solid rgba(255,255,255,0.06);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+    overflow-y: auto;
+    transform: translateX(0);
+  }
+
+  .inbox-layout.dossier-open .character-profile-panel {
+    display: block;
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: min(84%, 360px);
+    z-index: 120;
+    padding: 0.8rem;
+    background: linear-gradient(180deg, rgba(10,10,18,0.96), rgba(8,8,16,0.98));
+    border-left: 1px solid rgba(255,255,255,0.06);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+    overflow-y: auto;
+  }
+
+  /* backdrop when drawers open */
+  .inbox-layout.rail-open::before,
+  .inbox-layout.dossier-open::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    z-index: 110;
+    pointer-events: auto;
+  }
 }
