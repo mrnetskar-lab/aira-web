@@ -86,6 +86,25 @@ router.post('/', (req, res) => {
   }
 });
 
+// GET /api/characters/:id — get single character with recent messages
+router.get('/:id', (req, res) => {
+  try {
+    const char = loadCharacter(req.params.id);
+    if (!char) return res.status(404).json({ ok: false, error: 'Character not found' });
+
+    const history = loadHistory(req.params.id);
+    const messages = history.slice(-20).map(h => ({
+      role: h.role,
+      text: String(h.content || ''),
+      time: h.time || null,
+    }));
+
+    res.json({ ok: true, character: char, messages });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // PUT /api/characters/:id — update character
 router.put('/:id', (req, res) => {
   try {

@@ -93,6 +93,31 @@ app.use('/api/characters', charactersRouter);
 app.use('/api/memory', memoryRouter);
 app.use('/api/claude', claudeRouter);
 
+// /api/chat — unified chat endpoint used by the-grid frontend
+app.post('/api/chat', async (req, res) => {
+  const character = (req.body?.character || req.body?.room || '').toLowerCase().trim();
+  if (!character) return res.status(400).json({ ok: false, error: 'character required' });
+
+  const text = (req.body?.message || req.body?.text || '').trim();
+  if (!text) return res.status(400).json({ ok: false, error: 'message required' });
+
+  // Forward to the characters chat handler
+  req.params = { id: character };
+  req.body = { ...req.body, text };
+
+  try {
+    const response = await fetch(`http://localhost:${process.env.PORT || 3000}/api/characters/${character}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // Hard guard: always serve JSON from this route even if router wiring changes.
 app.get('/api/ai/patches', (_req, res) => {
   res.json({
