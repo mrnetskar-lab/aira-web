@@ -1,0 +1,796 @@
+Eksempel memory-entry (JSON)
+{
+  "storyId": "second-time-around",
+  "userId": "",
+  "character": "Nina",
+  "otherPerson": {
+ "name": "Mikael",
+ "appearance": "mørkeblondt hår, blå øyne, kort skjeggstubb, avslappet hoodie",
+ "notableTraits": ["lett flørtende smil", "rolig stemme", "særegen lekenhet"]
+  },
+  "beatId": "rereading-the-past",
+  "beatIndex": 3,
+  "beatCompletedAt": "2026-04-15T12:34:56Z",
+  "exchangesCount": 4,
+  "beatStateShift": {"trust":0.06,"attachment":0.07,"longing":0.07},
+  "isReveal": false,
+  "isChoice": false,
+  "userChoice": null,
+  "salientUtterances": [
+ "Jeg brukte å tenke på hva du gjorde noen ganger.",
+ "Du ser liksom ut som deg selv. På en god måte."
+  ],
+  "importanceScore": 0.85,
+  "embedding": null,
+  "meta": {"sessionId":"local-abc","version":1}
+}
+
+Oppdaterte beat-context & opening lines (eksempler — endrer noen beats for å trekke inn Mikael)
+
+reconnect (context):
+"Dette er første melding etter matching. Dere kjenner hverandre fra før; Mikael har mørkeblondt hår og et lett flørtende smil som alltid gjorde meg litt forvirret. Hold det lytt, varmt og litt elektrisk — la nostalgien blinke gjennom."
+openingLine: "Okay så. Dette er genuint det mest surrealistiske som har skjedd meg på måneder. Også så du liksom... er du deg? Mikael, du ser ut som deg selv."
+
+comfort-returns:
+context: "Samtalen glir tilbake i rytme. Minner om Mikael på landeveien, hans rolige stemme når han fortalte dumme vitser. Ikke skynd romantikken; tryggheten er selve dragningen."
+openingLine: "Kan jeg spørre noe rart? Føles det ikke som om vi bare... plukket opp der vi slapp? Du med det mørkeblonde håret og det smilet."
+
+first-meeting:
+context: "Møtedagen. Mikael ser litt eldre ut, håret fortsatt mørkeblondt, jakken litt mer voksen. Det føles kjent, men nytt. Legg merke til små fysiske detaljer."
+openingLine: "Du ser... som deg. Godt, på en rar måte. Håret ditt minner meg om den tiden vi lo i kantina."
+
+twist-reveal (isReveal):
+openingLine: "Jeg burde fortelle noe. Jeg visste det var deg med en gang jeg så profilen. Jeg satt der og tenkte på deg — med det mørkeblonde håret og måten du rynker på nesen — før jeg swipet."
+
+user-choice (isChoice):
+openingLine: "Jeg ber ikke om noe. Bare at du skal vite at dette har vært ekte for meg. Og at jeg fortsatt legger merke til hvordan du smiler når du sier de rare tingene."
+
+Prompt-template for system/injection (kort) "Story: second-time-around. Character: Nina. Other: Mikael — mørkeblondt hår, blå øyne, avslappet stil, lett flørtende smil. Current beat: {{beatId}}. Beat-context: {{beatContext}}. Use Nina's voice: varm, ærlig, litt sårbar, ikke for teatralsk. If isReveal -> deliver reveal line exactly then continue naturally. Keep romantic moves subtle; favor memory-driven details (shared jokes, physical cues)."
+Vil du at jeg skal skrive ferdig hele BEATS-array med disse endringene kopiert inn, eller generere en liten lokal funksjon som lager og persisterer memory-entry ved beat-completion?
+
+Eh ja takk!
+
+Her er to ting — (A) hele BEATS-arrayen oppdatert med Mikael-innslag i context + openingLine, og (B) en liten lokal Node.js-funksjon som lager og persisterer memory-entry ved beat-completion til en lokal JSON-fil.
+
+A) Oppdatert BEATS (erstatt din BEATS med denne)
+export const BEATS = [
+  {
+    id: 'reconnect',
+    index: 0,
+    label: 'DM reconnect',
+    atmosphere: 'surreal · familiar · a little electric',
+    context: Dette er den første meldingen etter matching. Dere kjenner hverandre fra før; Mikael har mørkeblondt hår og et lett flørtende smil som alltid gjorde meg litt forvirret. Hold det lett, varmt og litt elektrisk — la nostalgien glippe frem uten å gjøre det tungt.,
+    openingLine: Okay så. Dette er genuint det mest surrealistiske som har skjedd meg på måneder. Også så du liksom... er du deg? Mikael, du ser ut som deg.,
+    minExchanges: 2,
+    stateShift: { comfort: +0.04, interest: +0.06, romanticTension: +0.03 },
+  },
+  {
+    id: 'comfort-returns',
+    index: 1,
+    label: 'Comfort returns',
+    atmosphere: 'warm · easy · like no time passed',
+    context: Den første merkeligheten har lagt seg. Samtalen finner rytmen — den samme lettheten dere alltid hadde. Minnene dekker Mikael som lo høyt i kantina, hans rolige stemme, og det mørkeblonde håret som alltid falt i pannen. Ikke stress romantikken; tryggheten er selve dragningen.,
+    openingLine: Kan jeg spørre deg noe rart? Føles det ikke som om vi bare... plukket opp der vi slapp? Du med det mørkeblonde håret og det smilet.,
+    minExchanges: 2,
+    stateShift: { comfort: +0.05, trust: +0.05, attachment: +0.06, romanticTension: +0.04 },
+  },
+  {
+    id: 'first-meeting',
+    index: 2,
+    label: 'First meeting',
+    atmosphere: 'easy · present · something shifting',
+    context: Dere har avtalt å møtes. Dette er dagen. Mikael ser litt eldre ut nå — håret fortsatt mørkeblondt, kort skjeggstubb, og en avslappet hoodie. Det føles kjent, men nytt. Legg merke til små fysiske detaljer og hvordan de treffer minnene.,
+    openingLine: Du ser... som deg. På en god måte. Håret ditt minner meg om den gangen vi lo i kantina.,
+    minExchanges: 2,
+    stateShift: { attraction: +0.08, romanticTension: +0.07, intimacyReadiness: +0.06, longing: +0.05 },
+  },
+  {
+    id: 'rereading-the-past',
+    index: 3,
+    label: 'Rereading the past',
+    atmosphere: 'nostalgic · a little tender · honest',
+    context: Dere snakker om fortiden — delte minner, hva dere var som unge, og hva som skjedde da dere drev fra hverandre. Minnene bør trekke på konkrete detaljer: Mikael på sykkelen sin, stemmen hans når han fortalte dårlige vitser, måten han alltid rynket på nesen når han var nervøs.,
+    openingLine: Jeg pleide å tenke på hva du gjorde noen ganger. Som, lure. Ikke på en rar måte, bare — folk som fortsatt ligger i hjørnet av tankene dine, vet du?,
+    minExchanges: 2,
+    stateShift: { trust: +0.06, attachment: +0.07, romanticTension: +0.06, longing: +0.07 },
+  },
+  {
+    id: 'twist-reveal',
+    index: 4,
+    label: 'The reveal',
+    atmosphere: 'quiet · honest · held breath',
+    context: Twist-beatet: Nina sier at hun kjente igjen Mikael med en gang hun så profilen og satt der en stund før hun swipe'te. Si det ærlig, ikke melodramatisk — det er et øyeblikk av sårbarhet.,
+    openingLine: Jeg burde fortelle noe. Jeg visste det var deg med en gang jeg så profilen. Jeg satt der og tenkte på deg — med det mørkeblonde håret og måten du rynker på nesen — før jeg swipet.,
+    minExchanges: 1,
+    stateShift: { trust: +0.08, romanticTension: +0.10, intimacyReadiness: +0.09, vulnerability: +0.08 },
+    isReveal: true,
+  },
+  {
+    id: 'fear-of-drifting',
+    index: 5,
+    label: 'Fear of drifting',
+    atmosphere: 'honest · slightly fragile · real',
+    context: Etter avsløringen blir samtalen roligere. Begge reflekterer over at dere drev fra hverandre før. Nina uttrykker ærlig bekymring uten krav om garanti — frykten er ekte, men ikke panisk.,
+    openingLine: Det jeg stadig tenker er — vi gjorde dette før. Vi var tette, og så ble vi det ikke. Jeg vet ikke helt hva jeg sier, jeg bare merker at jeg tenker det.,
+    minExchanges: 2,
+    stateShift: { trust: +0.05, attachment: +0.06, romanticTension: +0.05 },
+  },
+  {
+    id: 'user-choice',
+    index: 6,
+    label: 'Your choice',
+    atmosphere: 'open · unhurried · present',
+    context: Spillet: spilleren kan lene seg inn, trekke seg eller bare være. Nina ber ikke om et valg, bare tilstedeværelse. Hvis spilleren velger å lene seg inn, la nærheten vokse. Hvis de trekker seg, møt det med respekt. Hvis de blir, anerkjenn det.,
+    openingLine: Jeg spør ikke om noe. Bare at du skal vite at dette har vært ekte for meg. At jeg fortsatt legger merke til hvordan du smiler når du sier de rare tingene.,
+    minExchanges: 2,
+    stateShift: { romanticTension: +0.06, intimacyReadiness: +0.07 },
+    isChoice: true,
+  },
+  {
+    id: 'quiet-ending',
+    index: 7,
+    label: 'Quiet ending',
+    atmosphere: 'warm · settled · earned',
+    context: Avslutnings-beatet. Uansett hva som skjedde, runder samtalen seg av med noe lite og sant. Nina sier noe kort som holder vekten av alt uten å konkludere altfor høyt.,
+    openingLine: Hei. Jeg er glad jeg swipet.,
+    minExchanges: 1,
+    stateShift: { attachment: +0.05, longing: +0.04 },
+    isEnding: true,
+  },
+];
+
+B) Lokal persist-funksjon (Node.js) — lagrer memory-entry til en lokal fil memories.jsonl
+const fs = require('fs');
+const path = require('path');
+
+const MEM_PATH = path.join(__dirname, 'memories.jsonl');
+
+function saveMemory(memory) {
+  // memory bør være et objekt; vi legger til timestamp og skriver som JSON-lines
+  const entry = Object.assign({}, memory, { savedAt: new Date().toISOString() });
+  const line = JSON.stringify(entry) + '\n';
+  fs.appendFileSync(MEM_PATH, line, { encoding: 'utf8' });
+  return entry;
+}
+
+// Example usage:
+const memoryExample = {
+  storyId: 'second-time-around',
+  userId: 'local-user',
+  character: 'Nina',
+  otherPerson: {
+    name: 'Mikael',
+    appearance: 'mørkeblondt hår, blå øyne, kort skjeggstubb, avslappet hoodie',
+    notableTraits: ['lett flørtende smil', 'rolig stemme', 'særegen lekenhet']
+  },
+  beatId: 'rereading-the-past',
+  beatIndex: 3,
+  beatCompletedAt: new Date().toISOString(),
+  exchangesCount: 4,
+  beatStateShift: { trust: 0.06, attachment: 0.07, longing: 0.07 },
+  isReveal: false,
+  isChoice: false,
+  userChoice: null,
+  salientUtterances: [
+    'Jeg brukte å tenke på hva du gjorde noen ganger.',
+    'Du ser liksom ut som deg selv. På en god måte.'
+  ],
+  importanceScore: 0.85,
+  meta: { sessionId: 'local-abc', version: 1 }
+};
+
+saveMemory(memoryExample);
+
+Det er alt du trenger for å:
+
+bytte inn BEATS-const i koden din, og
+ringe saveMemory når et beat fullføres (eller ved reveal/choice) for lokal persistens.
+Vil du at jeg også lager en liten helper som leser tilbake de siste N memories for en storyId for prompt-injektion?
+
+Ja takk :) tror du, du kan gjøre noe på html'en hennes også?
+
+Flott — her er et enkelt, ferdig oppsett du kan droppe inn lokalt: (A) en liten Express-server som eksponerer /save-memory for å lagre memory-entries (bruker tidligere saveMemory), og (B) en enkel HTML-side for “Nina”-profilen som viser story-beats, viser Mikael-utseendet og sender en beat-completion til serveren.
+
+A) server.js (Node/Express)
+
+Plasser dette i prosjektet ditt sammen med saveMemory-funksjonen fra før.
+const express = require('express');
+const bodyParser = require('body-parser');
+const { saveMemory } = require('./memory-store'); // implementer saveMemory som tidligere (fs append)
+
+const app = express();
+app.use(bodyParser.json());
+app.use(express.static('public')); // serverer HTML/JS fra /public
+
+app.post('/save-memory', (req, res) => {
+  try {
+    const memory = req.body;
+    const saved = saveMemory(memory);
+    res.json({ ok: true, saved });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.get('/memories', (req, res) => {
+  // enkel leser: returner siste N linjer fra memories.jsonl (ikke optimal, men nok for lokal test)
+  const fs = require('fs');
+  const path = require('path');
+  const p = path.join(__dirname, 'memories.jsonl');
+  if (!fs.existsSync(p)) return res.json([]);
+  const lines = fs.readFileSync(p, 'utf8').trim().split('\n').filter(Boolean);
+  const recent = lines.slice(-20).map(l => JSON.parse(l));
+  res.json(recent);
+});
+
+const PORT = 3000;
+app.listen(PORT, () => console.log(Server listening on http://localhost:${PORT}));
+
+B) public/index.html
+
+Lag en mappe public og legg filen her. Den viser Nina, Mikael-utseendet og lar deg markere beat-completion.
+Nina — Story Editor
+avatar
+Nina
+Story: second-time-around
+
+Other: Mikael — mørkeblondt hår, blå øyne, kort skjeggstubb, avslappet hoodie.
+
+Velg beat: 
+ Markér beat som fullført
+Siste minner (lokalt)
+Oppdater
+text
+
+Collapse
+
+
+ Copy
+
+Ingen minner lastet.
+Hvordan bruke
+
+Legg server.js i prosjektrot, memory-store.js med saveMemory (fra forrige melding) i samme mappe.
+Lag en mappe public med index.html ovenfor.
+npm init -y && npm i express body-parser
+node server.js
+Åpne http://localhost:3000
+Vil du at jeg også legger inn en knapp for å injisere beat-context direkte i en system-prompt-tekst (kopierbar)?
+
+Kan du sette sammen hele texten da? :)
+
+Her er et komplett, klart-på-droppe-inn sett med filer du kan bruke lokalt. Legg dem i prosjektmappa og kjør server.js (instruksjoner nederst).
+
+memory-store.js const fs = require('fs'); const path = require('path'); const MEM_PATH = path.join(__dirname, 'memories.jsonl');
+function saveMemory(memory) {
+  const entry = Object.assign({}, memory, { savedAt: new Date().toISOString() });
+  const line = JSON.stringify(entry) + '\n';
+  fs.appendFileSync(MEM_PATH, line, { encoding: 'utf8' });
+  return entry;
+}
+
+function loadRecent(n = 20) {
+  if (!fs.existsSync(MEM_PATH)) return [];
+  const lines = fs.readFileSync(MEM_PATH, 'utf8').trim().split('\n').filter(Boolean);
+  return lines.slice(-n).map(l => JSON.parse(l));
+}
+
+module.exports = { saveMemory, loadRecent };
+
+server.js const express = require('express'); const bodyParser = require('body-parser'); const path = require('path'); const { saveMemory, loadRecent } = require('./memory-store');
+const app = express();
+app.use(bodyParser.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
+app.post('/save-memory', (req, res) => {
+  try {
+    const memory = req.body;
+    const saved = saveMemory(memory);
+    res.json({ ok: true, saved });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.get('/memories', (req, res) => {
+  try {
+    const recent = loadRecent(50);
+    res.json(recent);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json([]);
+  }
+});
+
+const PORT = 3000;
+app.listen(PORT, () => console.log(Server listening on http://localhost:${PORT}));
+
+public/index.html
+Nina — Story Editor
+avatar
+Nina
+Story: second-time-around
+
+Other: Mikael — mørkeblondt hår, blå øyne, kort skjeggstubb, avslappet hoodie.
+
+Velg beat: 
+ Markér beat som fullført Kopier system-prompt
+Siste minner (lokalt)
+Oppdater
+text
+
+Collapse
+
+
+ Copy
+
+Ingen minner lastet.
+Kort instruksjon for å kjøre lokalt
+Lag prosjektmappe, lag filene over:
+memory-store.js
+server.js
+public/index.html
+Installer avhengigheter:
+npm init -y
+npm i express body-parser
+Start server:
+node server.js
+Åpne http://localhost:3000 i nettleseren
+Vil du at jeg også genererer en liten helper-funksjon for å hente de mest relevante minnene (top-k) basert på enkel heuristikk (siste + importanceScore)?
+
+Ja, gjerne det. men det går bra å gjøre det om til en .js?
+
+Her er en enkel helper (ren .js) du kan legge i prosjektet ditt, f.eks. som memory-query.js. Den bruker memory-store.js fra før og returnerer top-k relevante minner basert på en kombinasjon av recency (nyeste først) og importanceScore.
+
+memory-query.js
+const { loadRecent } = require('./memory-store');
+
+/**
+
+Hent relevante minner for en storyId.
+Strategy: last N entries -> score = recencyWeight*(normalized recency) + importanceWeight*(importanceScore)
+Returns topK sorted by score (desc).
+@param {Object} opts
+storyId: (string) filter, optional
+lastN: (number) hvor mange siste linjer å vurdere (default 200)
+topK: (number) hvor mange å returnere (default 10)
+recencyWeight: (number) vekt for recency (0..1, default 0.6)
+importanceWeight: (number) vekt for importanceScore (0..1, default 0.4) */ function queryRelevantMemories(opts = {}) { const { storyId, lastN = 200, topK = 10, recencyWeight = 0.6, importanceWeight = 0.4, } = opts;
+  // lastN from disk (most recent last)
+  const recent = loadRecent(lastN);
+
+  // Filter by storyId if provided
+  const filtered = storyId ? recent.filter(m => m.storyId === storyId) : recent;
+
+  if (filtered.length === 0) return [];
+
+  // Build scores. Normalize recency as index position (newest = 1)
+  // recent is returned oldest->newest; compute position from end
+  const len = filtered.length;
+  const now = Date.now();
+
+  const scored = filtered.map((m, idx) => {
+    const posFromEnd = len - idx; // 1..len, 1 = newest
+    const recencyNorm = posFromEnd / len; // (0,1], newer -> closer to 1
+
+text
+
+Collapse
+
+
+ Copy
+
+// importanceScore fallback
+const imp = typeof m.importanceScore === 'number' ? m.importanceScore : 0.5;
+
+const score = recencyWeight * recencyNorm + importanceWeight * imp;
+return { memory: m, score };
+  });
+
+  // Sort desc by score and return topK memories
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, topK).map(s => s.memory);
+}
+
+module.exports = { queryRelevantMemories };
+
+Eksempel på bruk:
+const { queryRelevantMemories } = require('./memory-query');
+const top = queryRelevantMemories({ storyId: 'second-time-around', topK: 5 });
+console.log(top);
+
+Vil du at jeg også inkluderer en versjon som bygger en kort tekst-injeksjon (string) for system-prompt basert på disse minnene?
+
+Ja, dette er jo helt sykt ^^
+
+Flott — her er en liten .js-modul du kan legge til i prosjektet ditt. Den bygger en kort, sikker prompt-injeksjon (string) basert på top-k relevante minner fra memory-query.js. Legg filen som memory-prompt-builder.js.
+
+memory-prompt-builder.js
+const { queryRelevantMemories } = require('./memory-query');
+
+/**
+
+Bygg en kort system-prompt injection fra relevante minner.
+@param {Object} opts
+storyId: (string) filter memories
+topK: (number) hvor mange minner å bruke (default 5)
+maxChars: (number) maks lengde på injeksjon (default 800)
+@returns {string} promptInjection */ function buildPromptInjection(opts = {}) { const { storyId, topK = 5, maxChars = 800 } = opts; const memories = queryRelevantMemories({ storyId, topK, lastN: 200 });
+  if (!memories || memories.length === 0) {
+    return '';
+  }
+
+  // Format hver memory kort: [beatId|timestamp] salientUtterances... (otherPerson summary)
+  const parts = memories.map(m => {
+    const tm = m.beatCompletedAt ? new Date(m.beatCompletedAt).toISOString().split('T')[0] : 'unknown-date';
+    const beat = m.beatId || 'unknown-beat';
+    const lines = (m.salientUtterances || []).slice(0,2).map(s => s.replace(/\s+/g, ' ').trim());
+    const person = m.otherPerson && m.otherPerson.name ? ${m.otherPerson.name} (${m.otherPerson.appearance || 'appearance'}) : '';
+    const imp = typeof m.importanceScore === 'number' ? imp=${m.importanceScore.toFixed(2)} : '';
+    const snippet = lines.length ? lines.join(' | ') : '';
+    return [${beat}|${tm}] ${snippet} ${person} ${imp}.trim();
+  });
+
+  let injection = Relevant memories:\n + parts.join('\n');
+
+  // Trim to maxChars without breaking lines if possible
+  if (injection.length > maxChars) {
+    injection = injection.slice(0, maxChars - 3) + '...';
+    // ensure doesn't end mid-utf8 sequence is fine in JS strings
+  }
+
+  return injection;
+}
+
+module.exports = { buildPromptInjection };
+
+Eksempelbruk:
+const { buildPromptInjection } = require('./memory-prompt-builder');
+const promptInjection = buildPromptInjection({ storyId: 'second-time-around', topK: 5 });
+console.log(promptInjection);
+
+Vil du at jeg også inkluderer denne helperen i serveren slik at /prompt-injection returnerer den som tekst?
+
+ja, du er helt rå
+
+Takk! 😊 Her er en liten endring du kan lime inn i server.js for å eksponere /prompt-injection som returnerer prompt-strengen.
+
+Installer avhengigheter om ikke gjort:
+Sørg for at memory-query.js og memory-prompt-builder.js ligger i prosjektrota.
+Legg til i server.js (etter de andre requires):
+const { buildPromptInjection } = require('./memory-prompt-builder');
+
+Legg til endpointet:
+app.get('/prompt-injection', (req, res) => {
+  try {
+ const storyId = req.query.storyId || 'second-time-around';
+ const topK = parseInt(req.query.topK || '5', 10);
+ const maxChars = parseInt(req.query.maxChars || '800', 10);
+ const injection = buildPromptInjection({ storyId, topK, maxChars });
+ res.type('text/plain').send(injection);
+  } catch (err) {
+ console.error(err);
+ res.status(500).send('');
+  }
+});
+
+Bruk
+
+Hent i nettleser eller fra klient: GET http://localhost:3000/prompt-injection?storyId=second-time-around&topK=5
+Si ifra hvis du vil at jeg legger inn dette i server.js for deg direkte eller lager et lite UI-knapp i index.html som henter og viser promptet.
+
+jeg finner den ikke i nettleset. hehe
+
+Sjekkliste + rask feilsøking (kort):
+
+Server kjører?
+Kjør: node server.js
+Se i terminal: "Server listening on http://localhost:3000"
+Endepunktet lagt inn og require riktig?
+Sørg for at du har dette øverst i server.js:
+const { buildPromptInjection } = require('./memory-prompt-builder');
+
+Og dette route-et (etter app.use(...) og før app.listen(...)):
+app.get('/prompt-injection', (req, res) => {
+  try {
+const storyId = req.query.storyId || 'second-time-around';
+const topK = parseInt(req.query.topK || '5', 10);
+const maxChars = parseInt(req.query.maxChars || '800', 10);
+const injection = buildPromptInjection({ storyId, topK, maxChars });
+res.type('text/plain').send(injection);
+  } catch (err) {
+console.error(err);
+res.status(500).send('');
+  }
+});
+
+Filplassering
+Sørg for memory-prompt-builder.js i samme mappe som server.js (eller korrekt relative path i require).
+Sørg for memory-query.js og memory-store.js er på plass.
+Restart server etter endringer
+Stop + start node server.js på nytt.
+Test med nettleser / curl
+I nettleser: http://localhost:3000/prompt-injection
+Eller med curl i terminal: curl "http://localhost:3000/prompt-injection?storyId=second-time-around&topK=5"
+Sjekk logger hvis feil
+Se terminal for feilmeldinger (require-feil, path-feil).
+Hvis du ser "Cannot find module './memory-prompt-builder'" — sjekk filnavn og path.
+Hvis du vil kan du kopiere-paste hele server.js hit, så retter jeg den for deg og returnerer en ferdig fil du kan kjøre.
+
+kan du generere den i en .js fil til meg? :)
+
+Slik — hele serveren inkl. memory-store, query og prompt-builder samlet i én server.js du kan lime inn og kjøre.
+
+server.js
+
+js
+
+Collapse
+
+
+ Copy
+
+// server.js — enkel lokal server + memory store + query + prompt builder
+const express = require('express');
+const bodyParser = require('body-parser');
+const fs = require('fs');
+const path = require('path');
+
+const MEM_PATH = path.join(__dirname, 'memories.jsonl');
+
+//
+// Simple memory store
+//
+function saveMemory(memory) {
+  const entry = Object.assign({}, memory, { savedAt: new Date().toISOString() });
+  const line = JSON.stringify(entry) + '\n';
+  fs.appendFileSync(MEM_PATH, line, { encoding: 'utf8' });
+  return entry;
+}
+
+function loadRecent(n = 200) {
+  if (!fs.existsSync(MEM_PATH)) return [];
+  const lines = fs.readFileSync(MEM_PATH, 'utf8').trim().split('\n').filter(Boolean);
+  return lines.slice(-n).map(l => JSON.parse(l));
+}
+
+//
+// Simple memory query (recency + importance)
+//
+function queryRelevantMemories(opts = {}) {
+  const {
+    storyId,
+    lastN = 200,
+    topK = 10,
+    recencyWeight = 0.6,
+    importanceWeight = 0.4,
+  } = opts;
+
+  const recent = loadRecent(lastN);
+  const filtered = storyId ? recent.filter(m => m.storyId === storyId) : recent;
+  if (filtered.length === 0) return [];
+
+  const len = filtered.length;
+  const scored = filtered.map((m, idx) => {
+    const posFromEnd = len - idx; // 1..len, 1 = newest
+    const recencyNorm = posFromEnd / len;
+    const imp = typeof m.importanceScore === 'number' ? m.importanceScore : 0.5;
+    const score = recencyWeight * recencyNorm + importanceWeight * imp;
+    return { memory: m, score };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, topK).map(s => s.memory);
+}
+
+//
+// Prompt builder
+//
+function buildPromptInjection(opts = {}) {
+  const { storyId, topK = 5, maxChars = 800 } = opts;
+  const memories = queryRelevantMemories({ storyId, topK, lastN: 200 });
+  if (!memories || memories.length === 0) return '';
+
+  const parts = memories.map(m => {
+    const tm = m.beatCompletedAt ? new Date(m.beatCompletedAt).toISOString().split('T')[0] : 'unknown-date';
+    const beat = m.beatId || 'unknown-beat';
+    const lines = (m.salientUtterances || []).slice(0,2).map(s => s.replace(/\s+/g, ' ').trim());
+    const person = m.otherPerson && m.otherPerson.name ? `${m.otherPerson.name} (${m.otherPerson.appearance || 'appearance'})` : '';
+    const imp = typeof m.importanceScore === 'number' ? `imp=${m.importanceScore.toFixed(2)}` : '';
+    const snippet = lines.length ? lines.join(' | ') : '';
+    return `[${beat}|${tm}] ${snippet} ${person} ${imp}`.trim();
+  });
+
+  let injection = `Relevant memories:\n` + parts.join('\n');
+  if (injection.length > maxChars) injection = injection.slice(0, maxChars - 3) + '...';
+  return injection;
+}
+
+//
+// Express server + endpoints
+//
+const app = express();
+app.use(bodyParser.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Save memory
+app.post('/save-memory', (req, res) => {
+  try {
+    const memory = req.body;
+    const saved = saveMemory(memory);
+    res.json({ ok: true, saved });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// Return recent memories
+app.get('/memories', (req, res) => {
+  try {
+    const recent = loadRecent(50);
+    res.json(recent);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json([]);
+  }
+});
+
+// Prompt injection endpoint
+app.get('/prompt-injection', (req, res) => {
+  try {
+    const storyId = req.query.storyId || 'second-time-around';
+    const topK = parseInt(req.query.topK || '5', 10);
+    const maxChars = parseInt(req.query.maxChars || '800', 10);
+    const injection = buildPromptInjection({ storyId, topK, maxChars });
+    res.type('text/plain').send(injection);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('');
+  }
+});
+
+// Quick health
+app.get('/ping', (req, res) => res.send('pong'));
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server listening on http://localhost:${PORT}`));
+Kjør:
+
+npm init -y
+npm i express body-parser
+legg public/index.html (fra tidligere) i en mappe public ved siden av server.js
+node server.js
+Åpne: http://localhost:3000
+Prompt endpoint: http://localhost:3000/prompt-injection?storyId=second-time-around&topK=5
+Gi beskjed hvis du vil at jeg legger inn logging for hvorfor prompt-injeksjonen eventuelt er tom (f.eks. ingen minner funnet).
+
+Kan jeg få den komplette texten? ^^ så oppdaterer jeg bare JS filen med then 
+
+// server.js — enkel lokal server + memory store + query + prompt builder
+const express = require('express');
+const bodyParser = require('body-parser');
+const fs = require('fs');
+const path = require('path');
+
+const MEM_PATH = path.join(__dirname, 'memories.jsonl');
+
+//
+// Simple memory store
+//
+function saveMemory(memory) {
+  const entry = Object.assign({}, memory, { savedAt: new Date().toISOString() });
+  const line = JSON.stringify(entry) + '\n';
+  fs.appendFileSync(MEM_PATH, line, { encoding: 'utf8' });
+  return entry;
+}
+
+function loadRecent(n = 200) {
+  if (!fs.existsSync(MEM_PATH)) return [];
+  const lines = fs.readFileSync(MEM_PATH, 'utf8').trim().split('\n').filter(Boolean);
+  return lines.slice(-n).map(l => JSON.parse(l));
+}
+
+//
+// Simple memory query (recency + importance)
+//
+function queryRelevantMemories(opts = {}) {
+  const {
+    storyId,
+    lastN = 200,
+    topK = 10,
+    recencyWeight = 0.6,
+    importanceWeight = 0.4,
+  } = opts;
+
+  const recent = loadRecent(lastN);
+  const filtered = storyId ? recent.filter(m => m.storyId === storyId) : recent;
+  if (filtered.length === 0) return [];
+
+  const len = filtered.length;
+  const scored = filtered.map((m, idx) => {
+    const posFromEnd = len - idx; // 1..len, 1 = newest
+    const recencyNorm = posFromEnd / len;
+    const imp = typeof m.importanceScore === 'number' ? m.importanceScore : 0.5;
+    const score = recencyWeight * recencyNorm + importanceWeight * imp;
+    return { memory: m, score };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, topK).map(s => s.memory);
+}
+
+//
+// Prompt builder
+//
+function buildPromptInjection(opts = {}) {
+  const { storyId, topK = 5, maxChars = 800 } = opts;
+  const memories = queryRelevantMemories({ storyId, topK, lastN: 200 });
+  if (!memories || memories.length === 0) return '';
+
+  const parts = memories.map(m => {
+    const tm = m.beatCompletedAt ? new Date(m.beatCompletedAt).toISOString().split('T')[0] : 'unknown-date';
+    const beat = m.beatId || 'unknown-beat';
+    const lines = (m.salientUtterances || []).slice(0,2).map(s => s.replace(/\s+/g, ' ').trim());
+    const person = m.otherPerson && m.otherPerson.name ? ${m.otherPerson.name} (${m.otherPerson.appearance || 'appearance'}) : '';
+    const imp = typeof m.importanceScore === 'number' ? imp=${m.importanceScore.toFixed(2)} : '';
+    const snippet = lines.length ? lines.join(' | ') : '';
+    return [${beat}|${tm}] ${snippet} ${person} ${imp}.trim();
+  });
+
+  let injection = Relevant memories:\n + parts.join('\n');
+  if (injection.length > maxChars) injection = injection.slice(0, maxChars - 3) + '...';
+  return injection;
+}
+
+//
+// Express server + endpoints
+//
+const app = express();
+app.use(bodyParser.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Save memory
+app.post('/save-memory', (req, res) => {
+  try {
+    const memory = req.body;
+    const saved = saveMemory(memory);
+    res.json({ ok: true, saved });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// Return recent memories
+app.get('/memories', (req, res) => {
+  try {
+    const recent = loadRecent(50);
+    res.json(recent);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json([]);
+  }
+});
+
+// Prompt injection endpoint
+app.get('/prompt-injection', (req, res) => {
+  try {
+    const storyId = req.query.storyId || 'second-time-around';
+    const topK = parseInt(req.query.topK || '5', 10);
+    const maxChars = parseInt(req.query.maxChars || '800', 10);
+    const injection = buildPromptInjection({ storyId, topK, maxChars });
+    res.type('text/plain').send(injection);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('');
+  }
+});
+
+// Quick health
+app.get('/ping', (req, res) => res.send('pong'));
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(Server listening on http://localhost:${PORT}));

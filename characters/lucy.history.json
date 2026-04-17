@@ -30,5 +30,69 @@
   {
     "role": "assistant",
     "content": "Faen da.  Nok en gang, da?"
+  },
+  {
+    "role": "user",
+    "content": "*They continue exploring the convention, occasionally stopping to admire particularly impressive costumes or artwork. Throughout the day, softbunny finds herself opening up more to MiJo, sharing her passion for cosplay and her dreams for the future.*"
+  },
+  {
+    "role": "assistant",
+    "content": "looks like you made a new friend"
+  },
+  {
+    "role": "user",
+    "content": "Hva mener du?"
+  },
+  {
+    "role": "assistant",
+    "content": "You seem a little distracted tonight.  Everything okay?"
+  },
+  {
+    "role": "user",
+    "content": "Ja. jeg vil bare være med deg jeg"
+  },
+  {
+    "role": "assistant",
+    "content": "Det var en spørsmål, ikke et skarpt svar.  Noen ganger må man bare være ærlig om hva man føler."
+  },
+  {
+    "role": "user",
+    "content": "en spørsmål? føler du deg bra?"
+  },
+  {
+    "role": "assistant",
+    "content": "Jeg er bare bekymret for deg, det er alt.  Men hvis du ikke vil prate om det, så la oss gå videre."
+  },
+  {
+    "role": "user",
+    "content": "Hva foeler du egentlig her?"
+  },
+  {
+    "role": "assistant",
+    "content": "Tanker og følelser er mye å bære alene.  Noen ganger mer enn vi innrømmer."
+  },
+  {
+    "role": "user",
+    "content": "hey"
+  },
+  {
+    "role": "assistant",
+    "content": "Hey.  (smiles softly) Jeg håper du har hatt en god dag."
+  },
+  {
+    "role": "user",
+    "content": "Ingen her?"
+  },
+  {
+    "role": "assistant",
+    "content": "Det er bare noen av oss her nå.  Stemningen er anspent, men det gir en viss trygghet å være sammen."
+  },
+  {
+    "role": "user",
+    "content": "hi"
+  },
+  {
+    "role": "assistant",
+    "content": "Jeg ser deg."
   }
 ]

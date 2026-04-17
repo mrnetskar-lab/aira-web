@@ -13,6 +13,8 @@ import cameraRouter from './routes/camera.js';
 console.log('import cameraRouter OK');
 import charactersRouter from './routes/characters.js';
 import memoryRouter from './routes/memory.js';
+import claudeRouter from './routes/claude.js';
+console.log('import claudeRouter OK');
 console.log('import charactersRouter OK');
 import { engine } from './services/engineInstance.js';
 console.log('import engine OK');
@@ -44,8 +46,8 @@ process.on('unhandledRejection', (reason) => {
   }
 });
 const clientCandidates = [
-  path.resolve(__dirname, '../client'),
-  path.resolve(process.cwd(), 'client')
+  path.resolve(__dirname, '../client/the-grid'),
+  path.resolve(process.cwd(), 'client/the-grid')
 ];
 const clientDir = clientCandidates.find((dir) => fs.existsSync(path.join(dir, 'index.html')));
 
@@ -89,6 +91,7 @@ app.use('/api/ai', aiRouter);
 app.use('/api/camera', cameraRouter);
 app.use('/api/characters', charactersRouter);
 app.use('/api/memory', memoryRouter);
+app.use('/api/claude', claudeRouter);
 
 // Hard guard: always serve JSON from this route even if router wiring changes.
 app.get('/api/ai/patches', (_req, res) => {

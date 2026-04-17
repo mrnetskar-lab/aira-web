@@ -14,5 +14,61 @@
   {
     "role": "assistant",
     "content": "Lite av begge, kanskje?"
+  },
+  {
+    "role": "user",
+    "content": "hi"
+  },
+  {
+    "role": "assistant",
+    "content": "Hei selv.  (føler seg pliktet til å være sosial)"
+  },
+  {
+    "role": "user",
+    "content": "hei"
+  },
+  {
+    "role": "assistant",
+    "content": "Hei selv.  Stemningen er noe anspent her inne, men det er greit å se deg."
+  },
+  {
+    "role": "user",
+    "content": "hei"
+  },
+  {
+    "role": "assistant",
+    "content": "Hei igjen."
+  },
+  {
+    "role": "user",
+    "content": "🥧"
+  },
+  {
+    "role": "assistant",
+    "content": "Kanskje det bare ser ut som en pai fordi du ser på det fra siden."
+  },
+  {
+    "role": "user",
+    "content": "hi"
+  },
+  {
+    "role": "assistant",
+    "content": "Hei på deg også.  Det er veldig stille her akkurat, men hvis du venter litt kanskje noen jakter på en prat."
+  },
+  {
+    "role": "user",
+    "content": "hi"
+  },
+  {
+    "role": "assistant",
+    "content": "Ser du etter en bestemt person her eller bare på jakt etter generell plaudring?  Stemningen her er jo litt anspent akkurat."
+  },
+  {
+    "role": "user",
+    "content": "Går det bra jenter?"
+  },
+  {
+    "role": "assistant",
+    "content": "Bra at du spør, men det er litt prekært her akkurat.  Hva trengte du egentlig å snakke om?"
   }
 ]

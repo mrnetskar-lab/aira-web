@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Grid</title>
+  <meta name="description" content="The Grid â€” dark social hub prototype with live rooms, inbox, routes, and network presence." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" >
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="site-shell">
+    <div class="ambient-grid" aria-hidden="true"></div>
+    <div class="ambient-glow ambient-glow-a" aria-hidden="true"></div>
+    <div class="ambient-glow ambient-glow-b" aria-hidden="true"></div>
+    <header class="topbar glass">
+      <a href="#home" class="brand" data-nav="home" aria-label="The Grid home">
+        <span class="brand-mark"></span>
+        <span class="brand-text">The Grid</span>
+      </a>
+      <button class="menu-toggle" id="menuToggle" aria-expanded="false" aria-controls="primaryNav">
+        <span></span><span></span>
+      </button>
+      <nav id="primaryNav" class="nav" aria-label="Primary navigation">
+        <button class="nav-link active" data-nav="home">Home</button>
+        <button class="nav-link" data-nav="hub">Hub</button>
+        <button class="nav-link" data-nav="rooms">Private Rooms</button>
+        <button class="nav-link" data-nav="inbox">Inbox</button>
+        <button class="nav-link" data-nav="routes">Story Routes</button>
+      </nav>
+    </header>
+    <main class="page-stack">
+      <section id="home" class="page active" data-page="home" aria-labelledby="homeTitle">
+        <div class="container hero-grid">
+          <div class="hero-copy">
+            <p class="eyebrow">Private network access</p>
+            <h1 id="homeTitle">Enter The Grid</h1>
+            <p class="lede">A dark social hub built around presence, live rooms, and private signals. Less platform. More access.</p>
+            <div class="hero-actions">
+              <button class="btn btn-primary" data-nav="hub">Enter The Grid</button>
+              <button class="btn btn-secondary" data-nav="rooms">View Live Nodes</button>
+            </div>
+            <div class="hero-stats">
+              <div class="stat glass"><span class="stat-value" id="statNodes">12</span><span class="stat-label">Nodes online</span></div>
+              <div class="stat glass"><span class="stat-value" id="statRooms">4</span><span class="stat-label">Active rooms</span></div>
+              <div class="stat glass"><span class="stat-value" id="statInvites">1</span><span class="stat-label">Live invites</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section id="hub" class="page" data-page="hub" aria-labelledby="hubTitle"></section>
+      <section id="rooms" class="page" data-page="rooms"></section>
+      <section id="innŒ
