@@ -1,0 +1,10 @@
+{
+  "workbench.browser.dataStorage": "global",
+  "workbench.browser.openLocalhostLinks": true,
+  "workbench.browser.pageZoom": "matchWindow",
+  "workbench.browser.showInTitleBar": "whenOpen",
+  "workbench.browser.enableChatTools": true,
+  "chat.sendElementsToChat.enabled": true,
+  "chat.sendElementsToChat.attachCss": true,
+  "chat.sendElementsToChat.attachImages": true
+}
