@@ -101,6 +101,7 @@ const dmStatus = document.getElementById("dmStatus");
 const dmAvatar = document.getElementById("dmAvatar");
 const dmForm = document.getElementById("dmForm");
 const dmInput = document.getElementById("dmInput");
+const cameraBtn = document.getElementById('cameraBtn');
 
 const stats = {
   nodes: document.getElementById("statNodes"),
@@ -300,7 +301,7 @@ function appendMainMessage(author, text, side = "outgoing") {
   bubble.className = `chat-bubble ${side}`;
   bubble.innerHTML = `
     <span class="chat-author">${escapeHtml(author)}</span>
-    <p>${escapeHtml(text)}</p>
+    <p>${renderMessageText(text)}</p>
     <time>${escapeHtml(nowClock())}</time>
   `;
 
@@ -794,6 +795,51 @@ dmForm?.addEventListener("submit", async event => {
   updateThreadPreview(activeThread, fallbackReply.text, fallbackReply.time);
   setThreadUnread(activeThread, false);
   renderDmThread(activeThread);
+});
+
+// Camera button: capture image, send to server, show returned image in thread
+cameraBtn?.addEventListener('click', async () => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    const video = document.createElement('video');
+    video.srcObject = stream;
+    await video.play();
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 640;
+    canvas.height = 480;
+    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+    stream.getTracks().forEach(t => t.stop());
+
+    const imageBase64 = canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+    const char = characterDirectory[activeThread];
+
+    const res = await fetch('/api/camera/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt: `${char?.name || activeThread} reacts to what they see in the image`,
+        imageBase64,
+        character: activeThread
+      })
+    });
+    const data = await res.json();
+    const imageUrl = data?.imageUrl || (data?.shot && data.shot.path) || null;
+    if (imageUrl) {
+      const thread = threadState[activeThread];
+      const imgMsg = {
+        side: 'incoming',
+        author: char?.name || activeThread,
+        text: '',
+        imageUrl,
+        time: nowClock()
+      };
+      thread.messages.push(imgMsg);
+      renderDmThread(activeThread);
+    }
+  } catch (err) {
+    console.warn('Camera error:', err);
+  }
 });
 
 function updateInviteTimer() {

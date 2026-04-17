@@ -99,6 +99,16 @@ export async function handleCharacterChat(id, text) {
     : history.slice(-10).map(h => ({ role: h.role === 'assistant' ? characterName : 'user', text: String(h.content || '') }));
 
   let ai;
+  // Include relationship snapshot from orchestrator to give characters social context
+  const orchesState = engine?.orchestrator ? engine.orchestrator.getState() : null;
+  const relRaw = (orchesState && orchesState.relationships) ? orchesState.relationships : {};
+  const relationships = Object.entries(relRaw).map(([name, r]) => ({
+    name,
+    trust: Number(r?.trust ?? 0),
+    attraction: Number(r?.attraction ?? r?.romanticTension ?? 0),
+    tension: Number(r?.romanticTension ?? r?.tension ?? 0)
+  }));
+
   try {
     ai = await withTimeout(
       aiService.generate({
@@ -116,7 +126,8 @@ export async function handleCharacterChat(id, text) {
             followUpSpeaker: null,
             instruction: 'Answer as a private DM message.'
           },
-          memory: contextMemory
+          memory: contextMemory,
+          relationships
         }
       }),
       20000
@@ -145,6 +156,15 @@ export async function handleCharacterChat(id, text) {
     engine.memory.store({ role: characterName, text: spoken || reply, thought: thought || null, time: Date.now(), weight: 1 });
   } catch (syncError) {
     console.warn('Memory mirror failed (non-blocking):', syncError.message);
+  }
+
+  // Update relationship engine with this interaction so relationships evolve over time
+  try {
+    if (engine?.orchestrator?.relationshipEngine && typeof engine.orchestrator.relationshipEngine.update === 'function') {
+      engine.orchestrator.relationshipEngine.update({ input: text, state: engine.orchestrator.state, context: { subject: characterName, reply: spoken } });
+    }
+  } catch (relErr) {
+    console.warn('Relationship update failed (non-blocking):', relErr.message);
   }
 
   return { ok: true, reply, character: char.name };

@@ -27,8 +27,30 @@ router.post('/generate', async (req, res) => {
     // Single character private room → portrait orientation
     const portrait = !!character;
 
-    const shot = await generateCameraShot({ state: stateOverride, customPrompt, contextHint, portrait });
-    return res.json({ ok: true, shot });
+    // If the client provided an image (base64), persist it and include in prompt
+    let uploadedUrl = null;
+    const imageBase64 = req.body?.imageBase64 || null;
+    if (imageBase64) {
+      try {
+        const timestamp = Date.now();
+        const filename = `upload_${timestamp}.jpg`;
+        const filepath = path.join(IMAGES_DIR, filename);
+        const raw = imageBase64.replace(/^data:image\/[a-zA-Z]+;base64,/, '').trim();
+        fs.writeFileSync(filepath, Buffer.from(raw, 'base64'));
+        uploadedUrl = `/images/${filename}`;
+      } catch (saveErr) {
+        console.warn('Failed to save uploaded image:', saveErr.message);
+      }
+    }
+
+    // Build an effective prompt: prefer explicit customPrompt, otherwise reference uploaded image
+    const effectivePrompt = customPrompt || (uploadedUrl
+      ? `Generate a portrait of ${character || 'the character'} reacting to the uploaded image at ${uploadedUrl}. Keep it cinematic and focused on facial reaction.`
+      : null);
+
+    const shot = await generateCameraShot({ state: stateOverride, customPrompt: effectivePrompt, portrait });
+
+    return res.json({ ok: true, shot, uploadedUrl, imageUrl: shot?.path || uploadedUrl || null });
   } catch (error) {
     console.error('Camera generate error:', error);
     return res.status(500).json({ ok: false, error: error.message });
