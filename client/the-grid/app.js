@@ -117,6 +117,7 @@ const characterDirectory = {
     avatar: "N",
     status: "online now",
     preview: "Still holding the thread.",
+    tags: ["online", "holds the thread", "private"],
     fallbackOpeners: [
       { side: "incoming", author: "Nina", text: "I'm still here.", time: "20:38" },
       { side: "outgoing", author: "You", text: "I saw the room light up.", time: "20:39" },
@@ -134,6 +135,7 @@ const characterDirectory = {
     avatar: "H",
     status: "active 9m ago",
     preview: "You disappeared too early.",
+    tags: ["away", "observant", "sharp"],
     fallbackOpeners: [
       { side: "incoming", author: "Hazel", text: "Ignore that if you want.", time: "20:21" },
       { side: "incoming", author: "Hazel", text: "I know you still read everything twice.", time: "20:22" },
@@ -150,6 +152,7 @@ const characterDirectory = {
     avatar: "I",
     status: "listening",
     preview: "There's something she only says in private.",
+    tags: ["listening", "low signal", "high clarity"],
     fallbackOpeners: [
       { side: "incoming", author: "Iris", text: "You made it in.", time: "20:31" },
       { side: "incoming", author: "Iris", text: "Keep your voice low. This thread opens better that way.", time: "20:32" },
@@ -166,6 +169,7 @@ const characterDirectory = {
     avatar: "V",
     status: "invite only",
     preview: "Room's open.",
+    tags: ["invite only", "brief", "direct"],
     fallbackOpeners: [
       { side: "incoming", author: "Vale", text: "Room's open.", time: "now" },
       { side: "incoming", author: "Vale", text: "Not for long.", time: "now" },
@@ -403,12 +407,17 @@ function updateThreadPreview(roomKey, previewText, timeText = "now") {
   if (time) time.textContent = timeText;
 }
 
+function renderMessageText(raw) {
+  const escaped = escapeHtml(raw);
+  return escaped.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+}
+
 function renderDmThread(roomKey) {
   const thread = threadState[roomKey];
   if (!thread || !dmThread) return;
 
   dmName.textContent = thread.name;
-  dmStatus.textContent = thread.isLoading ? "connecting to AIRA…" : thread.status;
+  dmStatus.textContent = thread.isLoading ? "connecting…" : thread.status;
   dmAvatar.textContent = thread.avatar;
   dmAvatar.className = `avatar avatar-${roomKey}`;
 
@@ -417,15 +426,55 @@ function renderDmThread(roomKey) {
   thread.messages.forEach(message => {
     const bubble = document.createElement("div");
     bubble.className = `chat-bubble ${message.side}`;
-    bubble.innerHTML = `
-      <span class="chat-author">${escapeHtml(message.author)}</span>
-      <p>${escapeHtml(message.text)}</p>
-      <time>${escapeHtml(message.time)}</time>
-    `;
+
+    if (message.imageUrl) {
+      bubble.innerHTML = `<img src="${escapeHtml(message.imageUrl)}" style="max-width:100%;border-radius:8px;display:block;" alt="image" /><time>${escapeHtml(message.time)}</time>`;
+    } else {
+      bubble.innerHTML = `<p>${renderMessageText(message.text)}</p><time>${escapeHtml(message.time)}</time>`;
+    }
+
     dmThread.appendChild(bubble);
   });
 
   dmThread.scrollTop = dmThread.scrollHeight;
+}
+
+function loadProfilePanel(roomKey) {
+  const char = characterDirectory[roomKey];
+  if (!char) return;
+
+  const img = document.getElementById("profileImg");
+  const placeholder = document.getElementById("profilePlaceholder");
+  const name = document.getElementById("profileName");
+  const bio = document.getElementById("profileBio");
+  const tags = document.getElementById("profileTags");
+
+  if (img) {
+    img.style.display = "";
+    img.src = `/profile_pictures/${roomKey}.jpg`;
+    img.onerror = () => {
+      img.style.display = "none";
+      if (placeholder) {
+        placeholder.textContent = char.avatar;
+        placeholder.style.display = "";
+      }
+    };
+    img.onload = () => {
+      if (placeholder) placeholder.style.display = "none";
+    };
+  }
+  if (placeholder) placeholder.textContent = char.avatar;
+  if (name) name.textContent = char.name;
+  if (bio) bio.textContent = char.preview || "";
+  if (tags) {
+    tags.innerHTML = "";
+    (char.tags || []).forEach(tag => {
+      const span = document.createElement("span");
+      span.className = "profile-tag";
+      span.textContent = tag;
+      tags.appendChild(span);
+    });
+  }
 }
 
 function focusThread(roomKey) {
@@ -433,6 +482,7 @@ function focusThread(roomKey) {
   setThreadActive(roomKey);
   setThreadUnread(roomKey, false);
   renderDmThread(roomKey);
+  loadProfilePanel(roomKey);
 }
 
 function normalizeString(value, fallback = "") {
@@ -898,6 +948,50 @@ roomCards.forEach(card => {
   button.addEventListener("click", () => {
     openRoom(roomKey, button);
   });
+});
+
+// Camera button
+const cameraBtn = document.getElementById("cameraBtn");
+cameraBtn?.addEventListener("click", async () => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    const video = document.createElement("video");
+    video.srcObject = stream;
+    video.muted = true;
+    await video.play();
+
+    const canvas = document.createElement("canvas");
+    canvas.width = 640;
+    canvas.height = 480;
+    canvas.getContext("2d").drawImage(video, 0, 0, 640, 480);
+    stream.getTracks().forEach(t => t.stop());
+
+    const imageBase64 = canvas.toDataURL("image/jpeg", 0.85).split(",")[1];
+    const char = characterDirectory[activeThread];
+
+    const res = await requestJson("/api/camera/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        prompt: `${char?.name || activeThread} reacts to what they see in the image`,
+        imageBase64,
+      }),
+    });
+
+    if (res?.imageUrl) {
+      const thread = threadState[activeThread];
+      thread.messages.push({
+        side: "incoming",
+        author: char?.name || activeThread,
+        text: "",
+        imageUrl: res.imageUrl,
+        time: nowClock(),
+      });
+      renderDmThread(activeThread);
+    }
+  } catch (err) {
+    console.warn("Camera error:", err.message);
+  }
 });
 
 // Wire Hub presence cards to open rooms

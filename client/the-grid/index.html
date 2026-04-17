@@ -92,61 +92,44 @@
         <div class="container section-space">
           <div class="page-title-row">
             <div>
-              <h2 id="hubTitle">Network Hub</h2>
-              <p class="subtle">Live signals from The Grid</p>
+              <p class="eyebrow">The Grid</p>
+              <h2 id="hubTitle">Who's here</h2>
             </div>
-            <div class="mini-stats">
-              <span class="pill" id="inviteStatusPill">1 direct invite waiting</span>
-              <span class="pulse-pill">Grid active</span>
-            </div>
+            <span class="pulse-pill" id="inviteStatusPill">Grid active</span>
           </div>
-
-          <div class="hub-layout">
-            <div class="panel glass">
-              <div class="panel-head">
-                <h3>Live Feed</h3>
-                <span class="badge">real-time</span>
+          <div class="presence-grid">
+            <button class="presence-card glass" data-room="nina">
+              <div class="presence-top">
+                <div class="avatar avatar-nina">N</div>
+                <span class="status status-online"><span class="dot"></span> online</span>
               </div>
-              <div class="feed-list" id="feedList">
-                <article class="feed-item">
-                  <span class="feed-dot"></span>
-                  <div><strong>Nina</strong> opened her room<time>2m ago</time></div>
-                </article>
-                <article class="feed-item">
-                  <span class="feed-dot"></span>
-                  <div><strong>Hazel</strong> sent a private route<time>5m ago</time></div>
-                </article>
-                <article class="feed-item">
-                  <span class="feed-dot"></span>
-                  <div>A new invite entered the grid<time>8m ago</time></div>
-                </article>
+              <strong>Nina</strong>
+              <p class="subtle" id="hub-preview-nina">Still holding the thread.</p>
+            </button>
+            <button class="presence-card glass" data-room="hazel">
+              <div class="presence-top">
+                <div class="avatar avatar-hazel">H</div>
+                <span class="status status-away"><span class="dot"></span> away</span>
               </div>
-
-            </div>
-
-            <div class="panel glass">
-              <div class="panel-head">
-                <h3>Grid Chat</h3>
-                <span class="badge">open channel</span>
+              <strong>Hazel</strong>
+              <p class="subtle" id="hub-preview-hazel">You disappeared too early.</p>
+            </button>
+            <button class="presence-card glass" data-room="iris">
+              <div class="presence-top">
+                <div class="avatar avatar-iris">I</div>
+                <span class="status status-online"><span class="dot"></span> listening</span>
               </div>
-              <div class="chat-thread" id="mainChat">
-                <div class="chat-bubble incoming">
-                  <span class="chat-author">Nina</span>
-                  <p>Anyone reading this thread right now?</p>
-                  <time>20:41</time>
-                </div>
-                <div class="chat-bubble incoming alt">
-                  <span class="chat-author">Hazel</span>
-                  <p>I always read everything twice.</p>
-                  <time>20:42</time>
-                </div>
+              <strong>Iris</strong>
+              <p class="subtle" id="hub-preview-iris">There's something she only says in private.</p>
+            </button>
+            <button class="presence-card glass" data-room="vale">
+              <div class="presence-top">
+                <div class="avatar avatar-vale">V</div>
+                <span class="status status-offline"><span class="dot"></span> invite only</span>
               </div>
-              <div class="chat-compose">
-                <form id="mainChatForm">
-                  <input type="text" id="mainChatInput" placeholder="Say something to the grid…" autocomplete="off" />
-                </form>
-              </div>
-            </div>
+              <strong>Vale</strong>
+              <p class="subtle" id="hub-preview-vale">Room's open.</p>
+            </button>
           </div>
         </div>
       </section>
@@ -154,23 +137,6 @@
       <!-- ROOMS -->
       <section id="rooms" class="page" data-page="rooms">
         <div class="container section-space">
-          <div class="invite-banner glass hidden" id="inviteBanner">
-            <div class="invite-left">
-              <div class="avatar avatar-nina" id="inviteAvatar">N</div>
-              <div>
-                <p class="invite-title" id="inviteName">Nina</p>
-                <p id="inviteCopy">Come back. I want to finish that conversation.</p>
-              </div>
-            </div>
-            <div class="invite-actions">
-              <button class="btn btn-secondary btn-small" id="dismissInviteBtn">Dismiss</button>
-              <button class="btn btn-primary btn-small" id="enterInviteBtn">Enter Room</button>
-            </div>
-            <div class="invite-timer">
-              <span id="inviteTimerText">expires in 60s</span>
-              <div class="timer-bar"><span id="timerProgress"></span></div>
-            </div>
-          </div>
 
           <div class="page-title-row">
             <div>
@@ -230,10 +196,8 @@
       <!-- INBOX -->
       <section id="inbox" class="page" data-page="inbox">
         <div class="container section-space">
-          <div class="page-title-row">
-            <h2>Inbox</h2>
-          </div>
-          <div class="inbox-layout glass">
+          <div class="inbox-layout">
+            <!-- Col 1: threads -->
             <aside class="thread-list" aria-label="Message threads">
               <button class="thread-item active" data-thread="nina">
                 <div class="avatar avatar-nina">N</div>
@@ -269,6 +233,7 @@
               </button>
             </aside>
 
+            <!-- Col 2: chat -->
             <div class="dm-panel">
               <div class="dm-head">
                 <div class="dm-user">
@@ -278,15 +243,33 @@
                     <p id="dmStatus" class="subtle">online now</p>
                   </div>
                 </div>
-                <button class="btn btn-secondary btn-small" data-nav="rooms">Back to Rooms</button>
               </div>
               <div class="dm-thread" id="dmThread"></div>
               <div class="chat-compose">
                 <form id="dmForm">
-                  <input type="text" id="dmInput" placeholder="Write something…" autocomplete="off" />
+                  <input type="text" id="dmInput" placeholder="Write a message…" autocomplete="off" />
+                  <button type="button" id="cameraBtn" class="compose-action" title="Send image">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                  </button>
+                  <button type="submit" class="compose-send" aria-label="Send">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                  </button>
                 </form>
               </div>
             </div>
+
+            <!-- Col 3: character profile -->
+            <aside class="character-profile-panel" id="characterProfilePanel">
+              <div class="profile-gallery">
+                <img id="profileImg" src="" alt="" style="display:none;" />
+                <div class="profile-gallery-placeholder" id="profilePlaceholder">N</div>
+              </div>
+              <div class="profile-info">
+                <h3 id="profileName">Nina</h3>
+                <p id="profileBio" class="subtle">Still holding the thread.</p>
+                <div class="profile-tags" id="profileTags"></div>
+              </div>
+            </aside>
           </div>
         </div>
       </section>
@@ -342,6 +325,26 @@
       <span class="subtle">v2.4 · <span id="footerNodes">12</span> nodes live</span>
     </footer>
   </div>
+
+  <!-- Slide-in invite panel -->
+  <div class="invite-panel glass" id="invitePanel" aria-hidden="true">
+    <div class="invite-panel-inner">
+      <div class="invite-panel-avatar">
+        <div class="avatar avatar-nina" id="invitePanelAvatar">N</div>
+      </div>
+      <p class="eyebrow" id="invitePanelName">Nina</p>
+      <p class="invite-panel-copy" id="invitePanelCopy">Come back. I want to finish that conversation.</p>
+      <div class="invite-panel-timer">
+        <span id="inviteTimerText">expires in 60s</span>
+        <div class="timer-bar"><span id="timerProgress"></span></div>
+      </div>
+      <div class="invite-panel-actions">
+        <button class="btn btn-primary btn-full" id="enterInviteBtn">Enter Room</button>
+        <button class="btn btn-secondary btn-full" id="dismissInviteBtn">Dismiss</button>
+      </div>
+    </div>
+  </div>
+  <div class="invite-panel-backdrop hidden" id="inviteBackdrop"></div>
 
   <script src="app.js"></script>
 </body>
