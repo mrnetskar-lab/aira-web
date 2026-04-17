@@ -1,50 +1,41 @@
 import os, json, requests
 
-GITHUB_EVENT_PATH = os.environ.get("GITHUB_EVENT_PATH")
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
-COPILOT_API_URL = os.environ.get("COPILOT_API_URL")
-COPILOT_API_TOKEN = os.environ.get("COPILOT_API_TOKEN")
-
-if not GITHUB_EVENT_PATH or not GITHUB_TOKEN:
-    raise SystemExit(1)
-
-with open(GITHUB_EVENT_PATH, "r", encoding="utf-8") as f:
-    event = json.load(f)
-
-issue = event.get("issue") or {}
-repository = event.get("repository") or {}
-if not issue or not repository:
+token = os.environ["GITHUB_TOKEN"]
+event = json.load(open(os.environ["GITHUB_EVENT_PATH"]))
+issue = event.get("issue", {})
+repo = event.get("repository", {})
+if not issue or not repo:
     raise SystemExit(0)
 
-owner = repository["owner"]["login"]
-repo = repository["name"]
+owner = repo["owner"]["login"]
+name = repo["name"]
 number = issue["number"]
-title = issue["title"]
-body = issue["body"]
 
-comment_body = (
-    "Hi — this repo has a Copilot/Claude assistant integration.
+comment = (
+    "Hi -- this repo has a Copilot/Claude assistant integration.
 
 "
-    "To request action, add a comment starting with  (e.g. ).
+    "To request action, add a comment starting with `copilot:` (e.g. `copilot: create-pr`).
 
 "
     "If COPILOT_API_URL and COPILOT_API_TOKEN are set, this issue will also be forwarded automatically."
 )
 
-resp = requests.post(
-    f"https://api.github.com/repos/{owner}/{repo}/issues/{number}/comments",
-    headers={"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github+json"},
-    json={"body": comment_body}
+r = requests.post(
+    f"https://api.github.com/repos/{owner}/{name}/issues/{number}/comments",
+    headers={"Authorization": f"token {token}", "Accept": "application/vnd.github+json"},
+    json={"body": comment}
 )
-print("Posted comment:", resp.status_code)
+print("Posted comment:", r.status_code)
 
-if COPILOT_API_URL and COPILOT_API_TOKEN:
+api_url = os.environ.get("COPILOT_API_URL")
+api_token = os.environ.get("COPILOT_API_TOKEN")
+if api_url and api_token:
     try:
-        r2 = requests.post(COPILOT_API_URL,
-            headers={"Authorization": f"Bearer {COPILOT_API_TOKEN}", "Content-Type": "application/json"},
-            json={"repository": f"{owner}/{repo}", "issue_number": number, "title": title, "body": body},
-            timeout=15)
-        print("Forwarded to endpoint:", r2.status_code)
+        r2 = requests.post(api_url,
+            headers={"Authorization": f"Bearer {api_token}", "Content-Type": "application/json"},
+            json={"repository": f"{owner}/{name}", "issue_number": number,
+                  "title": issue["title"], "body": issue["body"]}, timeout=15)
+        print("Forwarded:", r2.status_code)
     except Exception as e:
         print("Forward failed:", e)
