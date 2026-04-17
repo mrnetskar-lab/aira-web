@@ -464,20 +464,20 @@ function inferMessageSide(roomKey, message) {
   if (["user", "human", "visitor", "client"].includes(role)) return "outgoing";
   if (["assistant", "ai", "character", "npc", "bot"].includes(role)) return "incoming";
   if (author === "you" || author === "user") return "outgoing";
-  if (author === roomKey || author === characterDirectory[roomKey].name.toLowerCase()) return "incoming";
+  if (roomKey && characterDirectory[roomKey] && (author === roomKey || author === characterDirectory[roomKey].name.toLowerCase())) return "incoming";
 
   return "incoming";
 }
 
 function normalizeMessages(roomKey, payload) {
   const candidates = [
-    payload,
     payload?.messages,
     payload?.data?.messages,
     payload?.thread?.messages,
     payload?.conversation?.messages,
     payload?.chat?.messages,
     payload?.items,
+    Array.isArray(payload) ? payload : null,
   ];
 
   const list = candidates.find(Array.isArray) || [];
