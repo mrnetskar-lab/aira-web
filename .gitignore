@@ -33,3 +33,4 @@ client/*.bat
 # Loose files
 "Nina memory-entry (JSON)"
 profile_pictures/
+*.memory.json

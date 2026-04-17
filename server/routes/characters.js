@@ -4,6 +4,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { CharacterAIService } from '../../src/engine/services/CharacterAIService.js';
 import { CHARACTER_NAME_BY_ID, CHARACTER_PROFILES } from '../../src/engine/brain/characterProfiles.js';
+import { MemorySystem } from '../../src/engine/systems/MemorySystem.js';
+import { EmotionSystem } from '../../src/engine/systems/EmotionSystem.js';
 import { engine } from '../services/engineInstance.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -11,6 +13,35 @@ const CHARS_DIR = path.resolve(__dirname, '../../characters');
 
 const router = express.Router();
 const aiService = new CharacterAIService();
+const emotionSystem = new EmotionSystem();
+
+// Per-character memory — persistent to disk
+const memoryCache = {};
+
+function getMemory(id) {
+  if (!memoryCache[id]) {
+    const mem = new MemorySystem(300);
+    const p = path.join(CHARS_DIR, `${id}.memory.json`);
+    if (fs.existsSync(p)) {
+      try {
+        const entries = JSON.parse(fs.readFileSync(p, 'utf-8'));
+        entries.forEach(e => mem.store(e));
+      } catch { /* ignore corrupt memory */ }
+    }
+    memoryCache[id] = mem;
+  }
+  return memoryCache[id];
+}
+
+function saveMemory(id) {
+  const mem = memoryCache[id];
+  if (!mem) return;
+  const p = path.join(CHARS_DIR, `${id}.memory.json`);
+  fs.writeFileSync(p, JSON.stringify(mem.entries, null, 2), 'utf-8');
+}
+
+// Per-character emotion state — in-memory is fine (resets on restart)
+const emotionStates = {};
 
 function withTimeout(promise, ms, message = 'AI request timed out') {
   let timer;
@@ -48,10 +79,24 @@ export async function handleCharacterChat(id, text) {
   const history = loadHistory(id);
   const characterName = CHARACTER_NAME_BY_ID[id] || char.name || id;
   const personality = CHARACTER_PROFILES[characterName] || {};
-  const memory = history.slice(-10).map((h) => ({
-    role: h.role === 'assistant' ? characterName : 'user',
-    text: String(h.content || '')
-  }));
+
+  // Emotion state
+  if (!emotionStates[id]) emotionStates[id] = { tension: 0.1 };
+  const emotionState = emotionStates[id];
+  emotionSystem.analyzeInput(text, emotionState);
+
+  // Persistent memory — recent + relevant
+  const mem = getMemory(id);
+  const recentMemory = mem.getRecent(8).map(e => ({ role: e.role, text: String(e.text || '') }));
+  const relevantMemory = mem.search(text).slice(0, 3).map(e => ({ role: e.role, text: String(e.text || '') }));
+  const combinedMemory = [...relevantMemory, ...recentMemory]
+    .filter((e, i, arr) => arr.findIndex(x => x.text === e.text) === i)
+    .slice(-10);
+
+  // Fall back to history if memory is empty (first session)
+  const contextMemory = combinedMemory.length
+    ? combinedMemory
+    : history.slice(-10).map(h => ({ role: h.role === 'assistant' ? characterName : 'user', text: String(h.content || '') }));
 
   let ai;
   try {
@@ -64,13 +109,14 @@ export async function handleCharacterChat(id, text) {
         context: {
           active_app: { type: 'messages', mode: 'dm', visibility: 'private' },
           conversation: { responseMode: 'brief', topic: 'direct-message' },
+          emotion: { tension: emotionState.tension },
           sceneFlow: {
             role: 'primary',
             mainSpeaker: characterName,
             followUpSpeaker: null,
             instruction: 'Answer as a private DM message.'
           },
-          memory
+          memory: contextMemory
         }
       }),
       20000
@@ -88,6 +134,11 @@ export async function handleCharacterChat(id, text) {
   history.push({ role: 'user', content: text, time: now });
   history.push({ role: 'assistant', content: reply, time: now });
   saveHistory(id, history);
+
+  // Store in persistent memory
+  mem.store({ role: 'user', text, time: Date.now(), weight: 1 });
+  mem.store({ role: characterName, text: spoken || reply, thought: thought || null, time: Date.now(), weight: 1 });
+  saveMemory(id);
 
   try {
     engine.memory.store({ role: 'user', text, time: Date.now(), weight: 1 });
