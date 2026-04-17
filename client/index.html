@@ -10,3 +10,110 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
 </head>
+<body>
+  <div class="site-shell">
+    <div class="ambient-grid" aria-hidden="true"></div>
+    <div class="ambient-glow ambient-glow-a" aria-hidden="true"></div>
+    <div class="ambient-glow ambient-glow-b" aria-hidden="true"></div>
+
+    <header class="topbar glass">
+      <a href="#home" class="brand" data-nav="home" aria-label="The Grid home">
+        <span class="brand-mark"></span>
+        <span class="brand-text">The Grid</span>
+      </a>
+
+      <button class="menu-toggle" id="menuToggle" aria-expanded="false" aria-controls="primaryNav">
+        <span></span>
+        <span></span>
+      </button>
+
+      <nav id="primaryNav" class="nav" aria-label="Primary navigation">
+        <button class="nav-link active" data-nav="home">Home</button>
+        <button class="nav-link" data-nav="hub">Hub</button>
+        <button class="nav-link" data-nav="rooms">Private Rooms</button>
+        <button class="nav-link" data-nav="inbox">Inbox</button>
+        <button class="nav-link" data-nav="routes">Story Routes</button>
+      </nav>
+    </header>
+
+    <main class="page-stack">
+
+      <!-- HOME -->
+      <section id="home" class="page active" data-page="home" aria-labelledby="homeTitle">
+        <div class="container hero-grid">
+          <div class="hero-copy">
+            <p class="eyebrow">Private network access</p>
+            <h1 id="homeTitle">Enter The Grid</h1>
+            <p class="lede">
+              A dark social hub built around presence, live rooms, and private signals.
+              Less platform. More access.
+            </p>
+            <div class="hero-actions">
+              <button class="btn btn-primary" data-nav="hub">Enter The Grid</button>
+              <button class="btn btn-secondary" data-nav="rooms">View Live Nodes</button>
+            </div>
+            <div class="hero-stats">
+              <div class="stat glass">
+                <span class="stat-value" id="statNodes">12</span>
+                <span class="stat-label">Nodes online</span>
+              </div>
+              <div class="stat glass">
+                <span class="stat-value" id="statRooms">4</span>
+                <span class="stat-label">Active rooms</span>
+              </div>
+              <div class="stat glass">
+                <span class="stat-value" id="statInvites">1</span>
+                <span class="stat-label">Live invites</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="hero-visual">
+            <div class="hero-network glass">
+              <div class="network-node node-a"></div>
+              <div class="network-node node-b"></div>
+              <div class="network-node node-c"></div>
+              <div class="network-node node-d"></div>
+
+              <article class="floating-card glass">
+                <div class="avatar avatar-nina">N</div>
+                <div>
+                  <strong>Nina</strong>
+                  <p>Still holding the thread.</p>
+                </div>
+                <span class="badge online">online</span>
+              </article>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="hub" class="page" data-page="hub" aria-labelledby="hubTitle">
+        <div class="container">
+          <h1 id="hubTitle">The Grid Hub</h1>
+        </div>
+      </section>
+
+      <section id="rooms" class="page" data-page="rooms" aria-labelledby="roomsTitle">
+        <div class="container">
+          <h1 id="roomsTitle">Private Rooms</h1>
+        </div>
+      </section>
+
+      <section id="inbox" class="page" data-page="inbox" aria-labelledby="inboxTitle">
+        <div class="container">
+          <h1 id="inboxTitle">Inbox</h1>
+        </div>
+      </section>
+
+      <section id="routes" class="page" data-page="routes" aria-labelledby="routesTitle">
+        <div class="container">
+          <h1 id="routesTitle">Story Routes</h1>
+        </div>
+      </section>
+    </main>
+    <footer class="footer glass"><p>The Grid</p></footer>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
