@@ -1,4 +1,4 @@
-const AIRA_API_BASE = "";
+const AIRA_API_BASE = "https://aira-web-production.up.railway.app";
 
 const AIRA_OPEN_ROOM_CANDIDATES = [
   { method: "GET", path: room => `/api/characters/${room}` },
@@ -74,128 +74,178 @@ const AIRA_SEND_MESSAGE_CANDIDATES = [
   },
 ];
 
-const navButtons = document.querySelectorAll("[data-nav]");
-const pages = document.querySelectorAll(".page");
-const menuToggle = document.getElementById("menuToggle");
-const nav = document.getElementById("primaryNav");
+// ── DOM refs ──────────────────────────────────────────────
+const navButtons   = document.querySelectorAll("[data-nav]");
+const pages        = document.querySelectorAll(".page");
+const menuToggle   = document.getElementById("menuToggle");
+const nav          = document.getElementById("primaryNav");
 
-const feedList = document.getElementById("feedList");
-const mainChat = document.getElementById("mainChat");
-const mainChatForm = document.getElementById("mainChatForm");
-const mainChatInput = document.getElementById("mainChatInput");
+const inviteToastStack  = document.getElementById("inviteToastStack");
+const inviteStatusPill  = document.getElementById("inviteStatusPill");
 
-const inviteToastStack = document.getElementById("inviteToastStack");
-const inviteStatusPill = document.getElementById("inviteStatusPill");
-
-const roomCards = document.querySelectorAll(".room-card");
-const threadList = document.querySelector(".thread-list");
-const dmThread = document.getElementById("dmThread");
-const dmName = document.getElementById("dmName");
-const dmStatus = document.getElementById("dmStatus");
-const dmAvatar = document.getElementById("dmAvatar");
-const dmForm = document.getElementById("dmForm");
-const dmInput = document.getElementById("dmInput");
-const cameraBtn = document.getElementById('cameraBtn');
+const roomCards    = document.querySelectorAll(".room-card");
+const threadList   = document.querySelector(".thread-list");
+const dmThread     = document.getElementById("dmThread");
+const dmName       = document.getElementById("dmName");
+const dmStatus     = document.getElementById("dmStatus");
+const dmAvatar     = document.getElementById("dmAvatar");
+const dmForm       = document.getElementById("dmForm");
+const dmInput      = document.getElementById("dmInput");
+const cameraBtn    = document.getElementById("cameraBtn");
 
 const stats = {
-  nodes: document.getElementById("statNodes"),
-  rooms: document.getElementById("statRooms"),
+  nodes:   document.getElementById("statNodes"),
+  rooms:   document.getElementById("statRooms"),
   invites: document.getElementById("statInvites"),
 };
 
+// ── Character data ────────────────────────────────────────
 const characterDirectory = {
   nina: {
     key: "nina",
     name: "Nina",
     avatar: "N",
-    status: "online now",
+    status: "ONLINE",
     preview: "Still holding the thread.",
-    tags: ["online", "holds the thread", "private"],
+    scene: "She makes the room feel like you were expected.",
+    sceneState: "The room is open, warm, and slightly dangerous to linger in.",
+    tags: ["warm signal", "private", "pulls you back"],
+    cta: "ACCESS NODE",
+    accent: "nina",
+    route: {
+      title: "THE RETURN",
+      copy: "She kept the thread open longer than she should have. You never answered why.",
+      state: "STABLE",
+      progress: "62% open",
+      id: "return-thread",
+    },
     fallbackOpeners: [
-      { side: "incoming", author: "Nina", text: "I'm still here.", time: "20:38" },
-      { side: "outgoing", author: "You", text: "I saw the room light up.", time: "20:39" },
-      { side: "incoming", author: "Nina", text: "Then stop hovering and enter.", time: "20:40" },
+      { side: "incoming", author: "Nina", text: "You came back slower this time.", time: "20:38" },
+      { side: "incoming", author: "Nina", text: "Still — you came back.", time: "20:39" },
     ],
     fallbackReplies: [
-      "You always arrive right when the signal dips.",
-      "Stay this time. Don't just glance in and leave.",
-      "Good. Now say what pulled you back.",
+      "Then stay with me for a second.",
+      "You always arrive at the edge of saying something real.",
+      "Good. Don't flatten it now.",
     ],
   },
   hazel: {
     key: "hazel",
     name: "Hazel",
     avatar: "H",
-    status: "active 9m ago",
+    status: "OBSERVANT",
     preview: "You disappeared too early.",
-    tags: ["away", "observant", "sharp"],
+    scene: "Hazel notices what you avoid before you do.",
+    sceneState: "The room is cool, precise, and gives nothing away for free.",
+    tags: ["sharp", "watching", "never forgets pauses"],
+    cta: "FACE HAZEL",
+    accent: "hazel",
+    route: {
+      title: "AFTER THE PAUSE",
+      copy: "She remembers the gap more clearly than the words around it.",
+      state: "WATCHING",
+      progress: "41% open",
+      id: "after-image",
+    },
     fallbackOpeners: [
-      { side: "incoming", author: "Hazel", text: "Ignore that if you want.", time: "20:21" },
-      { side: "incoming", author: "Hazel", text: "I know you still read everything twice.", time: "20:22" },
+      { side: "incoming", author: "Hazel", text: "There you are.", time: "20:21" },
+      { side: "incoming", author: "Hazel", text: "You always return like you weren't going to.", time: "20:22" },
     ],
     fallbackReplies: [
-      "Noted. You never say the obvious part first.",
-      "That's close, but not the real point.",
-      "I figured you'd circle back to that.",
+      "That's not the part I was listening for.",
+      "Closer. But you're still protecting the sentence.",
+      "You keep circling. Pick a point and land.",
     ],
   },
   iris: {
     key: "iris",
     name: "Iris",
     avatar: "I",
-    status: "listening",
-    preview: "There's something she only says in private.",
-    tags: ["listening", "low signal", "high clarity"],
+    status: "LISTENING",
+    preview: "Only clear in private.",
+    scene: "Iris never raises her voice. She just narrows the room.",
+    sceneState: "The room is quiet enough to hear the part you usually edit out.",
+    tags: ["quiet", "low signal", "intimate"],
+    cta: "LISTEN IN",
+    accent: "iris",
+    route: {
+      title: "LOW SIGNAL",
+      copy: "Meaning appears here only when you stop forcing it.",
+      state: "WARMING",
+      progress: "28% open",
+      id: "low-signal",
+    },
     fallbackOpeners: [
-      { side: "incoming", author: "Iris", text: "You made it in.", time: "20:31" },
-      { side: "incoming", author: "Iris", text: "Keep your voice low. This thread opens better that way.", time: "20:32" },
+      { side: "incoming", author: "Iris", text: "You don't have to speak quickly here.", time: "20:31" },
+      { side: "incoming", author: "Iris", text: "Let the thought finish forming first.", time: "20:32" },
     ],
     fallbackReplies: [
-      "Stay with that thought. It opens something.",
-      "You're closer than you think. Keep going.",
-      "Say it plainly once. Then we'll know where this goes.",
+      "Yes. Stay near that feeling.",
+      "Don't explain it yet. Just hold it in words.",
+      "That sounded more honest than you meant it to.",
     ],
   },
   vale: {
     key: "vale",
     name: "Vale",
     avatar: "V",
-    status: "invite only",
-    preview: "Room's open.",
-    tags: ["invite only", "brief", "direct"],
+    status: "UNSTABLE",
+    preview: "Open briefly. Then gone.",
+    scene: "Vale never makes a room comfortable. Only open.",
+    sceneState: "The room is unstable. It could close between one message and the next.",
+    tags: ["brief", "locked", "time pressure"],
+    cta: "CATCH BEFORE CLOSE",
+    accent: "vale",
+    route: {
+      title: "BRIEF WINDOW",
+      copy: "You only get access when the signal slips and the lock fails.",
+      state: "UNSTABLE",
+      progress: "open briefly",
+      id: "brief-window",
+    },
     fallbackOpeners: [
-      { side: "incoming", author: "Vale", text: "Room's open.", time: "now" },
-      { side: "incoming", author: "Vale", text: "Not for long.", time: "now" },
+      { side: "incoming", author: "Vale", text: "You're late.", time: "now" },
+      { side: "incoming", author: "Vale", text: "Come in or lose it.", time: "now" },
     ],
     fallbackReplies: [
-      "Good. Keep pace or the room closes.",
-      "You're in. Don't waste the opening.",
-      "Move quickly. This thread doesn't stay unlocked.",
+      "Good. Move.",
+      "Less hesitation.",
+      "You have a window. Use it.",
     ],
   },
+};
+
+// ── App state ─────────────────────────────────────────────
+const appState = {
+  selectedRoom: "nina",
+  activeThread: "nina",
+  liveFeed: [],
+  inviteCount: 1,
+  nodesOnline: 12,
+  roomsActive: 4,
 };
 
 const threadState = Object.fromEntries(
   Object.values(characterDirectory).map(character => [
     character.key,
     {
-      name: character.name,
-      avatar: character.avatar,
-      status: character.status,
-      preview: character.preview,
-      messages: [...character.fallbackOpeners],
+      name:          character.name,
+      avatar:        character.avatar,
+      status:        character.status,
+      preview:       character.preview,
+      messages:      [...character.fallbackOpeners],
       loadedFromApi: false,
-      isLoading: false,
-      sessionId: null,
+      isLoading:     false,
+      sessionId:     null,
     },
   ]),
 );
 
 const invitePool = [
-  { name: "Nina", copy: "Come back. I want to finish that conversation.", room: "nina" },
-  { name: "Hazel", copy: "You disappeared too early.", room: "hazel" },
-  { name: "Iris", copy: "There's something I only say in private.", room: "iris" },
-  { name: "Vale", copy: "Room's open. Don't let it cool.", room: "vale" },
+  { name: "Nina",  copy: "Come back. I want to finish that conversation.", room: "nina" },
+  { name: "Hazel", copy: "You disappeared too early.",                     room: "hazel" },
+  { name: "Iris",  copy: "There's something I only say in private.",       room: "iris" },
+  { name: "Vale",  copy: "Room's open. Don't let it cool.",                room: "vale" },
 ];
 
 const feedEvents = [
@@ -206,10 +256,11 @@ const feedEvents = [
   "A live invite entered the grid",
 ];
 
-let activeThread = "nina";
-let inviteIndex = 0;
+let activeThread = appState.activeThread;
+let inviteIndex  = 0;
 const inviteFired = new Set();
 
+// ── Utilities ─────────────────────────────────────────────
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -220,10 +271,7 @@ function escapeHtml(value) {
 }
 
 function nowClock() {
-  return new Date().toLocaleTimeString("no-NO", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return new Date().toLocaleTimeString("no-NO", { hour: "2-digit", minute: "2-digit" });
 }
 
 function getLastMessage(messages) {
@@ -233,35 +281,33 @@ function getLastMessage(messages) {
 function toDisplayTime(value) {
   if (!value) return nowClock();
   if (typeof value === "string") return value.trim() || nowClock();
-
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return nowClock();
-
-  return date.toLocaleTimeString("no-NO", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return date.toLocaleTimeString("no-NO", { hour: "2-digit", minute: "2-digit" });
 }
 
+function renderMessageText(raw) {
+  const escaped = escapeHtml(raw);
+  return escaped.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+}
+
+// ── Navigation ────────────────────────────────────────────
 function setActivePage(pageName) {
   pages.forEach(page => {
     page.classList.toggle("active", page.dataset.page === pageName);
   });
-
   document.querySelectorAll(".nav-link").forEach(button => {
     button.classList.toggle("active", button.dataset.nav === pageName);
   });
-
   if (nav.classList.contains("open")) {
     nav.classList.remove("open");
     menuToggle?.setAttribute("aria-expanded", "false");
   }
-
   window.location.hash = pageName;
 }
 
 function bootFromHash() {
-  const hash = window.location.hash.replace("#", "");
+  const hash  = window.location.hash.replace("#", "");
   const valid = ["home", "hub", "rooms", "inbox", "routes"];
   setActivePage(valid.includes(hash) ? hash : "home");
 }
@@ -269,20 +315,12 @@ function bootFromHash() {
 navButtons.forEach(button => {
   button.addEventListener("click", () => {
     const navTarget = button.dataset.nav;
-    const room = button.dataset.room;
+    const room      = button.dataset.room;
     if (!navTarget) return;
-
-    // If the button references a room (e.g., story routes 'Continue'),
-    // set the active thread first, then navigate.
-    if (room) {
-      if (threadState[room]) {
-        focusThread(room);
-        hydrateThread(room, false);
-      }
-      setActivePage(navTarget);
-      return;
+    if (room && threadState[room]) {
+      focusThread(room);
+      hydrateThread(room, false);
     }
-
     setActivePage(navTarget);
   });
 });
@@ -293,53 +331,7 @@ menuToggle?.addEventListener("click", () => {
   nav.classList.toggle("open");
 });
 
-function appendMainMessage(author, text, side = "outgoing") {
-  if (!mainChat) return;
-
-  const bubble = document.createElement("div");
-  bubble.className = `chat-bubble ${side}`;
-  bubble.innerHTML = `
-    <span class="chat-author">${escapeHtml(author)}</span>
-    <p>${renderMessageText(text)}</p>
-    <time>${escapeHtml(nowClock())}</time>
-  `;
-
-  mainChat.appendChild(bubble);
-  mainChat.scrollTop = mainChat.scrollHeight;
-}
-
-mainChatForm?.addEventListener("submit", event => {
-  event.preventDefault();
-
-  const text = mainChatInput.value.trim();
-  if (!text) return;
-
-  appendMainMessage("You", text, "outgoing");
-  mainChatInput.value = "";
-
-  window.setTimeout(() => {
-    appendMainMessage("System", "Signal received.", "incoming");
-  }, 900);
-});
-
-function appendFeedEvent() {
-  if (!feedList) return;
-
-  const item = document.createElement("article");
-  item.className = "feed-item";
-  item.innerHTML = `
-    <span class="feed-dot"></span>
-    <div>${feedEvents[Math.floor(Math.random() * feedEvents.length)]}<time>just now</time></div>
-  `;
-
-  feedList.prepend(item);
-
-  const items = feedList.querySelectorAll(".feed-item");
-  if (items.length > 7) {
-    items[items.length - 1].remove();
-  }
-}
-
+// ── Thread list helpers ───────────────────────────────────
 function ensureThreadButton(roomKey) {
   let button = threadList?.querySelector(`.thread-item[data-thread="${roomKey}"]`);
   if (button) return button;
@@ -359,7 +351,6 @@ function ensureThreadButton(roomKey) {
     </div>
     <div class="thread-meta"><span>now</span></div>
   `;
-
   threadList.appendChild(button);
   return button;
 }
@@ -373,91 +364,80 @@ function setThreadActive(roomKey) {
 function setThreadUnread(roomKey, unread) {
   const button = ensureThreadButton(roomKey);
   if (!button) return;
-
   const meta = button.querySelector(".thread-meta");
-  const dot = button.querySelector(".unread-dot");
-
+  const dot  = button.querySelector(".unread-dot");
   if (unread && !dot) {
     const unreadDot = document.createElement("span");
     unreadDot.className = "unread-dot";
     meta?.appendChild(unreadDot);
   }
-
-  if (!unread && dot) {
-    dot.remove();
-  }
+  if (!unread && dot) dot.remove();
 }
 
 function updateThreadPreview(roomKey, previewText, timeText = "now") {
   const button = ensureThreadButton(roomKey);
   if (!button) return;
-
   const preview = button.querySelector(".thread-copy p");
-  const time = button.querySelector(".thread-meta span");
-
+  const time    = button.querySelector(".thread-meta span");
   if (preview) preview.textContent = previewText;
-  if (time) time.textContent = timeText;
+  if (time)    time.textContent    = timeText;
 }
 
-function renderMessageText(raw) {
-  const escaped = escapeHtml(raw);
-  return escaped.replace(/\*([^*]+)\*/g, "<em>$1</em>");
-}
-
+// ── Render DM thread ──────────────────────────────────────
 function renderDmThread(roomKey) {
   const thread = threadState[roomKey];
   if (!thread || !dmThread) return;
 
-  dmName.textContent = thread.name;
-  dmStatus.textContent = thread.isLoading ? "connecting…" : thread.status;
-  dmAvatar.textContent = thread.avatar;
-  dmAvatar.className = `avatar avatar-${roomKey}`;
+  if (dmName)   dmName.textContent   = thread.name;
+  if (dmStatus) dmStatus.textContent = thread.isLoading ? "CONNECTING…" : thread.status;
+  if (dmAvatar) {
+    dmAvatar.textContent = thread.avatar;
+    dmAvatar.className   = `avatar avatar-${roomKey}`;
+  }
 
   dmThread.innerHTML = "";
-
   thread.messages.forEach(message => {
     const bubble = document.createElement("div");
     bubble.className = `chat-bubble ${message.side}`;
-
     if (message.imageUrl) {
       bubble.innerHTML = `<img src="${escapeHtml(message.imageUrl)}" style="max-width:100%;border-radius:8px;display:block;" alt="image" /><time>${escapeHtml(message.time)}</time>`;
     } else {
       bubble.innerHTML = `<p>${renderMessageText(message.text)}</p><time>${escapeHtml(message.time)}</time>`;
     }
-
     dmThread.appendChild(bubble);
   });
-
   dmThread.scrollTop = dmThread.scrollHeight;
 }
 
+// ── Profile panel ─────────────────────────────────────────
 function loadProfilePanel(roomKey) {
   const char = characterDirectory[roomKey];
   if (!char) return;
 
-  const img = document.getElementById("profileImg");
+  const img         = document.getElementById("profileImg");
   const placeholder = document.getElementById("profilePlaceholder");
-  const name = document.getElementById("profileName");
-  const bio = document.getElementById("profileBio");
-  const tags = document.getElementById("profileTags");
+  const name        = document.getElementById("profileName");
+  const bio         = document.getElementById("profileBio");
+  const tags        = document.getElementById("profileTags");
+  const sig         = document.getElementById("profileSig");
 
   if (img) {
     img.style.display = "";
     img.src = `/profile_pictures/${roomKey}.jpg`;
     img.onerror = () => {
       img.style.display = "none";
-      if (placeholder) {
-        placeholder.textContent = char.avatar;
-        placeholder.style.display = "";
-      }
+      if (placeholder) { placeholder.textContent = char.avatar; placeholder.style.display = ""; }
     };
-    img.onload = () => {
-      if (placeholder) placeholder.style.display = "none";
-    };
+    img.onload = () => { if (placeholder) placeholder.style.display = "none"; };
   }
   if (placeholder) placeholder.textContent = char.avatar;
   if (name) name.textContent = char.name;
-  if (bio) bio.textContent = char.preview || "";
+  if (bio)  bio.textContent  = char.preview || "";
+  if (sig) {
+    const sigMap = { nina: "sig-online", hazel: "sig-away", iris: "sig-online", vale: "sig-unstable" };
+    sig.className = `node-sig ${sigMap[roomKey] || "sig-online"}`;
+    sig.textContent = char.status;
+  }
   if (tags) {
     tags.innerHTML = "";
     (char.tags || []).forEach(tag => {
@@ -469,21 +449,33 @@ function loadProfilePanel(roomKey) {
   }
 }
 
+// ── Focus thread (cross-section sync) ────────────────────
 function focusThread(roomKey) {
   activeThread = roomKey;
+  appState.activeThread = roomKey;
+  appState.selectedRoom = roomKey;
   setThreadActive(roomKey);
   setThreadUnread(roomKey, false);
   renderDmThread(roomKey);
   loadProfilePanel(roomKey);
+  renderSpotlight(roomKey);
+  renderRouteDetail(roomKey);
+  renderActivityStrip();
+
+  // Update profile open button
+  const profileOpenBtn = document.getElementById("profileOpenBtn");
+  if (profileOpenBtn) {
+    profileOpenBtn.onclick = () => openRoom(roomKey);
+  }
 }
 
+// ── Message normalization ─────────────────────────────────
 function normalizeString(value, fallback = "") {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }
 
 function normalizeText(value) {
   if (typeof value === "string") return value.trim();
-
   if (Array.isArray(value)) {
     return value
       .map(part => {
@@ -496,33 +488,19 @@ function normalizeText(value) {
       .join("\n")
       .trim();
   }
-
   if (value && typeof value.text === "string") return value.text.trim();
   if (value && typeof value.content === "string") return value.content.trim();
-
   return "";
 }
 
 function inferMessageSide(roomKey, message) {
-  const role = normalizeString(
-    message?.role ||
-    message?.sender ||
-    message?.type ||
-    ""
-  ).toLowerCase();
-
-  const author = normalizeString(
-    message?.author ||
-    message?.speaker ||
-    message?.name ||
-    ""
-  ).toLowerCase();
+  const role = normalizeString(message?.role || message?.sender || message?.type || "").toLowerCase();
+  const author = normalizeString(message?.author || message?.speaker || message?.name || "").toLowerCase();
 
   if (["user", "human", "visitor", "client"].includes(role)) return "outgoing";
   if (["assistant", "ai", "character", "npc", "bot"].includes(role)) return "incoming";
   if (author === "you" || author === "user") return "outgoing";
   if (roomKey && characterDirectory[roomKey] && (author === roomKey || author === characterDirectory[roomKey].name.toLowerCase())) return "incoming";
-
   return "incoming";
 }
 
@@ -536,136 +514,84 @@ function normalizeMessages(roomKey, payload) {
     payload?.items,
     Array.isArray(payload) ? payload : null,
   ];
-
   const list = candidates.find(Array.isArray) || [];
 
-  return list
-    .map(item => {
-      const text = normalizeText(
-        item?.text ??
-        item?.content ??
-        item?.message ??
-        item?.body ??
-        item
-      );
-
-      if (!text) return null;
-
-      const side = inferMessageSide(roomKey, item);
-      const author = normalizeString(
-        item?.author ||
-        item?.speaker ||
-        item?.name ||
-        (side === "incoming" ? characterDirectory[roomKey].name : "You"),
-        side === "incoming" ? characterDirectory[roomKey].name : "You"
-      );
-
-      return {
-        side,
-        author,
-        text,
-        time: toDisplayTime(
-          item?.time ??
-          item?.createdAt ??
-          item?.timestamp ??
-          item?.sentAt
-        ),
-      };
-    })
-    .filter(Boolean);
+  return list.map(item => {
+    const text = normalizeText(item?.text ?? item?.content ?? item?.message ?? item?.body ?? item);
+    if (!text) return null;
+    const side = inferMessageSide(roomKey, item);
+    const author = normalizeString(
+      item?.author || item?.speaker || item?.name || (side === "incoming" ? characterDirectory[roomKey].name : "You"),
+      side === "incoming" ? characterDirectory[roomKey].name : "You"
+    );
+    return {
+      side,
+      author,
+      text,
+      time: toDisplayTime(item?.time ?? item?.createdAt ?? item?.timestamp ?? item?.sentAt),
+    };
+  }).filter(Boolean);
 }
 
 function normalizeOpenRoomPayload(roomKey, payload) {
-  const base = characterDirectory[roomKey];
+  const base     = characterDirectory[roomKey];
   const messages = normalizeMessages(roomKey, payload);
 
   const singleReply = normalizeText(
-    payload?.reply ??
-    payload?.message ??
-    payload?.response ??
-    payload?.content ??
-    payload?.assistant
+    payload?.reply ?? payload?.message ?? payload?.response ?? payload?.content ?? payload?.assistant
   );
 
   const finalMessages = messages.length
     ? messages
     : singleReply
-      ? [{
-          side: "incoming",
-          author: base.name,
-          text: singleReply,
-          time: nowClock(),
-        }]
+      ? [{ side: "incoming", author: base.name, text: singleReply, time: nowClock() }]
       : [...base.fallbackOpeners];
 
   return {
-    name: normalizeString(payload?.name || payload?.character?.name, base.name),
-    avatar: normalizeString(payload?.avatar || payload?.character?.avatar, base.avatar),
-    status: normalizeString(payload?.status || payload?.presence || payload?.character?.status, base.status),
-    preview: normalizeString(payload?.preview || payload?.subtitle, base.preview),
-    messages: finalMessages,
-    sessionId: payload?.sessionId ?? payload?.threadId ?? payload?.conversationId ?? null,
+    name:          normalizeString(payload?.name || payload?.character?.name, base.name),
+    avatar:        normalizeString(payload?.avatar || payload?.character?.avatar, base.avatar),
+    status:        normalizeString(payload?.status || payload?.presence || payload?.character?.status, base.status),
+    preview:       normalizeString(payload?.preview || payload?.subtitle, base.preview),
+    messages:      finalMessages,
+    sessionId:     payload?.sessionId ?? payload?.threadId ?? payload?.conversationId ?? null,
     loadedFromApi: messages.length > 0 || Boolean(singleReply),
-    isLoading: false,
+    isLoading:     false,
   };
 }
 
 function normalizeReplyPayload(roomKey, payload) {
   const messages = normalizeMessages(roomKey, payload);
-
   if (messages.length) {
     return {
-      mode: "thread",
+      mode:      "thread",
       messages,
       sessionId: payload?.sessionId ?? payload?.threadId ?? payload?.conversationId ?? null,
     };
   }
-
   const text = normalizeText(
-    payload?.reply ??
-    payload?.message ??
-    payload?.response ??
-    payload?.content ??
-    payload?.assistant
+    payload?.reply ?? payload?.message ?? payload?.response ?? payload?.content ?? payload?.assistant
   );
-
   if (!text) return null;
-
   return {
     mode: "reply",
-    reply: {
-      side: "incoming",
-      author: characterDirectory[roomKey].name,
-      text,
-      time: nowClock(),
-    },
+    reply: { side: "incoming", author: characterDirectory[roomKey].name, text, time: nowClock() },
     sessionId: payload?.sessionId ?? payload?.threadId ?? payload?.conversationId ?? null,
   };
 }
 
+// ── API helpers ───────────────────────────────────────────
 async function requestJson(url, options = {}, timeout = 9000) {
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), timeout);
-
+  const timeoutId  = window.setTimeout(() => controller.abort(), timeout);
   try {
     const response = await fetch(url, {
       ...options,
       signal: controller.signal,
-      headers: {
-        Accept: "application/json",
-        ...(options.headers || {}),
-      },
+      headers: { Accept: "application/json", ...(options.headers || {}) },
     });
-
     const raw = await response.text();
     let json = null;
-
-    try {
-      json = raw ? JSON.parse(raw) : null;
-    } catch {
-      json = null;
-    }
-
+    try { json = raw ? JSON.parse(raw) : null; } catch { json = null; }
     if (!response.ok) return null;
     return json;
   } catch {
@@ -677,51 +603,44 @@ async function requestJson(url, options = {}, timeout = 9000) {
 
 async function bootstrapRoomFromApi(roomKey) {
   for (const candidate of AIRA_OPEN_ROOM_CANDIDATES) {
-    const url = `${AIRA_API_BASE}${candidate.path(roomKey)}`;
+    const url  = `${AIRA_API_BASE}${candidate.path(roomKey)}`;
     const json = await requestJson(url, {
       method: candidate.method,
       headers: candidate.method === "POST" ? { "Content-Type": "application/json" } : {},
       body: candidate.body ? JSON.stringify(candidate.body(roomKey)) : undefined,
     });
-
     if (!json) continue;
-
     const normalized = normalizeOpenRoomPayload(roomKey, json?.data ?? json);
     if (normalized) return normalized;
   }
-
   return null;
 }
 
 async function sendMessageToApi(roomKey, text) {
   const thread = threadState[roomKey];
-
   for (const candidate of AIRA_SEND_MESSAGE_CANDIDATES) {
-    const url = `${AIRA_API_BASE}${candidate.path(roomKey)}`;
+    const url  = `${AIRA_API_BASE}${candidate.path(roomKey)}`;
     const json = await requestJson(url, {
       method: candidate.method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(candidate.body(roomKey, text, thread)),
     });
-
     if (!json) continue;
-
     const normalized = normalizeReplyPayload(roomKey, json?.data ?? json);
     if (normalized) return normalized;
   }
-
   return null;
 }
 
 function getFallbackReply(roomKey) {
   const character = characterDirectory[roomKey];
-  const replies = character?.fallbackReplies || ["Seen."];
+  const replies   = character?.fallbackReplies || [];
+  if (!replies.length) return "...";
   return replies[Math.floor(Math.random() * replies.length)];
 }
 
 async function hydrateThread(roomKey, forceRefresh = false) {
   const thread = threadState[roomKey];
-
   if (thread.loadedFromApi && !forceRefresh) return;
 
   thread.isLoading = true;
@@ -730,11 +649,7 @@ async function hydrateThread(roomKey, forceRefresh = false) {
   const apiThread = await bootstrapRoomFromApi(roomKey);
 
   if (apiThread) {
-    threadState[roomKey] = {
-      ...threadState[roomKey],
-      ...apiThread,
-    };
-
+    threadState[roomKey] = { ...threadState[roomKey], ...apiThread };
     const latest = getLastMessage(threadState[roomKey].messages);
     updateThreadPreview(roomKey, latest?.text || threadState[roomKey].preview, latest?.time || "now");
   } else {
@@ -742,18 +657,16 @@ async function hydrateThread(roomKey, forceRefresh = false) {
     const latest = getLastMessage(threadState[roomKey].messages);
     updateThreadPreview(roomKey, latest?.text || threadState[roomKey].preview, latest?.time || "now");
   }
-
   renderDmThread(roomKey);
 }
 
 async function openRoom(roomKey, triggerButton = null) {
   if (!roomKey || !threadState[roomKey]) return;
-
-  const originalLabel = triggerButton?.textContent || "Enter Room";
+  const originalLabel = triggerButton?.textContent || "ACCESS NODE";
 
   if (triggerButton) {
-    triggerButton.disabled = true;
-    triggerButton.textContent = "Connecting…";
+    triggerButton.disabled    = true;
+    triggerButton.textContent = "CONNECTING…";
   }
 
   ensureThreadButton(roomKey);
@@ -762,37 +675,30 @@ async function openRoom(roomKey, triggerButton = null) {
   await hydrateThread(roomKey, true);
 
   if (triggerButton) {
-    triggerButton.disabled = false;
+    triggerButton.disabled    = false;
     triggerButton.textContent = originalLabel;
   }
 }
 
+// ── Thread list click ─────────────────────────────────────
 threadList?.addEventListener("click", event => {
   const button = event.target.closest(".thread-item");
   if (!button) return;
-
   const roomKey = button.dataset.thread;
   if (!roomKey || !threadState[roomKey]) return;
-
   setActivePage("inbox");
   focusThread(roomKey);
   hydrateThread(roomKey, false);
 });
 
+// ── DM form submit ────────────────────────────────────────
 dmForm?.addEventListener("submit", async event => {
   event.preventDefault();
-
   const text = dmInput.value.trim();
   if (!text || !threadState[activeThread]) return;
 
-  const thread = threadState[activeThread];
-
-  const outgoing = {
-    side: "outgoing",
-    author: "You",
-    text,
-    time: nowClock(),
-  };
+  const thread   = threadState[activeThread];
+  const outgoing = { side: "outgoing", author: "You", text, time: nowClock() };
 
   thread.messages.push(outgoing);
   updateThreadPreview(activeThread, text, outgoing.time);
@@ -804,11 +710,7 @@ dmForm?.addEventListener("submit", async event => {
   if (apiReply?.mode === "thread") {
     thread.messages = apiReply.messages;
     thread.loadedFromApi = true;
-
-    if (apiReply.sessionId) {
-      thread.sessionId = apiReply.sessionId;
-    }
-
+    if (apiReply.sessionId) thread.sessionId = apiReply.sessionId;
     const latest = getLastMessage(thread.messages);
     updateThreadPreview(activeThread, latest?.text || thread.preview, latest?.time || "now");
     setThreadUnread(activeThread, false);
@@ -817,10 +719,7 @@ dmForm?.addEventListener("submit", async event => {
   }
 
   if (apiReply?.mode === "reply") {
-    if (apiReply.sessionId) {
-      thread.sessionId = apiReply.sessionId;
-    }
-
+    if (apiReply.sessionId) thread.sessionId = apiReply.sessionId;
     thread.messages.push(apiReply.reply);
     thread.loadedFromApi = true;
     updateThreadPreview(activeThread, apiReply.reply.text, apiReply.reply.time);
@@ -830,22 +729,26 @@ dmForm?.addEventListener("submit", async event => {
   }
 
   const fallbackReply = {
-    side: "incoming",
+    side:   "incoming",
     author: characterDirectory[activeThread].name,
-    text: getFallbackReply(activeThread),
-    time: nowClock(),
+    text:   getFallbackReply(activeThread),
+    time:   nowClock(),
   };
 
-  thread.messages.push(fallbackReply);
-  updateThreadPreview(activeThread, fallbackReply.text, fallbackReply.time);
-  setThreadUnread(activeThread, false);
-  renderDmThread(activeThread);
-  checkChemistry(activeThread);
+  const delay = 600 + Math.floor(Math.random() * 600);
+  setTimeout(() => {
+    thread.messages.push(fallbackReply);
+    updateThreadPreview(activeThread, fallbackReply.text, fallbackReply.time);
+    setThreadUnread(activeThread, false);
+    renderDmThread(activeThread);
+    checkChemistry(activeThread);
+  }, delay);
 });
 
+// ── Chemistry / invite gate ───────────────────────────────
 function checkChemistry(roomKey) {
   if (inviteFired.has(roomKey)) return;
-  const thread = threadState[roomKey];
+  const thread        = threadState[roomKey];
   const outgoingCount = thread.messages.filter(m => m.side === "outgoing").length;
   if (outgoingCount >= 5) {
     inviteFired.add(roomKey);
@@ -854,78 +757,260 @@ function checkChemistry(roomKey) {
   }
 }
 
-// Camera button: capture image, send to server, show returned image in thread
-cameraBtn?.addEventListener('click', async () => {
+// ── Camera ────────────────────────────────────────────────
+cameraBtn?.addEventListener("click", async () => {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-    const video = document.createElement('video');
+    const video  = document.createElement("video");
     video.srcObject = stream;
     await video.play();
 
-    const canvas = document.createElement('canvas');
-    canvas.width = 640;
+    const canvas = document.createElement("canvas");
+    canvas.width  = 640;
     canvas.height = 480;
-    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.getContext("2d").drawImage(video, 0, 0, 640, 480);
     stream.getTracks().forEach(t => t.stop());
 
-    const imageBase64 = canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
-    const char = characterDirectory[activeThread];
+    const imageBase64 = canvas.toDataURL("image/jpeg", 0.85).split(",")[1];
+    const char        = characterDirectory[activeThread];
 
-    const res = await fetch('/api/camera/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const res  = await fetch("/api/camera/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         prompt: `${char?.name || activeThread} reacts to what they see in the image`,
         imageBase64,
-        character: activeThread
-      })
+        character: activeThread,
+      }),
     });
-    const data = await res.json();
+    const data     = await res.json();
     const imageUrl = data?.imageUrl || (data?.shot && data.shot.path) || null;
     if (imageUrl) {
       const thread = threadState[activeThread];
-      const imgMsg = {
-        side: 'incoming',
-        author: char?.name || activeThread,
-        text: '',
-        imageUrl,
-        time: nowClock()
-      };
-      thread.messages.push(imgMsg);
+      thread.messages.push({ side: "incoming", author: char?.name || activeThread, text: "", imageUrl, time: nowClock() });
       renderDmThread(activeThread);
     }
   } catch (err) {
-    console.warn('Camera error:', err);
+    console.warn("Camera error:", err);
   }
 });
 
-// Active toasts: Map<roomKey, { el, interval }>
+// ── Signal feed ───────────────────────────────────────────
+function createSignalEvent(html, time = "just now") { return { html, time }; }
+
+function seedSignalFeed() {
+  appState.liveFeed = [
+    createSignalEvent("<strong>Nina</strong> reopened a private thread"),
+    createSignalEvent("<strong>Hazel</strong> went quiet, but stayed present"),
+    createSignalEvent("<strong>Iris</strong> warmed a low-signal route"),
+    createSignalEvent("<strong>Vale</strong> opened a brief window"),
+  ];
+}
+
+function renderSignalFeed() {
+  const feed = document.getElementById("signalFeed");
+  if (!feed) return;
+  feed.innerHTML = "";
+  appState.liveFeed.slice(0, 8).forEach(item => {
+    const el = document.createElement("article");
+    el.className  = "signal-item";
+    el.innerHTML  = `${item.html}<time>${escapeHtml(item.time)}</time>`;
+    feed.appendChild(el);
+  });
+}
+
+function pushSignalEvent(html) {
+  appState.liveFeed.unshift(createSignalEvent(html));
+  appState.liveFeed = appState.liveFeed.slice(0, 8);
+  renderSignalFeed();
+}
+
+// ── Activity strip ────────────────────────────────────────
+function renderActivityStrip() {
+  const strip = document.getElementById("mainActivityStrip");
+  if (!strip) return;
+  const items = [
+    `${appState.nodesOnline} NODES ONLINE`,
+    `${appState.roomsActive} ROOMS ACTIVE`,
+    `${appState.inviteCount} LIVE INVITE`,
+    `${characterDirectory[appState.selectedRoom].name.toUpperCase()} SELECTED`,
+  ];
+  strip.innerHTML = "";
+  items.forEach(text => {
+    const chip = document.createElement("span");
+    chip.className   = "activity-chip";
+    chip.textContent = text;
+    strip.appendChild(chip);
+  });
+}
+
+// ── Hub counters ──────────────────────────────────────────
+function renderHubCounters() {
+  const nodesPill = document.getElementById("hubNodesPill");
+  const roomsPill = document.getElementById("hubRoomsPill");
+  const topbar    = document.getElementById("topbarNodes");
+  const footer    = document.getElementById("footerNodes");
+  if (nodesPill) nodesPill.textContent = `${appState.nodesOnline} nodes`;
+  if (roomsPill) roomsPill.textContent = `${appState.roomsActive} rooms active`;
+  if (topbar)    topbar.textContent    = String(appState.nodesOnline);
+  if (footer)    footer.textContent    = String(appState.nodesOnline);
+  if (stats.nodes)   stats.nodes.textContent   = String(appState.nodesOnline);
+  if (stats.rooms)   stats.rooms.textContent   = String(appState.roomsActive);
+  if (stats.invites) stats.invites.textContent = String(appState.inviteCount);
+}
+
+// ── Spotlight ─────────────────────────────────────────────
+function renderSpotlight(roomKey = appState.selectedRoom) {
+  const char = characterDirectory[roomKey];
+  if (!char) return;
+
+  const spotlightAvatar  = document.getElementById("spotlightAvatar");
+  const spotlightName    = document.getElementById("spotlightName");
+  const spotlightStatus  = document.getElementById("spotlightStatus");
+  const spotlightCopy    = document.getElementById("spotlightCopy");
+  const spotlightTags    = document.getElementById("spotlightTags");
+  const spotlightOpenBtn = document.getElementById("spotlightOpenBtn");
+  const sceneFocusAvatar = document.getElementById("sceneFocusAvatar");
+  const sceneFocusName   = document.getElementById("sceneFocusName");
+  const sceneFocusPreview = document.getElementById("sceneFocusPreview");
+  const hubSceneTitle    = document.getElementById("hubSceneTitle");
+  const hubSceneCopy     = document.getElementById("hubSceneCopy");
+  const dmSceneState     = document.getElementById("dmSceneState");
+
+  if (spotlightAvatar)  { spotlightAvatar.textContent = char.avatar; spotlightAvatar.className = `avatar avatar-${roomKey}`; }
+  if (spotlightName)    spotlightName.textContent    = char.name;
+  if (spotlightStatus)  spotlightStatus.textContent  = char.status;
+  if (spotlightCopy)    spotlightCopy.textContent    = char.scene;
+  if (spotlightOpenBtn) spotlightOpenBtn.textContent = char.cta;
+
+  if (spotlightTags) {
+    spotlightTags.innerHTML = "";
+    (char.tags || []).forEach(tag => {
+      const span = document.createElement("span");
+      span.className   = "profile-tag";
+      span.textContent = tag;
+      spotlightTags.appendChild(span);
+    });
+  }
+
+  if (sceneFocusAvatar)  { sceneFocusAvatar.textContent = char.avatar; sceneFocusAvatar.className = `avatar avatar-${roomKey}`; }
+  if (sceneFocusName)    sceneFocusName.textContent    = char.name;
+  if (sceneFocusPreview) sceneFocusPreview.textContent = char.preview;
+  if (hubSceneTitle)     hubSceneTitle.textContent     = `${char.name} is closest right now.`;
+  if (hubSceneCopy)      hubSceneCopy.textContent      = char.scene;
+  if (dmSceneState)      dmSceneState.textContent      = char.sceneState;
+
+  document.querySelectorAll(".presence-card").forEach(card => {
+    card.classList.toggle("active", card.dataset.room === roomKey);
+    card.dataset.accent = characterDirectory[card.dataset.room]?.accent || "";
+  });
+
+  document.querySelectorAll(".room-card").forEach(card => {
+    card.dataset.accent = characterDirectory[card.dataset.room]?.accent || "";
+  });
+}
+
+// ── Route rail & detail ───────────────────────────────────
+function renderRouteRail() {
+  const rail = document.getElementById("routeRail");
+  if (!rail) return;
+  rail.innerHTML = "";
+  Object.values(characterDirectory).forEach(char => {
+    const item = document.createElement("button");
+    item.type         = "button";
+    item.className    = "route-rail-item";
+    item.dataset.room = char.key;
+    item.innerHTML    = `<strong>${char.route.title}</strong><small>${char.route.state} / ${char.route.progress}</small>`;
+    item.addEventListener("click", () => {
+      appState.selectedRoom = char.key;
+      renderSpotlight(char.key);
+      renderRouteDetail(char.key);
+      renderActivityStrip();
+    });
+    rail.appendChild(item);
+  });
+}
+
+function renderRouteDetail(roomKey = appState.selectedRoom) {
+  const char = characterDirectory[roomKey];
+  if (!char) return;
+
+  const title  = document.getElementById("routeDetailTitle");
+  const copy   = document.getElementById("routeDetailCopy");
+  const meta   = document.getElementById("routeDetailMeta");
+  const cNode  = document.getElementById("consoleNode");
+  const cState = document.getElementById("consoleState");
+  const cAccess= document.getElementById("consoleAccess");
+
+  if (title)  title.textContent  = char.route.title;
+  if (copy)   copy.textContent   = char.route.copy;
+  if (cNode)  cNode.textContent  = char.name.toUpperCase();
+  if (cState) cState.textContent = char.route.state;
+  if (cAccess) cAccess.textContent = char.route.progress.toUpperCase();
+
+  if (meta) {
+    meta.innerHTML = "";
+    [char.route.state, char.route.progress].forEach(text => {
+      const span = document.createElement("span");
+      span.className   = "pill";
+      span.textContent = text;
+      meta.appendChild(span);
+    });
+  }
+
+  document.querySelectorAll(".route-node").forEach(node => {
+    node.classList.toggle("active", node.dataset.room === roomKey);
+  });
+}
+
+// ── Ambient system events ─────────────────────────────────
+function randomCharacterKey() {
+  const keys = Object.keys(characterDirectory);
+  return keys[Math.floor(Math.random() * keys.length)];
+}
+
+function pushAmbientSystemEvent() {
+  const roomKey = randomCharacterKey();
+  const char    = characterDirectory[roomKey];
+  const variants = {
+    nina:  ["<strong>Nina</strong> reopened an intimate thread", "<strong>Nina</strong> kept a room warm longer than expected"],
+    hazel: ["<strong>Hazel</strong> stayed present without replying", "<strong>Hazel</strong> marked a pause instead of a message"],
+    iris:  ["<strong>Iris</strong> warmed a quiet route", "<strong>Iris</strong> shifted a private thread into focus"],
+    vale:  ["<strong>Vale</strong> opened a brief window", "<strong>Vale</strong> turned a room unstable"],
+  };
+  const pool = variants[roomKey] || [`<strong>${char.name}</strong> moved inside the grid`];
+  pushSignalEvent(pool[Math.floor(Math.random() * pool.length)]);
+}
+
+// ── Live state cycle ──────────────────────────────────────
+function cycleLiveState() {
+  appState.nodesOnline  = 9 + Math.floor(Math.random() * 7);
+  appState.roomsActive  = 2 + Math.floor(Math.random() * 4);
+  appState.inviteCount  = Math.max(1, Math.min(3, appState.inviteCount + (Math.random() > 0.6 ? 1 : 0) - (Math.random() > 0.7 ? 1 : 0)));
+  renderHubCounters();
+  renderActivityStrip();
+}
+
+// ── Invite toasts ─────────────────────────────────────────
 const activeToasts = new Map();
 
 function dismissToast(roomKey, el) {
   if (!el) return;
   el.classList.add("exiting");
   window.setTimeout(() => el.remove(), 220);
-
   const entry = activeToasts.get(roomKey);
-  if (entry) {
-    window.clearInterval(entry.interval);
-    activeToasts.delete(roomKey);
-  }
-
+  if (entry) { window.clearInterval(entry.interval); activeToasts.delete(roomKey); }
   if (activeToasts.size === 0) {
-    if (inviteStatusPill) inviteStatusPill.textContent = "Grid active";
-    if (stats.invites) stats.invites.textContent = "0";
+    if (inviteStatusPill) inviteStatusPill.textContent = "GRID ACTIVE";
+    if (stats.invites)    stats.invites.textContent    = "0";
   }
 }
 
 function showInvite(index = 0) {
   if (!inviteToastStack) return;
-
   const invite = invitePool[index % invitePool.length];
-  const char = characterDirectory[invite.room];
+  const char   = characterDirectory[invite.room];
 
-  // Replace existing toast for same room (refresh)
   const existing = activeToasts.get(invite.room);
   if (existing) dismissToast(invite.room, existing.el);
 
@@ -940,98 +1025,97 @@ function showInvite(index = 0) {
       <p class="invite-toast-copy">${escapeHtml(invite.copy)}</p>
     </div>
     <div class="invite-toast-actions">
-      <button class="invite-toast-enter">Enter</button>
+      <button class="invite-toast-enter">ENTER</button>
       <button class="invite-toast-dismiss">✕</button>
     </div>
     <div class="invite-toast-timer-bar"></div>
   `;
 
   inviteToastStack.appendChild(toast);
-  window.requestAnimationFrame(() => {
-    window.requestAnimationFrame(() => toast.classList.add("visible"));
-  });
+  window.requestAnimationFrame(() => { window.requestAnimationFrame(() => toast.classList.add("visible")); });
 
-  if (inviteStatusPill) inviteStatusPill.textContent = "invite waiting";
-  if (stats.invites) stats.invites.textContent = String(activeToasts.size + 1);
+  if (inviteStatusPill) inviteStatusPill.textContent = "INVITE WAITING";
+  if (stats.invites)    stats.invites.textContent    = String(activeToasts.size + 1);
 
-  let countdown = 60;
-  const timerBar = toast.querySelector(".invite-toast-timer-bar");
+  let countdown   = 60;
+  const timerBar  = toast.querySelector(".invite-toast-timer-bar");
   if (timerBar) timerBar.style.width = "100%";
 
   const interval = window.setInterval(() => {
     countdown -= 1;
     if (timerBar) timerBar.style.width = `${(countdown / 60) * 100}%`;
-    if (countdown <= 0) {
-      window.clearInterval(interval);
-      dismissToast(invite.room, toast);
-    }
+    if (countdown <= 0) { window.clearInterval(interval); dismissToast(invite.room, toast); }
   }, 1000);
 
   activeToasts.set(invite.room, { el: toast, interval });
 
-  toast.querySelector(".invite-toast-dismiss").addEventListener("click", () => {
-    dismissToast(invite.room, toast);
-  });
-
+  toast.querySelector(".invite-toast-dismiss").addEventListener("click", () => dismissToast(invite.room, toast));
   toast.querySelector(".invite-toast-enter").addEventListener("click", async () => {
     dismissToast(invite.room, toast);
     await openRoom(invite.room);
   });
 }
 
-function cycleStats() {
-  stats.nodes.textContent = String(9 + Math.floor(Math.random() * 7));
-  stats.rooms.textContent = String(2 + Math.floor(Math.random() * 5));
-}
+// ── Room card buttons ─────────────────────────────────────
+roomCards.forEach(card => {
+  const roomKey = card.dataset.room;
+  const button  = card.querySelector(".btn");
+  if (!button || !roomKey) return;
+  button.addEventListener("click", () => openRoom(roomKey, button));
+});
+
+// ── Presence cards ────────────────────────────────────────
+document.querySelectorAll(".presence-card[data-room]").forEach(card => {
+  card.addEventListener("click", () => {
+    const roomKey = card.dataset.room;
+    if (!roomKey || !characterDirectory[roomKey]) return;
+    appState.selectedRoom = roomKey;
+    renderSpotlight(roomKey);
+    renderRouteDetail(roomKey);
+    renderActivityStrip();
+  });
+});
+
+// ── Hub/route action buttons ──────────────────────────────
+document.getElementById("hubEnterFocusedBtn")?.addEventListener("click", () => openRoom(appState.selectedRoom));
+document.getElementById("spotlightOpenBtn")?.addEventListener("click",   () => openRoom(appState.selectedRoom));
+document.getElementById("routeOpenBtn")?.addEventListener("click",       () => openRoom(appState.selectedRoom));
 
 document.querySelectorAll("[data-room][data-nav]").forEach(button => {
   button.addEventListener("click", () => {
     const roomKey = button.dataset.room;
-    if (roomKey && threadState[roomKey]) {
-      focusThread(roomKey);
-      hydrateThread(roomKey, false);
-    }
+    if (roomKey && threadState[roomKey]) { focusThread(roomKey); hydrateThread(roomKey, false); }
   });
 });
 
-roomCards.forEach(card => {
-  const roomKey = card.dataset.room;
-  const button = card.querySelector(".btn");
-
-  if (!button || !roomKey) return;
-
-  button.disabled = false;
-  button.textContent = "Enter Room";
-
-  button.addEventListener("click", () => {
-    openRoom(roomKey, button);
+document.querySelectorAll(".route-node").forEach(node => {
+  node.addEventListener("click", () => {
+    const roomKey = node.dataset.room;
+    if (!roomKey || !characterDirectory[roomKey]) return;
+    appState.selectedRoom = roomKey;
+    renderSpotlight(roomKey);
+    renderRouteDetail(roomKey);
+    renderActivityStrip();
   });
 });
 
-// Wire Hub presence cards to open rooms
-document.querySelectorAll(".presence-card[data-room]").forEach(card => {
-  card.addEventListener("click", () => {
-    const roomKey = card.dataset.room;
-    if (roomKey && threadState[roomKey]) {
-      openRoom(roomKey);
-    }
-  });
-});
-
+// ── Boot ──────────────────────────────────────────────────
 bootFromHash();
 
-Object.keys(characterDirectory).forEach(roomKey => {
-  ensureThreadButton(roomKey);
-});
+Object.keys(characterDirectory).forEach(roomKey => ensureThreadButton(roomKey));
 
+seedSignalFeed();
+renderSignalFeed();
+renderHubCounters();
+renderActivityStrip();
+renderSpotlight(appState.selectedRoom);
+renderRouteRail();
+renderRouteDetail(appState.selectedRoom);
 focusThread(activeThread);
-// Only hydrate the active thread on boot — others load lazily on click
+
 if (window.location.hash.replace("#", "") === "inbox") {
   hydrateThread(activeThread, false);
 }
-// Feed interval disabled — saves API budget, feed is off
-// window.setInterval(appendFeedEvent, 7000);
-window.setInterval(cycleStats, 9000);
 
-// Invite toasts are off by default.
-// showInvite() is called from dmForm submit after chemistry threshold is reached.
+window.setInterval(pushAmbientSystemEvent, 7000);
+window.setInterval(cycleLiveState, 9000);

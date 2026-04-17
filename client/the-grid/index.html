@@ -3,133 +3,267 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>The Grid</title>
-  <meta name="description" content="The Grid — dark social hub prototype with live rooms, inbox, routes, and network presence." />
+  <title>GRID</title>
+  <meta name="description" content="GRID — private signal network. Live nodes, intimate channels, unstable routes." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <div class="site-shell">
+    <!-- Ambient overlays -->
+    <div class="scanlines" aria-hidden="true"></div>
     <div class="ambient-grid" aria-hidden="true"></div>
     <div class="ambient-glow ambient-glow-a" aria-hidden="true"></div>
     <div class="ambient-glow ambient-glow-b" aria-hidden="true"></div>
+    <div class="ambient-glow ambient-glow-c" aria-hidden="true"></div>
 
     <header class="topbar glass">
-      <a href="#home" class="brand" data-nav="home" aria-label="The Grid home">
+      <a href="#home" class="brand" data-nav="home" aria-label="GRID home">
         <span class="brand-mark"></span>
-        <span class="brand-text">The Grid</span>
+        <span class="brand-text">GRID</span>
       </a>
       <button class="menu-toggle" id="menuToggle" aria-expanded="false" aria-controls="primaryNav">
         <span></span><span></span>
       </button>
       <nav id="primaryNav" class="nav" aria-label="Primary navigation">
-        <button class="nav-link active" data-nav="home">Home</button>
-        <button class="nav-link" data-nav="hub">Hub</button>
-        <button class="nav-link" data-nav="rooms">Private Rooms</button>
-        <button class="nav-link" data-nav="inbox">Inbox</button>
-        <button class="nav-link" data-nav="routes">Story Routes</button>
+        <button class="nav-link active" data-nav="home">HOME</button>
+        <button class="nav-link" data-nav="hub">HUB</button>
+        <button class="nav-link" data-nav="rooms">ROOMS</button>
+        <button class="nav-link" data-nav="inbox">INBOX</button>
+        <button class="nav-link" data-nav="routes">ROUTES</button>
       </nav>
+        <div class="wayfinder" id="wayfinder">
+          <span class="wf-section" id="currentSection">HOME</span>
+          <span class="wf-sep" id="wfSep">•</span>
+          <span class="wf-context" id="currentContext"></span>
+        </div>
+        <div class="topbar-live">
+        <span class="live-dot"></span>
+        <span id="topbarNodes">12</span> nodes
+      </div>
     </header>
 
     <main class="page-stack">
 
       <!-- HOME -->
-      <section id="home" class="page active" data-page="home" aria-labelledby="homeTitle">
-        <div class="container hero-grid">
-          <div class="hero-copy">
-            <p class="eyebrow">Private network access</p>
-            <h1 id="homeTitle">Enter The Grid</h1>
-            <p class="lede">A dark social hub built around presence, live rooms, and private signals. Less platform. More access.</p>
-            <div class="hero-actions">
-              <button class="btn btn-primary" data-nav="hub">Enter The Grid</button>
-              <button class="btn btn-secondary" data-nav="rooms">View Live Nodes</button>
+      <section id="home" class="page active" data-page="home">
+        <div class="home-scene">
+          <div class="home-grid-lines" aria-hidden="true"></div>
+
+          <div class="home-wordmark-block">
+            <div class="home-eyebrow">PRIVATE SIGNAL NETWORK</div>
+            <h1 class="home-wordmark">GRID</h1>
+            <p class="home-sub">Four nodes. No audience. Enter a channel, hold the signal, or lose access entirely.</p>
+          </div>
+
+          <div class="home-cta-row">
+            <button class="btn btn-primary btn-cta" data-nav="hub">ACCESS GRID</button>
+            <button class="btn btn-ghost btn-cta" data-nav="rooms">SCAN NODES</button>
+          </div>
+
+          <div class="home-stats-bar">
+            <div class="home-stat">
+              <span class="home-stat-val" id="statNodes">12</span>
+              <span class="home-stat-label">NODES ONLINE</span>
             </div>
-            <div class="hero-stats">
-              <div class="stat glass"><span class="stat-value" id="statNodes">12</span><span class="stat-label">Nodes online</span></div>
-              <div class="stat glass"><span class="stat-value" id="statRooms">4</span><span class="stat-label">Active rooms</span></div>
-              <div class="stat glass"><span class="stat-value" id="statInvites">1</span><span class="stat-label">Live invites</span></div>
+            <div class="home-stat-sep"></div>
+            <div class="home-stat">
+              <span class="home-stat-val" id="statRooms">4</span>
+              <span class="home-stat-label">ROOMS ACTIVE</span>
+            </div>
+            <div class="home-stat-sep"></div>
+            <div class="home-stat">
+              <span class="home-stat-val" id="statInvites">1</span>
+              <span class="home-stat-label">LIVE INVITES</span>
             </div>
           </div>
-          <div class="hero-visual">
-            <div class="hero-network">
-              <span class="network-node node-a"></span>
-              <span class="network-node node-b"></span>
-              <span class="network-node node-c"></span>
-              <span class="network-node node-d"></span>
-              <div class="floating-card glass">
-                <div class="avatar avatar-nina">N</div>
-                <div>
-                  <strong>Nina</strong>
-                  <p>Still holding the thread.</p>
-                </div>
-                <span class="badge online">online</span>
+
+          <div class="home-nodes-visual" aria-hidden="true">
+            <div class="home-node-card glass" style="--nd:0s;--nx:12%;--ny:22%;">
+              <div class="avatar avatar-nina">N</div>
+              <div class="home-node-info">
+                <strong>Nina</strong>
+                <span class="node-sig sig-online">ONLINE</span>
               </div>
-              <div class="floating-card glass secondary">
-                <div class="avatar avatar-hazel">H</div>
-                <div>
-                  <strong>Hazel</strong>
-                  <p>You disappeared too early.</p>
-                </div>
-                <span class="badge away">away</span>
+              <p class="home-node-line">Still holding the thread.</p>
+            </div>
+            <div class="home-node-card glass" style="--nd:.4s;--nx:62%;--ny:14%;">
+              <div class="avatar avatar-hazel">H</div>
+              <div class="home-node-info">
+                <strong>Hazel</strong>
+                <span class="node-sig sig-away">OBSERVANT</span>
               </div>
-              <div class="floating-card glass tertiary">
-                <div class="avatar avatar-vale">V</div>
-                <div>
-                  <strong>Vale</strong>
-                  <p>Room's open.</p>
-                </div>
-                <span class="badge">invite</span>
+              <p class="home-node-line">You disappeared too early.</p>
+            </div>
+            <div class="home-node-card glass" style="--nd:.8s;--nx:28%;--ny:62%;">
+              <div class="avatar avatar-iris">I</div>
+              <div class="home-node-info">
+                <strong>Iris</strong>
+                <span class="node-sig sig-online">LISTENING</span>
               </div>
+              <p class="home-node-line">Only clear in private.</p>
+            </div>
+            <div class="home-node-card glass" style="--nd:1.1s;--nx:70%;--ny:58%;">
+              <div class="avatar avatar-vale">V</div>
+              <div class="home-node-info">
+                <strong>Vale</strong>
+                <span class="node-sig sig-unstable">UNSTABLE</span>
+              </div>
+              <p class="home-node-line">Open briefly. Then gone.</p>
             </div>
           </div>
         </div>
       </section>
 
       <!-- HUB -->
-      <section id="hub" class="page" data-page="hub" aria-labelledby="hubTitle">
+      <section id="hub" class="page" data-page="hub">
         <div class="container section-space">
-          <div class="page-title-row">
-            <div>
-              <p class="eyebrow">The Grid</p>
-              <h2 id="hubTitle">Who's here</h2>
+          <div class="hub-header">
+            <div class="hub-header-left">
+              <span class="sys-label">LIVE NETWORK STATE</span>
+              <h2 class="hub-title">HUB</h2>
             </div>
-            <span class="pulse-pill" id="inviteStatusPill">Grid active</span>
+            <div class="hub-quick-actions">
+              <button class="btn btn-small" id="quickOpenThreadBtn">OPEN SELECTED</button>
+              <button class="btn btn-small" id="quickViewRouteBtn">VIEW ROUTE</button>
+              <button class="btn btn-small" id="quickGoRoomsBtn" data-nav="rooms">GO TO ROOMS</button>
+            </div>
+            <div class="hub-status-cluster">
+              <span class="pill" id="hubNodesPill">12 nodes</span>
+              <span class="pill" id="hubRoomsPill">4 rooms active</span>
+              <span class="pulse-pill" id="inviteStatusPill">GRID ACTIVE</span>
+            </div>
           </div>
-          <div class="presence-grid">
-            <button class="presence-card glass" data-room="nina">
-              <div class="presence-top">
-                <div class="avatar avatar-nina">N</div>
-                <span class="status status-online"><span class="dot"></span> online</span>
+
+          <div class="hub-shell">
+            <!-- Left rail: NODES + SIGNAL LOG -->
+            <aside class="hub-rail glass">
+              <div class="hub-block">
+                <div class="hub-block-head">
+                  <span class="sys-label">NODES</span>
+                  <span class="subtle">who is close</span>
+                </div>
+                <div class="presence-stack" id="presenceStack">
+                  <button class="presence-card glass" data-room="nina">
+                    <div class="presence-top">
+                      <div class="avatar avatar-nina">N</div>
+                      <span class="node-sig sig-online">ONLINE</span>
+                    </div>
+                    <strong>Nina</strong>
+                    <p class="subtle">Still holding the thread.</p>
+                  </button>
+                  <button class="presence-card glass" data-room="hazel">
+                    <div class="presence-top">
+                      <div class="avatar avatar-hazel">H</div>
+                      <span class="node-sig sig-away">OBSERVANT</span>
+                    </div>
+                    <strong>Hazel</strong>
+                    <p class="subtle">You disappeared too early.</p>
+                  </button>
+                  <button class="presence-card glass" data-room="iris">
+                    <div class="presence-top">
+                      <div class="avatar avatar-iris">I</div>
+                      <span class="node-sig sig-online">LISTENING</span>
+                    </div>
+                    <strong>Iris</strong>
+                    <p class="subtle">Only clear in private.</p>
+                  </button>
+                  <button class="presence-card glass" data-room="vale">
+                    <div class="presence-top">
+                      <div class="avatar avatar-vale">V</div>
+                      <span class="node-sig sig-unstable">UNSTABLE</span>
+                    </div>
+                    <strong>Vale</strong>
+                    <p class="subtle">Open briefly. Then gone.</p>
+                  </button>
+                </div>
               </div>
-              <strong>Nina</strong>
-              <p class="subtle" id="hub-preview-nina">Still holding the thread.</p>
-            </button>
-            <button class="presence-card glass" data-room="hazel">
-              <div class="presence-top">
-                <div class="avatar avatar-hazel">H</div>
-                <span class="status status-away"><span class="dot"></span> away</span>
+
+              <div class="hub-block">
+                <div class="hub-block-head">
+                  <span class="sys-label">SIGNAL LOG</span>
+                  <span class="subtle">live motion</span>
+                </div>
+                <div class="signal-feed" id="signalFeed" aria-live="polite"></div>
               </div>
-              <strong>Hazel</strong>
-              <p class="subtle" id="hub-preview-hazel">You disappeared too early.</p>
-            </button>
-            <button class="presence-card glass" data-room="iris">
-              <div class="presence-top">
-                <div class="avatar avatar-iris">I</div>
-                <span class="status status-online"><span class="dot"></span> listening</span>
+            </aside>
+
+            <!-- Center: open channel -->
+            <section class="hub-main glass">
+              <div class="hub-main-head">
+                <div>
+                  <span class="sys-label">OPEN CHANNEL</span>
+                  <h3 id="hubSceneTitle" class="hub-main-title">The network is awake.</h3>
+                </div>
+                <div class="main-presence">
+                  <span class="node-sig sig-online">CHANNEL OPEN</span>
+                </div>
               </div>
-              <strong>Iris</strong>
-              <p class="subtle" id="hub-preview-iris">There's something she only says in private.</p>
-            </button>
-            <button class="presence-card glass" data-room="vale">
-              <div class="presence-top">
-                <div class="avatar avatar-vale">V</div>
-                <span class="status status-offline"><span class="dot"></span> invite only</span>
+
+              <div class="main-scene">
+                <div class="main-scene-copy">
+                  <p class="main-scene-kicker">ACCESS WINDOW</p>
+                  <p id="hubSceneCopy" class="hub-scene-body">Watch the grid shift, then choose where to go private.</p>
+                  <div class="main-scene-actions">
+                    <button class="btn btn-primary" id="hubEnterFocusedBtn">ENTER CHANNEL</button>
+                    <button class="btn btn-ghost" data-nav="rooms">BROWSE NODES</button>
+                  </div>
+                </div>
+
+                <div class="main-scene-visual">
+                  <div class="scene-orbit">
+                    <span class="scene-node scene-node-a"></span>
+                    <span class="scene-node scene-node-b"></span>
+                    <span class="scene-node scene-node-c"></span>
+                    <span class="scene-node scene-node-d"></span>
+                    <div class="scene-focus-card glass" id="sceneFocusCard">
+                      <div class="avatar avatar-nina" id="sceneFocusAvatar">N</div>
+                      <div>
+                        <strong id="sceneFocusName">Nina</strong>
+                        <p id="sceneFocusPreview">Still holding the thread.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <strong>Vale</strong>
-              <p class="subtle" id="hub-preview-vale">Room's open.</p>
-            </button>
+
+              <div class="hub-main-footer">
+                <div class="main-activity-strip" id="mainActivityStrip"></div>
+              </div>
+            </section>
+
+            <!-- Right rail: ACTIVE PULL + LIVE ROUTES -->
+            <aside class="hub-spotlight glass">
+              <div class="hub-block">
+                <div class="hub-block-head">
+                  <span class="sys-label">ACTIVE PULL</span>
+                  <span class="subtle">selected node</span>
+                </div>
+
+                <div class="spotlight-card" id="spotlightCard">
+                  <div class="spotlight-top">
+                    <div class="avatar avatar-nina" id="spotlightAvatar">N</div>
+                    <div>
+                      <strong id="spotlightName">Nina</strong>
+                      <p id="spotlightStatus" class="subtle">online now</p>
+                    </div>
+                  </div>
+                  <p class="spotlight-copy" id="spotlightCopy">She makes the room feel like you were expected.</p>
+                  <div class="spotlight-tags" id="spotlightTags"></div>
+                  <button class="btn btn-primary btn-full" id="spotlightOpenBtn">ACCESS NODE</button>
+                </div>
+              </div>
+
+              <div class="hub-block">
+                <div class="hub-block-head">
+                  <span class="sys-label">LIVE ROUTES</span>
+                  <span class="subtle">unstable pathways</span>
+                </div>
+                <div class="route-rail" id="routeRail"></div>
+              </div>
+            </aside>
           </div>
         </div>
       </section>
@@ -137,57 +271,61 @@
       <!-- ROOMS -->
       <section id="rooms" class="page" data-page="rooms">
         <div class="container section-space">
-
           <div class="page-title-row">
             <div>
-              <h2>Private Rooms</h2>
-              <p class="subtle">Live nodes — enter while they're open</p>
+              <span class="sys-label">ACCESS PORTALS</span>
+              <h2 class="rooms-title">NODES</h2>
+              <p class="subtle">Enter while open. Some close without warning.</p>
             </div>
           </div>
 
-          <div class="card-grid rooms-grid">
+          <div class="rooms-grid">
             <article class="room-card glass" data-room="nina">
+              <div class="room-card-accent" style="--ra-color: rgba(159,103,255,0.18)"></div>
               <div class="card-top">
                 <div class="avatar avatar-nina">N</div>
-                <span class="status status-online"><span class="dot"></span> online now</span>
+                <span class="node-sig sig-online">ONLINE</span>
               </div>
-              <h3>Nina</h3>
-              <p class="mood">Still holding the thread from last time.</p>
-              <p class="last-active">active now</p>
-              <button class="btn btn-primary btn-full">Enter Room</button>
+              <h3 class="room-name">Nina</h3>
+              <p class="room-access-state">WARM SIGNAL / STABLE</p>
+              <p class="room-mood">Still holding the thread from last time.</p>
+              <button class="btn btn-primary btn-full room-cta">ACCESS NODE</button>
             </article>
 
             <article class="room-card glass" data-room="hazel">
+              <div class="room-card-accent" style="--ra-color: rgba(59,130,246,0.16)"></div>
               <div class="card-top">
                 <div class="avatar avatar-hazel">H</div>
-                <span class="status status-away"><span class="dot"></span> active 9m ago</span>
+                <span class="node-sig sig-away">OBSERVANT</span>
               </div>
-              <h3>Hazel</h3>
-              <p class="mood">You disappeared too early last time.</p>
-              <p class="last-active">last seen 9m ago</p>
-              <button class="btn btn-secondary btn-full">Enter Room</button>
+              <h3 class="room-name">Hazel</h3>
+              <p class="room-access-state">COLD PRECISE / WATCHING</p>
+              <p class="room-mood">You disappeared too early last time.</p>
+              <button class="btn btn-secondary btn-full room-cta">FACE HAZEL</button>
             </article>
 
             <article class="room-card glass" data-room="iris">
+              <div class="room-card-accent" style="--ra-color: rgba(168,85,247,0.18)"></div>
               <div class="card-top">
                 <div class="avatar avatar-iris">I</div>
-                <span class="status status-online"><span class="dot"></span> listening</span>
+                <span class="node-sig sig-online">LISTENING</span>
               </div>
-              <h3>Iris</h3>
-              <p class="mood">There's something she only says in private.</p>
-              <p class="last-active">active now</p>
-              <button class="btn btn-primary btn-full">Enter Room</button>
+              <h3 class="room-name">Iris</h3>
+              <p class="room-access-state">LOW SIGNAL / WARMING</p>
+              <p class="room-mood">There's something she only says in private.</p>
+              <button class="btn btn-primary btn-full room-cta">LISTEN IN</button>
             </article>
 
             <article class="room-card glass" data-room="vale">
+              <div class="room-card-accent" style="--ra-color: rgba(34,211,238,0.14)"></div>
               <div class="card-top">
                 <div class="avatar avatar-vale">V</div>
-                <span class="status status-offline"><span class="dot"></span> invite only</span>
+                <span class="node-sig sig-unstable">UNSTABLE</span>
               </div>
-              <h3>Vale</h3>
-              <p class="mood">Not open to everyone tonight.</p>
-              <p class="last-active">last seen 18m ago</p>
-              <button class="btn btn-secondary btn-full">Enter Room</button>
+              <h3 class="room-name">Vale</h3>
+              <p class="room-access-state">ROUTE UNSTABLE / OPEN BRIEFLY</p>
+              <p class="room-mood">Not open to everyone tonight.</p>
+              <button class="btn btn-danger btn-full room-cta">CATCH BEFORE CLOSE</button>
             </article>
           </div>
         </div>
@@ -195,10 +333,13 @@
 
       <!-- INBOX -->
       <section id="inbox" class="page" data-page="inbox">
-        <div class="container section-space">
+        <div class="container section-space inbox-container">
           <div class="inbox-layout">
-            <!-- Col 1: threads -->
-            <aside class="thread-list" aria-label="Message threads">
+            <!-- Col 1: channel list -->
+            <aside class="thread-list" aria-label="Signal channels">
+              <div class="thread-list-header">
+                <span class="sys-label">CHANNELS</span>
+              </div>
               <button class="thread-item active" data-thread="nina">
                 <div class="avatar avatar-nina">N</div>
                 <div class="thread-copy">
@@ -233,7 +374,7 @@
               </button>
             </aside>
 
-            <!-- Col 2: chat -->
+            <!-- Col 2: private signal terminal -->
             <div class="dm-panel">
               <div class="dm-head">
                 <div class="dm-user">
@@ -243,31 +384,42 @@
                     <p id="dmStatus" class="subtle">online now</p>
                   </div>
                 </div>
+                <div class="dm-head-right">
+                  <div class="dm-scene-state" id="dmSceneState">The room is open, but not relaxed.</div>
+                  <div class="dm-quick-actions">
+                    <button class="btn btn-small" id="dmBackHubBtn" data-nav="hub">BACK</button>
+                    <button class="btn btn-small" id="dmViewRouteBtn">VIEW ROUTE</button>
+                  </div>
+                </div>
               </div>
               <div class="dm-thread" id="dmThread"></div>
               <div class="chat-compose">
                 <form id="dmForm">
-                  <input type="text" id="dmInput" placeholder="Write a message…" autocomplete="off" />
-                  <button type="button" id="cameraBtn" class="compose-action" title="Send image">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                  <input type="text" id="dmInput" placeholder="Transmit signal…" autocomplete="off" />
+                  <button type="button" id="cameraBtn" class="compose-action" title="Capture">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
                   </button>
                   <button type="submit" class="compose-send" aria-label="Send">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                   </button>
                 </form>
               </div>
             </div>
 
-            <!-- Col 3: character profile -->
+            <!-- Col 3: node profile -->
             <aside class="character-profile-panel" id="characterProfilePanel">
               <div class="profile-gallery">
                 <img id="profileImg" src="" alt="" style="display:none;" />
                 <div class="profile-gallery-placeholder" id="profilePlaceholder">N</div>
               </div>
               <div class="profile-info">
-                <h3 id="profileName">Nina</h3>
+                <div class="profile-info-header">
+                  <h3 id="profileName">Nina</h3>
+                  <span class="node-sig sig-online" id="profileSig">ONLINE</span>
+                </div>
                 <p id="profileBio" class="subtle">Still holding the thread.</p>
                 <div class="profile-tags" id="profileTags"></div>
+                <button class="btn btn-primary btn-full profile-open-btn" id="profileOpenBtn">OPEN CHANNEL</button>
               </div>
             </aside>
           </div>
@@ -275,45 +427,65 @@
       </section>
 
       <!-- ROUTES -->
-      <section id="routes" class="page" data-page="routes" aria-labelledby="routesTitle">
+      <section id="routes" class="page" data-page="routes">
         <div class="container section-space">
           <div class="page-title-row">
             <div>
-              <h2 id="routesTitle">Story Routes</h2>
-              <p class="subtle">Private narrative threads — pick up where you left off</p>
+              <span class="sys-label">NARRATIVE SYSTEM</span>
+              <h2 class="routes-title">SIGNAL MAP</h2>
+              <p class="subtle">Routes do not progress linearly. They warm, open, destabilize, and close.</p>
             </div>
           </div>
-          <div class="card-grid three-col">
-            <article class="route-card glass">
-              <span class="route-tag">Nina / Thread 01</span>
-              <h3>The Signal That Didn't Break</h3>
-              <p>She kept talking even when the connection dropped. You never asked why.</p>
-              <div class="progress"><span class="progress-bar" style="width:62%"></span></div>
-              <div class="route-foot">
-                <span>62% complete</span>
-                <button class="btn btn-secondary btn-small" data-room="nina" data-nav="inbox">Continue</button>
+
+          <div class="route-map-shell glass">
+            <div class="route-map" id="routeMap">
+              <button class="route-node active" data-room="nina" data-route="return-thread">
+                <span class="route-node-label">Nina</span>
+                <strong>THE RETURN</strong>
+                <span class="route-state-badge state-stable">STABLE</span>
+                <small>62% open</small>
+              </button>
+
+              <button class="route-node" data-room="hazel" data-route="after-image">
+                <span class="route-node-label">Hazel</span>
+                <strong>AFTER THE PAUSE</strong>
+                <span class="route-state-badge state-watching">WATCHING</span>
+                <small>41% open</small>
+              </button>
+
+              <button class="route-node" data-room="iris" data-route="low-signal">
+                <span class="route-node-label">Iris</span>
+                <strong>LOW SIGNAL</strong>
+                <span class="route-state-badge state-warming">WARMING</span>
+                <small>28% open</small>
+              </button>
+
+              <button class="route-node unstable" data-room="vale" data-route="brief-window">
+                <span class="route-node-label">Vale</span>
+                <strong>BRIEF WINDOW</strong>
+                <span class="route-state-badge state-unstable">UNSTABLE</span>
+                <small>open briefly</small>
+              </button>
+            </div>
+
+            <aside class="route-detail" id="routeDetail">
+              <span class="sys-label">ROUTE DETAIL</span>
+              <h3 id="routeDetailTitle" class="route-detail-title">THE RETURN</h3>
+              <p id="routeDetailCopy" class="subtle">
+                She kept the thread open longer than she should have. You never answered why.
+              </p>
+              <div class="route-detail-meta" id="routeDetailMeta">
+                <span class="pill">stable</span>
+                <span class="pill">62% open</span>
               </div>
-            </article>
-            <article class="route-card glass">
-              <span class="route-tag">Hazel / Thread 02</span>
-              <h3>Everything You Didn't Say</h3>
-              <p>Hazel remembers the pauses more than the words.</p>
-              <div class="progress"><span class="progress-bar" style="width:28%"></span></div>
-              <div class="route-foot">
-                <span>28% complete</span>
-                <button class="btn btn-secondary btn-small" data-room="hazel" data-nav="inbox">Continue</button>
+              <div class="route-console">
+                <div class="console-line"><span class="cl-key">NODE</span><span class="cl-val" id="consoleNode">Nina</span></div>
+                <div class="console-line"><span class="cl-key">STATE</span><span class="cl-val" id="consoleState">STABLE</span></div>
+                <div class="console-line"><span class="cl-key">ACCESS</span><span class="cl-val" id="consoleAccess">62% OPEN</span></div>
+                <div class="console-line"><span class="cl-key">SIGNAL</span><span class="cl-val cl-live">LIVE</span></div>
               </div>
-            </article>
-            <article class="route-card glass">
-              <span class="route-tag">Iris / Thread 01</span>
-              <h3>Low Signal, High Clarity</h3>
-              <p>Some conversations only work when you keep your voice down.</p>
-              <div class="progress"><span class="progress-bar" style="width:10%"></span></div>
-              <div class="route-foot">
-                <span>10% complete</span>
-                <button class="btn btn-secondary btn-small" data-room="iris" data-nav="inbox">Continue</button>
-              </div>
-            </article>
+              <button class="btn btn-primary btn-full" id="routeOpenBtn">ENTER CHANNEL</button>
+            </aside>
           </div>
         </div>
       </section>
@@ -321,12 +493,19 @@
     </main>
 
     <footer class="footer glass">
-      <span class="subtle">The Grid — private access only</span>
-      <span class="subtle">v2.4 · <span id="footerNodes">12</span> nodes live</span>
+      <span class="footer-brand">GRID</span>
+      <span class="subtle">PRIVATE ACCESS ONLY — <span id="footerNodes">12</span> NODES LIVE</span>
     </footer>
   </div>
 
-  <!-- Invite toast stack — bottom left -->
+  <nav class="bottom-dock" id="bottomDock" aria-label="Mobile navigation">
+    <button class="dock-btn nav-link" data-nav="home">HOME</button>
+    <button class="dock-btn nav-link" data-nav="hub">HUB</button>
+    <button class="dock-btn nav-link" data-nav="rooms">ROOMS</button>
+    <button class="dock-btn nav-link" data-nav="inbox">INBOX</button>
+    <button class="dock-btn nav-link" data-nav="routes">ROUTES</button>
+  </nav>
+
   <div class="invite-toast-stack" id="inviteToastStack" aria-live="polite"></div>
   <div class="invite-panel-backdrop hidden" id="inviteBackdrop"></div>
 
