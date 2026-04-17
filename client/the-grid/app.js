@@ -84,15 +84,7 @@ const mainChat = document.getElementById("mainChat");
 const mainChatForm = document.getElementById("mainChatForm");
 const mainChatInput = document.getElementById("mainChatInput");
 
-const invitePanel = document.getElementById("invitePanel");
-const inviteBackdrop = document.getElementById("inviteBackdrop");
-const invitePanelAvatar = document.getElementById("invitePanelAvatar");
-const invitePanelName = document.getElementById("invitePanelName");
-const invitePanelCopy = document.getElementById("invitePanelCopy");
-const inviteTimerText = document.getElementById("inviteTimerText");
-const timerProgress = document.getElementById("timerProgress");
-const dismissInviteBtn = document.getElementById("dismissInviteBtn");
-const enterInviteBtn = document.getElementById("enterInviteBtn");
+const inviteToastStack = document.getElementById("inviteToastStack");
 const inviteStatusPill = document.getElementById("inviteStatusPill");
 
 const roomCards = document.querySelectorAll(".room-card");
@@ -103,6 +95,7 @@ const dmStatus = document.getElementById("dmStatus");
 const dmAvatar = document.getElementById("dmAvatar");
 const dmForm = document.getElementById("dmForm");
 const dmInput = document.getElementById("dmInput");
+const cameraBtn = document.getElementById('cameraBtn');
 
 const stats = {
   nodes: document.getElementById("statNodes"),
@@ -214,8 +207,6 @@ const feedEvents = [
 ];
 
 let activeThread = "nina";
-let inviteCountdown = 60;
-let inviteInterval = null;
 let inviteIndex = 0;
 
 function escapeHtml(value) {
@@ -308,7 +299,7 @@ function appendMainMessage(author, text, side = "outgoing") {
   bubble.className = `chat-bubble ${side}`;
   bubble.innerHTML = `
     <span class="chat-author">${escapeHtml(author)}</span>
-    <p>${escapeHtml(text)}</p>
+    <p>${renderMessageText(text)}</p>
     <time>${escapeHtml(nowClock())}</time>
   `;
 
@@ -850,76 +841,130 @@ dmForm?.addEventListener("submit", async event => {
   renderDmThread(activeThread);
 });
 
-function updateInviteTimer() {
-  if (inviteTimerText) inviteTimerText.textContent = `expires in ${inviteCountdown}s`;
-  if (timerProgress) timerProgress.style.width = `${(inviteCountdown / 60) * 100}%`;
-}
+// Camera button: capture image, send to server, show returned image in thread
+cameraBtn?.addEventListener('click', async () => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    const video = document.createElement('video');
+    video.srcObject = stream;
+    await video.play();
 
-function hideInvite(expired = false) {
-  if (invitePanel) {
-    invitePanel.classList.remove("open");
-    invitePanel.setAttribute("aria-hidden", "true");
+    const canvas = document.createElement('canvas');
+    canvas.width = 640;
+    canvas.height = 480;
+    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+    stream.getTracks().forEach(t => t.stop());
+
+    const imageBase64 = canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+    const char = characterDirectory[activeThread];
+
+    const res = await fetch('/api/camera/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt: `${char?.name || activeThread} reacts to what they see in the image`,
+        imageBase64,
+        character: activeThread
+      })
+    });
+    const data = await res.json();
+    const imageUrl = data?.imageUrl || (data?.shot && data.shot.path) || null;
+    if (imageUrl) {
+      const thread = threadState[activeThread];
+      const imgMsg = {
+        side: 'incoming',
+        author: char?.name || activeThread,
+        text: '',
+        imageUrl,
+        time: nowClock()
+      };
+      thread.messages.push(imgMsg);
+      renderDmThread(activeThread);
+    }
+  } catch (err) {
+    console.warn('Camera error:', err);
   }
-  if (inviteBackdrop) inviteBackdrop.classList.add("hidden");
-  if (inviteStatusPill) inviteStatusPill.textContent = expired ? "No live invites right now" : "Grid active";
-  if (stats.invites) stats.invites.textContent = "0";
+});
+
+// Active toasts: Map<roomKey, { el, interval }>
+const activeToasts = new Map();
+
+function dismissToast(roomKey, el) {
+  if (!el) return;
+  el.classList.add("exiting");
+  window.setTimeout(() => el.remove(), 220);
+
+  const entry = activeToasts.get(roomKey);
+  if (entry) {
+    window.clearInterval(entry.interval);
+    activeToasts.delete(roomKey);
+  }
+
+  if (activeToasts.size === 0) {
+    if (inviteStatusPill) inviteStatusPill.textContent = "Grid active";
+    if (stats.invites) stats.invites.textContent = "0";
+  }
 }
 
 function showInvite(index = 0) {
-  if (!invitePanel) return;
+  if (!inviteToastStack) return;
 
   const invite = invitePool[index % invitePool.length];
   const char = characterDirectory[invite.room];
 
-  if (invitePanelAvatar) {
-    invitePanelAvatar.textContent = char?.avatar || invite.name[0];
-    invitePanelAvatar.className = `avatar avatar-${invite.room}`;
-  }
-  if (invitePanelName) invitePanelName.textContent = invite.name;
-  if (invitePanelCopy) invitePanelCopy.textContent = invite.copy;
+  // Replace existing toast for same room (refresh)
+  const existing = activeToasts.get(invite.room);
+  if (existing) dismissToast(invite.room, existing.el);
 
-  invitePanel.classList.add("open");
-  invitePanel.setAttribute("aria-hidden", "false");
-  if (inviteBackdrop) inviteBackdrop.classList.remove("hidden");
-  if (inviteStatusPill) inviteStatusPill.textContent = "1 direct invite waiting";
-  if (stats.invites) stats.invites.textContent = "1";
+  const toast = document.createElement("div");
+  toast.className = "invite-toast";
+  toast.innerHTML = `
+    <div class="invite-toast-avatar">
+      <div class="avatar avatar-${escapeHtml(invite.room)}">${escapeHtml(char?.avatar || invite.name[0])}</div>
+    </div>
+    <div class="invite-toast-body">
+      <p class="invite-toast-name">${escapeHtml(invite.name)}</p>
+      <p class="invite-toast-copy">${escapeHtml(invite.copy)}</p>
+    </div>
+    <div class="invite-toast-actions">
+      <button class="invite-toast-enter">Enter</button>
+      <button class="invite-toast-dismiss">✕</button>
+    </div>
+    <div class="invite-toast-timer-bar"></div>
+  `;
 
-  document.querySelectorAll(".room-card").forEach(card => {
-    card.classList.remove("invited");
-    if (card.dataset.room === invite.room) card.classList.add("invited");
+  inviteToastStack.appendChild(toast);
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => toast.classList.add("visible"));
   });
 
-  window.clearInterval(inviteInterval);
-  inviteCountdown = 60;
-  updateInviteTimer();
+  if (inviteStatusPill) inviteStatusPill.textContent = "invite waiting";
+  if (stats.invites) stats.invites.textContent = String(activeToasts.size + 1);
 
-  inviteInterval = window.setInterval(() => {
-    inviteCountdown -= 1;
-    updateInviteTimer();
-    if (inviteCountdown <= 0) {
-      window.clearInterval(inviteInterval);
-      hideInvite(true);
+  let countdown = 60;
+  const timerBar = toast.querySelector(".invite-toast-timer-bar");
+  if (timerBar) timerBar.style.width = "100%";
+
+  const interval = window.setInterval(() => {
+    countdown -= 1;
+    if (timerBar) timerBar.style.width = `${(countdown / 60) * 100}%`;
+    if (countdown <= 0) {
+      window.clearInterval(interval);
+      dismissToast(invite.room, toast);
     }
   }, 1000);
+
+  activeToasts.set(invite.room, { el: toast, interval });
+
+  toast.querySelector(".invite-toast-dismiss").addEventListener("click", () => {
+    dismissToast(invite.room, toast);
+  });
+
+  toast.querySelector(".invite-toast-enter").addEventListener("click", async () => {
+    dismissToast(invite.room, toast);
+    await openRoom(invite.room);
+  });
 }
-
-dismissInviteBtn?.addEventListener("click", () => {
-  window.clearInterval(inviteInterval);
-  hideInvite(false);
-});
-
-inviteBackdrop?.addEventListener("click", () => {
-  window.clearInterval(inviteInterval);
-  hideInvite(false);
-});
-
-enterInviteBtn?.addEventListener("click", async () => {
-  window.clearInterval(inviteInterval);
-  hideInvite(false);
-
-  const invite = invitePool[inviteIndex % invitePool.length];
-  await openRoom(invite.room, enterInviteBtn);
-});
 
 function cycleStats() {
   stats.nodes.textContent = String(9 + Math.floor(Math.random() * 7));
@@ -948,50 +993,6 @@ roomCards.forEach(card => {
   button.addEventListener("click", () => {
     openRoom(roomKey, button);
   });
-});
-
-// Camera button
-const cameraBtn = document.getElementById("cameraBtn");
-cameraBtn?.addEventListener("click", async () => {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-    const video = document.createElement("video");
-    video.srcObject = stream;
-    video.muted = true;
-    await video.play();
-
-    const canvas = document.createElement("canvas");
-    canvas.width = 640;
-    canvas.height = 480;
-    canvas.getContext("2d").drawImage(video, 0, 0, 640, 480);
-    stream.getTracks().forEach(t => t.stop());
-
-    const imageBase64 = canvas.toDataURL("image/jpeg", 0.85).split(",")[1];
-    const char = characterDirectory[activeThread];
-
-    const res = await requestJson("/api/camera/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        prompt: `${char?.name || activeThread} reacts to what they see in the image`,
-        imageBase64,
-      }),
-    });
-
-    if (res?.imageUrl) {
-      const thread = threadState[activeThread];
-      thread.messages.push({
-        side: "incoming",
-        author: char?.name || activeThread,
-        text: "",
-        imageUrl: res.imageUrl,
-        time: nowClock(),
-      });
-      renderDmThread(activeThread);
-    }
-  } catch (err) {
-    console.warn("Camera error:", err.message);
-  }
 });
 
 // Wire Hub presence cards to open rooms

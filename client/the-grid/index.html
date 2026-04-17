@@ -326,24 +326,8 @@
     </footer>
   </div>
 
-  <!-- Slide-in invite panel -->
-  <div class="invite-panel glass" id="invitePanel" aria-hidden="true">
-    <div class="invite-panel-inner">
-      <div class="invite-panel-avatar">
-        <div class="avatar avatar-nina" id="invitePanelAvatar">N</div>
-      </div>
-      <p class="eyebrow" id="invitePanelName">Nina</p>
-      <p class="invite-panel-copy" id="invitePanelCopy">Come back. I want to finish that conversation.</p>
-      <div class="invite-panel-timer">
-        <span id="inviteTimerText">expires in 60s</span>
-        <div class="timer-bar"><span id="timerProgress"></span></div>
-      </div>
-      <div class="invite-panel-actions">
-        <button class="btn btn-primary btn-full" id="enterInviteBtn">Enter Room</button>
-        <button class="btn btn-secondary btn-full" id="dismissInviteBtn">Dismiss</button>
-      </div>
-    </div>
-  </div>
+  <!-- Invite toast stack — bottom left -->
+  <div class="invite-toast-stack" id="inviteToastStack" aria-live="polite"></div>
   <div class="invite-panel-backdrop hidden" id="inviteBackdrop"></div>
 
   <script src="app.js"></script>
