@@ -7,7 +7,7 @@
   <meta name="description" content="The Grid — dark social hub prototype with live rooms, inbox, routes, and network presence." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" >
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -15,18 +15,14 @@
     <div class="ambient-grid" aria-hidden="true"></div>
     <div class="ambient-glow ambient-glow-a" aria-hidden="true"></div>
     <div class="ambient-glow ambient-glow-b" aria-hidden="true"></div>
-
     <header class="topbar glass">
       <a href="#home" class="brand" data-nav="home" aria-label="The Grid home">
         <span class="brand-mark"></span>
         <span class="brand-text">The Grid</span>
       </a>
-
       <button class="menu-toggle" id="menuToggle" aria-expanded="false" aria-controls="primaryNav">
-        <span></span>
-        <span></span>
+        <span></span><span></span>
       </button>
-
       <nav id="primaryNav" class="nav" aria-label="Primary navigation">
         <button class="nav-link active" data-nav="home">Home</button>
         <button class="nav-link" data-nav="hub">Hub</button>
@@ -35,84 +31,115 @@
         <button class="nav-link" data-nav="routes">Story Routes</button>
       </nav>
     </header>
-
     <main class="page-stack">
-
-      <!-- HOME -->
       <section id="home" class="page active" data-page="home" aria-labelledby="homeTitle">
         <div class="container hero-grid">
           <div class="hero-copy">
             <p class="eyebrow">Private network access</p>
             <h1 id="homeTitle">Enter The Grid</h1>
-            <p class="lede">
-              A dark social hub built around presence, live rooms, and private signals.
-              Less platform. More access.
-            </p>
+            <p class="lede">A dark social hub built around presence, live rooms, and private signals. Less platform. More access.</p>
             <div class="hero-actions">
               <button class="btn btn-primary" data-nav="hub">Enter The Grid</button>
               <button class="btn btn-secondary" data-nav="rooms">View Live Nodes</button>
             </div>
             <div class="hero-stats">
-              <div class="stat glass">
-                <span class="stat-value" id="statNodes">12</span>
-                <span class="stat-label">Nodes online</span>
-              </div>
-              <div class="stat glass">
-                <span class="stat-value" id="statRooms">4</span>
-                <span class="stat-label">Active rooms</span>
-              </div>
-              <div class="stat glass">
-                <span class="stat-value" id="statInvites">1</span>
-                <span class="stat-label">Live invites</span>
-              </div>
+              <div class="stat glass"><span class="stat-value" id="statNodes">12</span><span class="stat-label">Nodes online</span></div>
+              <div class="stat glass"><span class="stat-value" id="statRooms">4</span><span class="stat-label">Active rooms</span></div>
+              <div class="stat glass"><span class="stat-value" id="statInvites">1</span><span class="stat-label">Live invites</span></div>
             </div>
           </div>
-
           <div class="hero-visual">
             <div class="hero-network glass">
               <div class="network-node node-a"></div>
               <div class="network-node node-b"></div>
               <div class="network-node node-c"></div>
               <div class="network-node node-d"></div>
-
-              <article class="floating-card glass">
-                <div class="avatar avatar-nina">N</div>
-                <div>
-                  <strong>Nina</strong>
-                  <p>Still holding the thread.</p>
-                </div>
-                <span class="badge online">online</span>
-              </article>
+              <article class="floating-card glass"><div class="avatar avatar-nina">N</div><div><strong>Nina</strong><p>Still holding the thread.</p></div><span class="badge online">online</span></article>
+              <article class="floating-card glass secondary"><div class="avatar avatar-hazel">H</div><div><strong>Hazel</strong><p>Watching before she speaks.</p></div><span class="badge away">away</span></article>
+              <article class="floating-card glass tertiary"><div class="avatar avatar-vale">V</div><div><strong>Vale</strong><p>Only active when it matters.</p></div><span class="badge online">active</span></article>
             </div>
           </div>
         </div>
       </section>
-
       <section id="hub" class="page" data-page="hub" aria-labelledby="hubTitle">
         <div class="container">
-          <h1 id="hubTitle">The Grid Hub</h1>
+          <div class="page-title-row">
+            <div><p class="eyebrow">Live network state</p><h1 id="hubTitle">The Grid Hub</h1><p class="subtle">A two-panel live surface for public motion and open signal.</p></div>
+            <div class="mini-stats"><span class="pill">12 nodes online</span><span class="pill">4 rooms active</span><span class="pill">updated just now</span></div>
+          </div>
+          <div class="hub-layout">
+            <section class="panel glass">
+              <div class="panel-head"><h2>Live Activity</h2><span class="pulse-pill">streaming</span></div>
+              <div class="feed-list" id="feedList" aria-live="polite">
+                <article class="feed-item"><span class="feed-dot"></span><div><strong>Nina</strong> opened her room <time>1m ago</time></div></article>
+                <article class="feed-item"><span class="feed-dot"></span><div><strong>Hazel</strong> replied in The Main <time>now</time></div></article>
+                <article class="feed-item"><span class="feed-dot"></span><div><strong>Vale</strong> entered Story Route 03 <time>3m ago</time></div></article>
+              </div>
+            </section>
+            <section class="panel glass">
+              <div class="panel-head"><h2>The Main</h2><span class="status status-online"><span class="dot"></span> Open chat</span></div>
+              <div class="chat-thread" id="mainChat">
+                <div class="chat-bubble incoming"><span class="chat-author">Nina</span><p>You came back.</p><time>20:41</time></div>
+                <div class="chat-bubble incoming alt"><span class="chat-author">Hazel</span><p>Some rooms are quieter tonight.</p><time>20:42</time></div>
+                <div class="chat-bubble outgoing"><span class="chat-author">You</span><p>Who's still active?</p><time>20:42</time></div>
+              </div>
+              <form class="chat-compose" id="mainChatForm">
+                <label class="sr-only" for="mainChatInput">Message The Main</label>
+                <input id="mainChatInput" type="text" placeholder="Type into The Main..." maxlength="140" />
+                <button type="submit" class="btn btn-primary btn-small">Send</button>
+              </form>
+            </section>
+          </div>
         </div>
       </section>
-
       <section id="rooms" class="page" data-page="rooms" aria-labelledby="roomsTitle">
         <div class="container">
-          <h1 id="roomsTitle">Private Rooms</h1>
+          <div class="page-title-row">
+            <div><p class="eyebrow">Selective access</p><h1 id="roomsTitle">Private Rooms</h1><p class="subtle">Some rooms are quiet. Some are waiting for you.</p></div>
+            <div class="mini-stats"><span class="pill">7 nodes online</span><span class="pill">2 rooms active</span><span class="pill" id="inviteStatusPill">1 direct invite waiting</span></div>
+          </div>
+          <div class="invite-banner glass" id="inviteBanner" aria-live="polite">
+            <div class="invite-left"><div class="avatar avatar-nina">N</div><div><p class="invite-title">Live Invite</p><strong id="inviteName">Nina</strong><p id="inviteCopy">Come back. I want to finish that conversation.</p></div></div>
+            <div class="invite-actions"><button class="btn btn-primary btn-small" id="enterInviteBtn">Enter</button><button class="btn btn-secondary btn-small" id="dismissInviteBtn">Maybe later</button></div>
+            <div class="invite-timer"><span id="inviteTimerText">fades in 60s</span><div class="timer-bar"><span id="timerProgress"></span></div></div>
+          </div>
+          <div class="card-grid rooms-grid">
+            <article class="room-card glass invited" data-room="nina"><div class="card-top"><div class="avatar avatar-nina">N</div><span class="status status-online"><span class="dot"></span> online now</span></div><h3>Nina</h3><p class="mood">Still holding the thread.</p><p class="last-active">active now</p><button class="btn btn-secondary btn-full">Enter Room</button></article>
+            <article class="room-card glass" data-room="hazel"><div class="card-top"><div class="avatar avatar-hazel">H</div><span class="status status-away"><span class="dot"></span> away</span></div><h3>Hazel</h3><p class="mood">You disappeared too early.</p><p class="last-active">active 2m ago</p><button class="btn btn-secondary btn-full">Enter Room</button></article>
+            <article class="room-card glass" data-room="iris"><div class="card-top"><div class="avatar avatar-iris">I</div><span class="status status-online"><span class="dot"></span> listening</span></div><h3>Iris</h3><p class="mood">There's something she only says in private.</p><p class="last-active">active now</p><button class="btn btn-secondary btn-full">Enter Room</button></article>
+            <article class="room-card glass" data-room="vale"><div class="card-top"><div class="avatar avatar-vale">V</div><span class="status status-offline"><span class="dot"></span> invite only</span></div><h3>Vale</h3><p class="mood">Not open to everyone tonight.</p><p class="last-active">last seen 18m ago</p><button class="btn btn-secondary btn-full" disabled>Invite Only</button></article>
+          </div>
         </div>
       </section>
-
       <section id="inbox" class="page" data-page="inbox" aria-labelledby="inboxTitle">
         <div class="container">
-          <h1 id="inboxTitle">Inbox</h1>
+          <div class="page-title-row"><div><p class="eyebrow">Direct channel</p><h1 id="inboxTitle">Inbox / DMs</h1><p class="subtle">Quiet threads. Minimal chrome. High signal.</p></div></div>
+          <div class="inbox-layout glass">
+            <aside class="thread-list" aria-label="Message threads">
+              <button class="thread-item active" data-thread="nina"><div class="avatar avatar-nina">N</div><div class="thread-copy"><strong>Nina</strong><p>I'm still here.</p></div><div class="thread-meta"><span>2m</span><span class="unread-dot"></span></div></button>
+              <button class="thread-item" data-thread="hazel"><div class="avatar avatar-hazel">H</div><div class="thread-copy"><strong>Hazel</strong><p>Ignore that if you want.</p></div><div class="thread-meta"><span>9m</span></div></button>
+              <button class="thread-item" data-thread="vale"><div class="avatar avatar-vale">V</div><div class="thread-copy"><strong>Vale</strong><p>Room's open.</p></div><div class="thread-meta"><span>now</span><span class="unread-dot"></span></div></button>
+            </aside>
+            <section class="dm-panel">
+              <div class="dm-head"><div class="dm-user"><div class="avatar avatar-nina" id="dmAvatar">N</div><div><strong id="dmName">Nina</strong><p id="dmStatus" class="subtle">online now</p></div></div><button class="btn btn-secondary btn-small" data-nav="rooms">Enter Room</button></div>
+              <div class="dm-thread" id="dmThread"></div>
+              <form class="chat-compose" id="dmForm"><label class="sr-only" for="dmInput">Message inbox thread</label><input id="dmInput" type="text" placeholder="Write a private message..." maxlength="160" /><button type="submit" class="btn btn-primary btn-small">Send</button></form>
+            </section>
+          </div>
         </div>
       </section>
-
       <section id="routes" class="page" data-page="routes" aria-labelledby="routesTitle">
         <div class="container">
-          <h1 id="routesTitle">Story Routes</h1>
+          <div class="page-title-row"><div><p class="eyebrow">Narrative system</p><h1 id="routesTitle">Story Routes</h1><p class="subtle">Follow active threads. Unlock what only appears when you stay with it.</p></div></div>
+          <div class="card-grid three-col">
+            <article class="route-card glass"><span class="route-tag">Route 01</span><h3>The Return</h3><p>You came back before the signal fully faded.</p><div class="progress"><span class="progress-bar" style="width:72%"></span></div><div class="route-foot"><span>72% unlocked</span><button class="btn btn-secondary btn-small">Continue</button></div></article>
+            <article class="route-card glass"><span class="route-tag">Route 02</span><h3>After The Main</h3><p>What happens after public conversation closes.</p><div class="progress"><span class="progress-bar" style="width:38%"></span></div><div class="route-foot"><span>invite triggered</span><button class="btn btn-secondary btn-small">Open</button></div></article>
+            <article class="route-card glass"><span class="route-tag">Route 03</span><h3>Static Between Us</h3><p>A branch that opens only after direct contact.</p><div class="progress"><span class="progress-bar" style="width:15%"></span></div><div class="route-foot"><span>partially locked</span><button class="btn btn-secondary btn-small">View</button></div></article>
+          </div>
         </div>
       </section>
     </main>
-    <footer class="footer glass"><p>The Grid</p></footer>
+    <footer class="footer glass"><p>The Grid</p><p class="subtle">Private network access.</p></footer>
   </div>
   <script src="app.js"></script>
 </body>
