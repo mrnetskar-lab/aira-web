@@ -1261,3 +1261,133 @@ h3 {
     width: auto;
   }
 }
+
+/* ── Presence grid (Hub) ── */
+.presence-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.presence-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1.25rem;
+  border-radius: var(--radius);
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  width: 100%;
+}
+
+.presence-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-neon), var(--shadow);
+}
+
+.presence-card strong {
+  font-size: 1rem;
+  letter-spacing: -0.02em;
+}
+
+.presence-card .subtle {
+  font-size: 0.82rem;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.presence-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.4rem;
+}
+
+/* ── Slide-in invite panel ── */
+.invite-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: min(360px, 92vw);
+  height: 100vh;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 2rem 1.5rem;
+  transform: translateX(100%);
+  transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  border-left: 1px solid var(--glass-border);
+}
+
+.invite-panel.open {
+  transform: translateX(0);
+}
+
+.invite-panel-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.invite-panel-avatar {
+  margin-bottom: 0.5rem;
+}
+
+.invite-panel-avatar .avatar {
+  width: 56px;
+  height: 56px;
+  font-size: 1.2rem;
+  border-radius: 18px;
+}
+
+.invite-panel-copy {
+  font-size: 1rem;
+  line-height: 1.55;
+  color: var(--text);
+  margin: 0;
+}
+
+.invite-panel-timer {
+  margin: 0.25rem 0;
+}
+
+.invite-panel-timer span {
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-family: ui-monospace, monospace;
+  letter-spacing: 0.06em;
+  display: block;
+  margin-bottom: 0.4rem;
+}
+
+.invite-panel-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.invite-panel-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 199;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(2px);
+}
+
+.invite-panel-backdrop.hidden {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .presence-grid {
+    grid-template-columns: 1fr;
+  }
+}

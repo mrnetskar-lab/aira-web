@@ -84,9 +84,11 @@ const mainChat = document.getElementById("mainChat");
 const mainChatForm = document.getElementById("mainChatForm");
 const mainChatInput = document.getElementById("mainChatInput");
 
-const inviteBanner = document.getElementById("inviteBanner");
-const inviteName = document.getElementById("inviteName");
-const inviteCopy = document.getElementById("inviteCopy");
+const invitePanel = document.getElementById("invitePanel");
+const inviteBackdrop = document.getElementById("inviteBackdrop");
+const invitePanelAvatar = document.getElementById("invitePanelAvatar");
+const invitePanelName = document.getElementById("invitePanelName");
+const invitePanelCopy = document.getElementById("invitePanelCopy");
 const inviteTimerText = document.getElementById("inviteTimerText");
 const timerProgress = document.getElementById("timerProgress");
 const dismissInviteBtn = document.getElementById("dismissInviteBtn");
@@ -799,33 +801,42 @@ dmForm?.addEventListener("submit", async event => {
 });
 
 function updateInviteTimer() {
-  inviteTimerText.textContent = `expires in ${inviteCountdown}s`;
-  timerProgress.style.width = `${(inviteCountdown / 60) * 100}%`;
+  if (inviteTimerText) inviteTimerText.textContent = `expires in ${inviteCountdown}s`;
+  if (timerProgress) timerProgress.style.width = `${(inviteCountdown / 60) * 100}%`;
 }
 
 function hideInvite(expired = false) {
-  if (!inviteBanner) return;
-
-  inviteBanner.classList.add("hidden");
-  inviteStatusPill.textContent = expired ? "No live invites right now" : "Invite dismissed";
-  stats.invites.textContent = "0";
+  if (invitePanel) {
+    invitePanel.classList.remove("open");
+    invitePanel.setAttribute("aria-hidden", "true");
+  }
+  if (inviteBackdrop) inviteBackdrop.classList.add("hidden");
+  if (inviteStatusPill) inviteStatusPill.textContent = expired ? "No live invites right now" : "Grid active";
+  if (stats.invites) stats.invites.textContent = "0";
 }
 
 function showInvite(index = 0) {
-  if (!inviteBanner) return;
+  if (!invitePanel) return;
 
   const invite = invitePool[index % invitePool.length];
-  inviteName.textContent = invite.name;
-  inviteCopy.textContent = invite.copy;
-  inviteBanner.classList.remove("hidden");
-  inviteStatusPill.textContent = "1 direct invite waiting";
-  stats.invites.textContent = "1";
+  const char = characterDirectory[invite.room];
+
+  if (invitePanelAvatar) {
+    invitePanelAvatar.textContent = char?.avatar || invite.name[0];
+    invitePanelAvatar.className = `avatar avatar-${invite.room}`;
+  }
+  if (invitePanelName) invitePanelName.textContent = invite.name;
+  if (invitePanelCopy) invitePanelCopy.textContent = invite.copy;
+
+  invitePanel.classList.add("open");
+  invitePanel.setAttribute("aria-hidden", "false");
+  if (inviteBackdrop) inviteBackdrop.classList.remove("hidden");
+  if (inviteStatusPill) inviteStatusPill.textContent = "1 direct invite waiting";
+  if (stats.invites) stats.invites.textContent = "1";
 
   document.querySelectorAll(".room-card").forEach(card => {
     card.classList.remove("invited");
-    if (card.dataset.room === invite.room) {
-      card.classList.add("invited");
-    }
+    if (card.dataset.room === invite.room) card.classList.add("invited");
   });
 
   window.clearInterval(inviteInterval);
@@ -835,7 +846,6 @@ function showInvite(index = 0) {
   inviteInterval = window.setInterval(() => {
     inviteCountdown -= 1;
     updateInviteTimer();
-
     if (inviteCountdown <= 0) {
       window.clearInterval(inviteInterval);
       hideInvite(true);
@@ -844,6 +854,11 @@ function showInvite(index = 0) {
 }
 
 dismissInviteBtn?.addEventListener("click", () => {
+  window.clearInterval(inviteInterval);
+  hideInvite(false);
+});
+
+inviteBackdrop?.addEventListener("click", () => {
   window.clearInterval(inviteInterval);
   hideInvite(false);
 });
@@ -885,6 +900,16 @@ roomCards.forEach(card => {
   });
 });
 
+// Wire Hub presence cards to open rooms
+document.querySelectorAll(".presence-card[data-room]").forEach(card => {
+  card.addEventListener("click", () => {
+    const roomKey = card.dataset.room;
+    if (roomKey && threadState[roomKey]) {
+      openRoom(roomKey);
+    }
+  });
+});
+
 bootFromHash();
 
 Object.keys(characterDirectory).forEach(roomKey => {
@@ -898,7 +923,8 @@ if (window.location.hash.replace("#", "") === "inbox") {
 }
 showInvite(inviteIndex);
 
-window.setInterval(appendFeedEvent, 7000);
+// Feed interval disabled — saves API budget, feed is off
+// window.setInterval(appendFeedEvent, 7000);
 window.setInterval(cycleStats, 9000);
 window.setInterval(() => {
   inviteIndex += 1;
