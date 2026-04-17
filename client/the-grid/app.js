@@ -208,6 +208,7 @@ const feedEvents = [
 
 let activeThread = "nina";
 let inviteIndex = 0;
+const inviteFired = new Set();
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -839,7 +840,19 @@ dmForm?.addEventListener("submit", async event => {
   updateThreadPreview(activeThread, fallbackReply.text, fallbackReply.time);
   setThreadUnread(activeThread, false);
   renderDmThread(activeThread);
+  checkChemistry(activeThread);
 });
+
+function checkChemistry(roomKey) {
+  if (inviteFired.has(roomKey)) return;
+  const thread = threadState[roomKey];
+  const outgoingCount = thread.messages.filter(m => m.side === "outgoing").length;
+  if (outgoingCount >= 5) {
+    inviteFired.add(roomKey);
+    const poolIndex = invitePool.findIndex(i => i.room === roomKey);
+    if (poolIndex !== -1) window.setTimeout(() => showInvite(poolIndex), 1200);
+  }
+}
 
 // Camera button: capture image, send to server, show returned image in thread
 cameraBtn?.addEventListener('click', async () => {
@@ -1016,14 +1029,9 @@ focusThread(activeThread);
 if (window.location.hash.replace("#", "") === "inbox") {
   hydrateThread(activeThread, false);
 }
-window.setTimeout(() => showInvite(inviteIndex), 8000);
-
 // Feed interval disabled — saves API budget, feed is off
 // window.setInterval(appendFeedEvent, 7000);
 window.setInterval(cycleStats, 9000);
-window.setInterval(() => {
-  if (activeToasts.size === 0) {
-    inviteIndex += 1;
-    showInvite(inviteIndex);
-  }
-}, 30000);
+
+// Invite toasts are off by default.
+// showInvite() is called from dmForm submit after chemistry threshold is reached.
