@@ -1,4 +1,14 @@
-const AIRA_API_BASE = "https://aira-web-production.up.railway.app";
+// Resolve API base: use local same-origin during development, otherwise production API
+const AIRA_API_BASE = (() => {
+  try {
+    const host = (typeof window !== 'undefined' && window.location && window.location.hostname) ? window.location.hostname : '';
+    if (!host) return 'https://aira-web-production.up.railway.app';
+    const isLocal = host === 'localhost' || host === '127.0.0.1' || host === '::1' || host.endsWith('.local');
+    return isLocal ? '' : 'https://aira-web-production.up.railway.app';
+  } catch (e) {
+    return 'https://aira-web-production.up.railway.app';
+  }
+})();
 
 const AIRA_OPEN_ROOM_CANDIDATES = [
   { method: "GET", path: room => `/api/characters/${room}` },
