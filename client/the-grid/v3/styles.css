@@ -370,6 +370,7 @@ h3 {
     linear-gradient(rgba(124, 58, 237, 0.12) 1px, transparent 1px),
     linear-gradient(90deg, rgba(59, 130, 246, 0.12) 1px, transparent 1px);
   background-size: 56px 56px;
+  -webkit-mask-image: radial-gradient(circle at center, black, transparent 90%);
   mask-image: radial-gradient(circle at center, black, transparent 90%);
 }
 
