@@ -343,62 +343,184 @@ menuToggle?.addEventListener("click", () => {
 });
 
 // ── Thread list helpers ───────────────────────────────────
-function ensureThreadButton(roomKey) {
-  let button = threadList?.querySelector(`[data-thread="${roomKey}"]`);
-  if (button) return button;
+function getThreadRailContainer() {
+  return document.getElementById("nodeRailList") || threadList;
+}
 
-  const character = characterDirectory[roomKey];
-  if (!character || !threadList) return null;
+function getRailStateLabel(roomKey) {
+  const labels = {
+    nina: "WARM SIGNAL",
+    hazel: "OBSERVANT",
+    iris: "LOW SIGNAL",
+    vale: "UNSTABLE",
+  };
+  return labels[roomKey] || characterDirectory[roomKey]?.status || "";
+}
 
-  button = document.createElement("button");
-  button.type = "button";
-  button.className = "thread-item";
-  button.dataset.thread = roomKey;
-  button.innerHTML = `
-    <div class="avatar avatar-${escapeHtml(roomKey)}">${escapeHtml(character.avatar)}</div>
-    <div class="thread-copy">
-      <strong>${escapeHtml(character.name)}</strong>
-      <p>${escapeHtml(character.preview)}</p>
+function getRailIndicatorClass(roomKey) {
+  const map = {
+    nina: "ns-ind-online",
+    hazel: "ns-ind-away",
+    iris: "ns-ind-online",
+    vale: "ns-ind-unstable",
+  };
+  return map[roomKey] || "ns-ind-online";
+}
+
+function getThreadPreviewText(roomKey) {
+  const thread = threadState[roomKey];
+  const latest = getLastMessage(thread?.messages || []);
+  if (latest?.imageUrl) return "Signal fragment received.";
+  return latest?.text || thread?.preview || characterDirectory[roomKey]?.preview || "";
+}
+
+function buildNodeStripMarkup(roomKey) {
+  const char = characterDirectory[roomKey];
+  const thread = threadState[roomKey];
+  const latest = getLastMessage(thread?.messages || []);
+  const timeText = latest?.time || "now";
+  const previewText = getThreadPreviewText(roomKey);
+  const unreadAttr = thread?.unread ? "" : 'style="display:none"';
+
+  return `
+    <div class="ns-indicator ${getRailIndicatorClass(roomKey)}"></div>
+    <div class="avatar avatar-${escapeHtml(roomKey)} ns-avatar">${escapeHtml(char.avatar)}</div>
+    <div class="ns-body">
+      <div class="ns-name-row">
+        <strong class="ns-name">${escapeHtml(char.name)}</strong>
+        <span class="ns-time">${escapeHtml(timeText)}</span>
+      </div>
+      <p class="ns-preview">${escapeHtml(previewText)}</p>
+      <span class="ns-state-tag">${escapeHtml(getRailStateLabel(roomKey))}</span>
     </div>
-    <div class="thread-meta"><span>now</span></div>
+    <span class="ns-unread" ${unreadAttr}></span>
   `;
-  threadList.appendChild(button);
-  // keep index attributes in sync for keyboard navigation
+}
+
+function buildLegacyThreadMarkup(roomKey) {
+  const char = characterDirectory[roomKey];
+  const thread = threadState[roomKey];
+  const latest = getLastMessage(thread?.messages || []);
+  const previewText = getThreadPreviewText(roomKey);
+  const timeText = latest?.time || "now";
+
+  return `
+    <div class="avatar avatar-${escapeHtml(roomKey)}">${escapeHtml(char.avatar)}</div>
+    <div class="thread-copy">
+      <strong>${escapeHtml(char.name)}</strong>
+      <p>${escapeHtml(previewText)}</p>
+    </div>
+    <div class="thread-meta">
+      <span>${escapeHtml(timeText)}</span>
+      ${thread?.unread ? '<span class="unread-dot"></span>' : ""}
+    </div>
+  `;
+}
+
+function renderThreadRail() {
+  const rail = getThreadRailContainer();
+  if (!rail) return;
+
+  const useNodeRail = rail.id === "nodeRailList" || rail.classList.contains("node-rail-list");
+  rail.innerHTML = "";
+
+  Object.keys(characterDirectory).forEach((roomKey, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.thread = roomKey;
+    button.dataset.index = String(index + 1);
+    button.className = useNodeRail ? "node-strip" : "thread-item";
+
+    if (roomKey === activeThread) {
+      button.classList.add("active");
+    }
+
+    button.innerHTML = useNodeRail
+      ? buildNodeStripMarkup(roomKey)
+      : buildLegacyThreadMarkup(roomKey);
+
+    rail.appendChild(button);
+  });
+
+  const count = document.getElementById("nrhCount");
+  if (count) count.textContent = String(Object.keys(characterDirectory).length);
+
   reindexThreadList();
-  return button;
+}
+
+function ensureThreadButton(roomKey) {
+  renderThreadRail();
+  return getThreadRailContainer()?.querySelector(`[data-thread="${roomKey}"]`) || null;
 }
 
 function reindexThreadList() {
-  const items = Array.from(document.querySelectorAll('.thread-item, .node-strip'));
-  items.forEach((it, idx) => it.dataset.index = String(idx + 1));
-}
+  const rail = getThreadRailContainer();
+  if (!rail) return;
 
-function setThreadActive(roomKey) {
-  document.querySelectorAll('.thread-item, .node-strip').forEach(item => {
-    item.classList.toggle('active', item.dataset.thread === roomKey);
+  Array.from(rail.querySelectorAll("[data-thread]")).forEach((item, index) => {
+    item.dataset.index = String(index + 1);
   });
 }
 
+function setThreadActive(roomKey) {
+  document.querySelectorAll(".thread-item, .node-strip").forEach(item => {
+    item.classList.toggle("active", item.dataset.thread === roomKey);
+  });
+  ensureThreadVisible(roomKey);
+}
+
 function setThreadUnread(roomKey, unread) {
-  const button = ensureThreadButton(roomKey);
-  if (!button) return;
+  if (threadState[roomKey]) {
+    threadState[roomKey].unread = unread;
+  }
+
+  const button = getThreadRailContainer()?.querySelector(`[data-thread="${roomKey}"]`);
+  if (!button) {
+    renderThreadRail();
+    return;
+  }
+
+  if (button.classList.contains("node-strip")) {
+    const dot = button.querySelector(".ns-unread");
+    if (dot) dot.style.display = unread ? "" : "none";
+    return;
+  }
+
   const meta = button.querySelector(".thread-meta");
-  const dot  = button.querySelector(".unread-dot");
+  const dot = button.querySelector(".unread-dot");
+
   if (unread && !dot) {
     const unreadDot = document.createElement("span");
     unreadDot.className = "unread-dot";
     meta?.appendChild(unreadDot);
   }
-  if (!unread && dot) dot.remove();
+
+  if (!unread && dot) {
+    dot.remove();
+  }
 }
 
 function updateThreadPreview(roomKey, previewText, timeText = "now") {
-  const button = ensureThreadButton(roomKey);
-  if (!button) return;
-  const preview = button.querySelector(".thread-copy p");
-  const time    = button.querySelector(".thread-meta span");
+  if (threadState[roomKey]) {
+    threadState[roomKey].preview = previewText;
+  }
+
+  const button = getThreadRailContainer()?.querySelector(`[data-thread="${roomKey}"]`);
+  if (!button) {
+    renderThreadRail();
+    return;
+  }
+
+  const preview =
+    button.querySelector(".ns-preview") ||
+    button.querySelector(".thread-copy p");
+
+  const time =
+    button.querySelector(".ns-time") ||
+    button.querySelector(".thread-meta span");
+
   if (preview) preview.textContent = previewText;
-  if (time)    time.textContent    = timeText;
+  if (time) time.textContent = timeText;
 }
 
 // ── Thread rail helpers: visibility, selection, mobile drawers
@@ -517,20 +639,84 @@ function loadProfilePanel(roomKey) {
   }
 }
 
+// ── Inbox HUD sync ──────────────────────────────────────
+function syncInboxHud(roomKey) {
+  const char = characterDirectory[roomKey];
+  const thread = threadState[roomKey];
+  if (!char || !thread) return;
+
+  const latest = getLastMessage(thread.messages || []);
+  const setText = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  };
+
+  setText("dmChannelId", `${char.name} #${char.key}-private`);
+  setText("dmSceneState", char.sceneState);
+  setText("tbNodeLabel", `END-TO-END ENCRYPTED NODE: ${char.name.toUpperCase()}`);
+  setText("dossierNodeId", `NODE-${char.name.toUpperCase()}`);
+  setText("dossierNodeName", char.name);
+
+  setText("ddSignal", char.status);
+  setText("ddAccess", thread.sessionId ? "OPEN" : "PENDING");
+  setText("ddRoute", char.route.title);
+  setText("ddState", char.route.state);
+  setText("ddVector", (char.tags?.[0] || "PRIVATE").toUpperCase());
+
+  const currentContext = document.getElementById("currentContext");
+  if (currentContext && document.querySelector('.page.active')?.dataset.page === "inbox") {
+    currentContext.textContent = `NODE-${char.name.toUpperCase()}`;
+  }
+
+  const profileOpenBtn = document.getElementById("profileOpenBtn");
+  if (profileOpenBtn) {
+    profileOpenBtn.textContent = char.cta;
+    profileOpenBtn.onclick = () => openRoom(roomKey);
+  }
+
+  const profileRouteBtn =
+    document.getElementById("profileRouteBtn") ||
+    document.getElementById("viewRouteBtn");
+
+  if (profileRouteBtn) {
+    profileRouteBtn.onclick = () => {
+      appState.selectedRoom = roomKey;
+      renderRouteDetail(roomKey);
+      setActivePage("routes");
+    };
+  }
+
+  const channelBackBtn = document.getElementById("channelBackBtn");
+  if (channelBackBtn) {
+    channelBackBtn.onclick = () => setActivePage("hub");
+  }
+
+  const stateTag = document.querySelector(`[data-thread="${roomKey}"] .ns-state-tag`);
+  if (stateTag) {
+    stateTag.textContent = getRailStateLabel(roomKey);
+  }
+
+  if (latest?.imageUrl) {
+    setText("ddVector", "MEDIA");
+  }
+}
+
 // ── Focus thread (cross-section sync) ────────────────────
 function focusThread(roomKey) {
   activeThread = roomKey;
   appState.activeThread = roomKey;
   appState.selectedRoom = roomKey;
+
   setThreadActive(roomKey);
   setThreadUnread(roomKey, false);
   renderDmThread(roomKey);
   loadProfilePanel(roomKey);
+  syncInboxHud(roomKey);
   renderSpotlight(roomKey);
   renderRouteDetail(roomKey);
   renderActivityStrip();
+  ensureThreadVisible(roomKey);
 
-  // Update profile open button
   const profileOpenBtn = document.getElementById("profileOpenBtn");
   if (profileOpenBtn) {
     profileOpenBtn.onclick = () => openRoom(roomKey);
@@ -750,17 +936,19 @@ async function openRoom(roomKey, triggerButton = null) {
 
 // ── Thread list click ─────────────────────────────────────
 threadList?.addEventListener("click", event => {
-  const button = event.target.closest('.thread-item, .node-strip');
+  const button = event.target.closest("[data-thread]");
   if (!button) return;
+
   const roomKey = button.dataset.thread;
   if (!roomKey || !threadState[roomKey]) return;
+
   setActivePage("inbox");
   focusThread(roomKey);
-  ensureThreadVisible(roomKey);
   hydrateThread(roomKey, false);
 
-  // close mobile drawers when selecting a thread
-  if (window.innerWidth <= 760) closeInboxDrawers();
+  if (window.innerWidth <= 760) {
+    closeInboxDrawers();
+  }
 });
 
 // ── DM form submit ────────────────────────────────────────
@@ -782,6 +970,8 @@ dmForm?.addEventListener("submit", async event => {
   const apiReply = await sendMessageToApi(activeThread, text);
 
   if (apiReply?.mode === "thread") {
+    // incoming thread from API — consider as fresh incoming but set _justSent
+    thread._justSent = true;
     thread.messages = apiReply.messages;
     thread.loadedFromApi = true;
     if (apiReply.sessionId) thread.sessionId = apiReply.sessionId;
@@ -794,6 +984,8 @@ dmForm?.addEventListener("submit", async event => {
 
   if (apiReply?.mode === "reply") {
     if (apiReply.sessionId) thread.sessionId = apiReply.sessionId;
+    // ensure scroll behavior treats this as a new incoming message
+    thread._justSent = true;
     thread.messages.push(apiReply.reply);
     thread.loadedFromApi = true;
     updateThreadPreview(activeThread, apiReply.reply.text, apiReply.reply.time);
@@ -811,6 +1003,8 @@ dmForm?.addEventListener("submit", async event => {
 
   const delay = 600 + Math.floor(Math.random() * 600);
   setTimeout(() => {
+    // mark so renderDmThread will scroll into view if appropriate
+    thread._justSent = true;
     thread.messages.push(fallbackReply);
     updateThreadPreview(activeThread, fallbackReply.text, fallbackReply.time);
     setThreadUnread(activeThread, false);
@@ -1231,7 +1425,7 @@ document.querySelectorAll(".route-node").forEach(node => {
 // ── Boot ──────────────────────────────────────────────────
 bootFromHash();
 
-Object.keys(characterDirectory).forEach(roomKey => ensureThreadButton(roomKey));
+renderThreadRail();
 
 seedSignalFeed();
 renderSignalFeed();
@@ -1242,9 +1436,7 @@ renderRouteRail();
 renderRouteDetail(appState.selectedRoom);
 focusThread(activeThread);
 
-if (window.location.hash.replace("#", "") === "inbox") {
-  hydrateThread(activeThread, false);
-}
+hydrateThread(activeThread, false);
 
 window.setInterval(pushAmbientSystemEvent, 7000);
 window.setInterval(cycleLiveState, 9000);
