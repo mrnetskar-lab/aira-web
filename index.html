@@ -1,13 +1,53 @@
 <!doctype html>
-<html lang="no">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>The Grid</title>
-  <meta name="description" content="The Grid — dark social hub prototype with live rooms, inbox, routes, and network presence." />
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <meta name="description" content="The Grid — hub with independently scrollable panels." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">The Grid</div>
+      <nav class="topnav" aria-label="Primary">
+        <button class="nav-link is-active" data-nav="hub">Hub</button>
+        <button class="nav-link" data-nav="inbox">Inbox</button>
+        <button class="nav-link" data-nav="rooms">Rooms</button>
+      </nav>
+    </header>
+
+    <main class="views" id="hubView">
+      <aside class="panel thread-list" aria-label="Threads">
+        <div class="panel-header">Threads</div>
+        <div class="content" id="threadList"></div>
+      </aside>
+
+      <section class="panel chat-panel" aria-label="Chat">
+        <div class="panel-header">Chat</div>
+        <div class="messages" id="chatMessages"></div>
+        <form class="composer" id="chatForm">
+          <input id="chatInput" type="text" placeholder="Send signal…" autocomplete="off" />
+          <button type="submit">Send</button>
+        </form>
+      </section>
+
+      <section class="panel gallery-panel" aria-label="Gallery">
+        <div class="panel-header">Gallery</div>
+        <div class="grid" id="galleryGrid"></div>
+      </section>
+
+      <section class="panel view-panel" aria-label="Live view">
+        <div class="panel-header">Live View</div>
+        <div class="content" id="detailView"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
