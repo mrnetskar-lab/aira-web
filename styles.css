@@ -1,19 +1,210 @@
 :root {
-  --bg: #0a0a0f;
-  --surface: #0d0d1a;
-  --surface-2: rgba(13, 13, 26, 0.72);
-  --line: rgba(124, 58, 237, 0.18);
-  --line-2: rgba(59, 130, 246, 0.18);
-  --text: #eef2ff;
-  --muted: #a8b0c7;
-  --violet: #7c3aed;
-  --blue: #3b82f6;
-  --green: #22c55e;
-  --danger: #fb7185;
-  --border: rgba(255, 255, 255, 0.08);
-  --shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
-  --shadow-neon: 0 0 0 1px rgba(124, 58, 237, 0.1), 0 0 40px rgba(59, 130, 246, 0.14);
-  --radius: 22px;
-  --radius-sm: 16px;
-  --max: 1240px;
+  --bg: #09070f;
+  --surface: #141026;
+  --surface-2: #1c1533;
+  --line: rgba(255, 255, 255, 0.09);
+  --text: #f2f1ff;
+  --muted: #b5b1d1;
+  --accent: #8f7bff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  font-family: Inter, system-ui, sans-serif;
+  background: radial-gradient(circle at 10% 10%, #1a1333 0%, var(--bg) 42%);
+  color: var(--text);
+}
+
+.app-shell {
+  min-height: 100vh;
+}
+
+.topbar {
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(7, 6, 12, 0.84);
+  backdrop-filter: blur(8px);
+}
+
+.brand {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.topnav {
+  display: flex;
+  gap: 8px;
+}
+
+.nav-link {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+
+.nav-link.is-active {
+  color: var(--text);
+  border-color: rgba(143, 123, 255, 0.5);
+}
+
+/* Independent Scrolling Fix for The Grid */
+
+/* Constrain main views container to viewport minus topbar */
+.views {
+  height: calc(100vh - 60px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  padding: 10px;
+}
+
+/* Make each panel independently scrollable */
+.thread-list,
+.chat-panel,
+.gallery-panel,
+.view-panel {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  padding: 10px;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(29, 23, 50, 0.75), rgba(14, 10, 25, 0.75));
+}
+
+.panel-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  margin: -10px -10px 10px;
+  padding: 10px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(20, 16, 38, 0.95);
+  font-weight: 600;
+}
+
+/* Ensure content containers don't break the scroll */
+.thread-list .content,
+.chat-panel .messages,
+.gallery-panel .grid,
+.view-panel .content {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.thread-list .content,
+.gallery-panel .grid,
+.view-panel .content,
+.chat-panel .messages {
+  gap: 8px;
+}
+
+.chat-panel .messages {
+  padding-bottom: 8px;
+}
+
+.composer {
+  margin-top: auto;
+  display: flex;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  background: rgba(20, 16, 38, 0.9);
+}
+
+.composer input {
+  flex: 1;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--text);
+  padding: 10px;
+}
+
+.composer button {
+  border: 1px solid rgba(143, 123, 255, 0.6);
+  color: var(--text);
+  background: rgba(143, 123, 255, 0.2);
+  border-radius: 10px;
+  padding: 0 14px;
+  cursor: pointer;
+}
+
+.card,
+.message,
+.tile {
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.tile {
+  min-height: 92px;
+}
+
+/* Optional: Custom scrollbar styling */
+.thread-list::-webkit-scrollbar,
+.chat-panel::-webkit-scrollbar,
+.gallery-panel::-webkit-scrollbar,
+.view-panel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.thread-list::-webkit-scrollbar-thumb,
+.chat-panel::-webkit-scrollbar-thumb,
+.gallery-panel::-webkit-scrollbar-thumb,
+.view-panel::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+}
+
+@media (max-width: 1100px) {
+  .views {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: calc(100vh - 60px);
+  }
+
+  .panel {
+    min-height: 320px;
+  }
+
+  .thread-list,
+  .chat-panel,
+  .gallery-panel,
+  .view-panel {
+    min-width: calc(50% - 5px);
+  }
+}
+
+@media (max-width: 700px) {
+  .thread-list,
+  .chat-panel,
+  .gallery-panel,
+  .view-panel {
+    min-width: 100%;
+  }
 }
